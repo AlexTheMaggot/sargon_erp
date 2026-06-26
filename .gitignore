@@ -3,3 +3,4 @@
 /.env
 __pycache__/
 *.py[cod]
+/sargon_erp/mainapp/src/node_modules/
