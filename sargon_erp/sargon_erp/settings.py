@@ -18,7 +18,10 @@ SECRET_KEY = env('DJANGO_SECRET_KEY')
 DEBUG = env.bool('DJANGO_DEBUG')
 ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS')
 
+JWT_ACCESS_TOKEN_LIFETIME_MINUTES = env.int('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=60)
+
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -26,7 +29,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'mainapp.apps.MainappConfig',
-    'api.apps.ApiConfig'
+    'api.apps.ApiConfig',
 ]
 
 MIDDLEWARE = [
@@ -57,6 +60,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'sargon_erp.wsgi.application'
+ASGI_APPLICATION = 'sargon_erp.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
 
 DATABASES = {
     'default': {
