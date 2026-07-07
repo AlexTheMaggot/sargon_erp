@@ -1,0 +1,30 @@
+name: Deploy Sargon ERP
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: sargon-erp-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on:
+      - self-hosted
+      - sargon-erp
+      - linux
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy application
+        env:
+          APP_DIR: /home/sargon_erp
+        run: bash scripts/deploy.sh
