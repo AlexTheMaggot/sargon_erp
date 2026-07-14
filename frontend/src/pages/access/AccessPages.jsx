@@ -149,7 +149,13 @@ export function AccessGroupsPage({ onLogout, token, user }) {
   }
 
   function openEditModal(item) {
-    setGroupForm({ id: item.id, name: item.name, description: item.description, module_ids: item.module_ids })
+    setGroupForm({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      module_ids: item.module_ids,
+      start_module_id: item.start_module_id || '',
+    })
     setIsFormOpen(true)
   }
 
@@ -165,6 +171,16 @@ export function AccessGroupsPage({ onLogout, token, user }) {
     if (isDeleted) {
       setDeleteTarget(null)
     }
+  }
+
+  function handleGroupModulesChange(event) {
+    const moduleIds = Array.from(event.target.selectedOptions).map((option) => Number(option.value))
+    const hasStartModule = moduleIds.map(String).includes(String(groupForm.start_module_id))
+    setGroupForm({
+      ...groupForm,
+      module_ids: moduleIds,
+      start_module_id: hasStartModule ? groupForm.start_module_id : '',
+    })
   }
 
   return (
@@ -198,7 +214,11 @@ export function AccessGroupsPage({ onLogout, token, user }) {
           <div className="entity-list">
             {groupControls.paginatedItems.map((item) => (
               <div className="entity-row" key={item.id}>
-                <div><strong>{item.name}</strong><span>{item.modules.map((moduleItem) => moduleItem.name).join(', ') || 'Без модулей'}</span></div>
+                <div>
+                  <strong>{item.name}</strong>
+                  <span>{item.modules.map((moduleItem) => moduleItem.name).join(', ') || 'Без модулей'}</span>
+                  <span>Стартовая страница: {item.start_module?.name || 'автоматически'}</span>
+                </div>
                 <div className="row-actions">
                   <button type="button" onClick={() => openEditModal(item)}>Изменить</button>
                   <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>Удалить</button>
@@ -215,8 +235,14 @@ export function AccessGroupsPage({ onLogout, token, user }) {
           <form className="crud-form" onSubmit={handleGroupSubmit}>
             <input placeholder="Название группы" value={groupForm.name} onChange={(event) => setGroupForm({ ...groupForm, name: event.target.value })} />
             <textarea placeholder="Описание" value={groupForm.description} onChange={(event) => setGroupForm({ ...groupForm, description: event.target.value })} />
-            <select multiple value={groupForm.module_ids.map(String)} onChange={(event) => setGroupForm({ ...groupForm, module_ids: Array.from(event.target.selectedOptions).map((option) => Number(option.value)) })}>
+            <select multiple value={groupForm.module_ids.map(String)} onChange={handleGroupModulesChange}>
               {modules.map((moduleItem) => <option key={moduleItem.id} value={moduleItem.id}>{moduleItem.name}</option>)}
+            </select>
+            <select value={groupForm.start_module_id} onChange={(event) => setGroupForm({ ...groupForm, start_module_id: event.target.value })}>
+              <option value="">Стартовая страница автоматически</option>
+              {modules
+                .filter((moduleItem) => groupForm.module_ids.map(String).includes(String(moduleItem.id)))
+                .map((moduleItem) => <option key={moduleItem.id} value={moduleItem.id}>{moduleItem.name}</option>)}
             </select>
             <div className="form-actions">
               <button type="submit">{groupForm.id ? 'Сохранить' : 'Создать'}</button>
@@ -244,6 +270,7 @@ export function AccessModulesPage({ onLogout, token, user }) {
     item.code,
     item.name,
     item.description,
+    item.default_path,
     item.is_active ? 'активен' : 'выключен',
   ].join(' '))
   const [moduleForm, setModuleForm] = useState(emptyModuleForm)
@@ -305,7 +332,7 @@ export function AccessModulesPage({ onLogout, token, user }) {
           <div className="entity-list">
             {moduleControls.paginatedItems.map((item) => (
               <div className="entity-row" key={item.id}>
-                <div><strong>{item.name}</strong><span>{item.code} · {item.is_active ? 'активен' : 'выключен'}</span></div>
+                <div><strong>{item.name}</strong><span>{item.code} · {item.default_path || 'маршрут не задан'} · {item.is_active ? 'активен' : 'выключен'}</span></div>
                 <div className="row-actions">
                   <button type="button" onClick={() => openEditModal(item)}>Изменить</button>
                   <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>Удалить</button>
@@ -322,6 +349,7 @@ export function AccessModulesPage({ onLogout, token, user }) {
           <form className="crud-form" onSubmit={handleModuleSubmit}>
             <input placeholder="Код" value={moduleForm.code} onChange={(event) => setModuleForm({ ...moduleForm, code: event.target.value })} />
             <input placeholder="Название" value={moduleForm.name} onChange={(event) => setModuleForm({ ...moduleForm, name: event.target.value })} />
+            <input placeholder="Стартовый маршрут, например /laboratory/analyses" value={moduleForm.default_path} onChange={(event) => setModuleForm({ ...moduleForm, default_path: event.target.value })} />
             <textarea placeholder="Описание" value={moduleForm.description} onChange={(event) => setModuleForm({ ...moduleForm, description: event.target.value })} />
             <label className="inline-check">
               <input type="checkbox" checked={moduleForm.is_active} onChange={(event) => setModuleForm({ ...moduleForm, is_active: event.target.checked })} />
