@@ -9,6 +9,10 @@ import './App.css'
 
 const TOKEN_STORAGE_KEY = 'sargon_access_token'
 
+function getUserStartPath(user) {
+  return user?.start_path || '/welcome'
+}
+
 function hasModuleAccess(user, moduleCode) {
   if (!moduleCode) {
     return true
@@ -42,8 +46,8 @@ function LoginPage({ onLogin }) {
         throw new Error(data.detail || 'Не удалось войти')
       }
 
-      onLogin(data.access, data.user)
-      navigate('/welcome', { replace: true })
+      const startPath = onLogin(data.access, data.user)
+      navigate(startPath, { replace: true })
     } catch (loginError) {
       setError(loginError.message)
     } finally {
@@ -153,10 +157,11 @@ function ProtectedRoute({ children, moduleCode, token, user }) {
 
 function AppRoutes({ onLogin, onLogout, token, user }) {
   const hasToken = Boolean(token)
+  const startPath = getUserStartPath(user)
 
   return (
     <Routes>
-      <Route path="/login" element={hasToken ? <Navigate to="/welcome" replace /> : <LoginPage onLogin={onLogin} />} />
+      <Route path="/login" element={hasToken ? <Navigate to={startPath} replace /> : <LoginPage onLogin={onLogin} />} />
       <Route path="/welcome" element={<ProtectedRoute token={token} user={user}><WelcomePage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/raw-material/receipts" element={<ProtectedRoute moduleCode="raw-material-receiving" token={token} user={user}><RawMaterialReceiptsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/laboratory/analyses" element={<ProtectedRoute moduleCode="laboratory-analysis" token={token} user={user}><LaboratoryAnalysesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
@@ -167,7 +172,7 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
       <Route path="/access/groups" element={<ProtectedRoute moduleCode="access" token={token} user={user}><AccessGroupsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/access/modules" element={<ProtectedRoute moduleCode="access" token={token} user={user}><AccessModulesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/access/permissions" element={<ProtectedRoute moduleCode="access" token={token} user={user}><AccessPermissionsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to={hasToken ? '/welcome' : '/login'} replace />} />
+      <Route path="*" element={<Navigate to={hasToken ? startPath : '/login'} replace />} />
     </Routes>
   )
 }
@@ -220,6 +225,7 @@ function AppContent() {
     localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
     setToken(nextToken)
     setUser(nextUser)
+    return getUserStartPath(nextUser)
   }
 
   function handleLogout() {
