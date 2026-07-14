@@ -16,6 +16,8 @@ from .views import directory_supplier_detail_view
 from .views import directory_suppliers_view
 from .views import laboratory_analyses_view
 from .views import laboratory_analysis_detail_view
+from .views import raw_material_batch_detail_view
+from .views import raw_material_receipt_batches_view
 from .views import raw_material_receipt_detail_view
 from .views import raw_material_receipts_view
 
@@ -37,6 +39,8 @@ urlpatterns = [
     path('directories/suppliers/<int:supplier_id>/', directory_supplier_detail_view, name='directory-supplier-detail'),
     path('raw-material/receipts/', raw_material_receipts_view, name='raw-material-receipts'),
     path('raw-material/receipts/<int:receipt_id>/', raw_material_receipt_detail_view, name='raw-material-receipt-detail'),
+    path('raw-material/receipts/<int:receipt_id>/batches/', raw_material_receipt_batches_view, name='raw-material-receipt-batches'),
+    path('raw-material/batches/<int:batch_id>/', raw_material_batch_detail_view, name='raw-material-batch-detail'),
     path('laboratory/analyses/', laboratory_analyses_view, name='laboratory-analyses'),
     path('laboratory/analyses/<int:analysis_id>/', laboratory_analysis_detail_view, name='laboratory-analysis-detail'),
 ]
