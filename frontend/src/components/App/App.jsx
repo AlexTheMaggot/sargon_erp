@@ -166,7 +166,7 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
       <Route path="/raw-material/receipts" element={<ProtectedRoute moduleCode="raw-material-receiving" token={token} user={user}><RawMaterialReceiptsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/laboratory/analyses" element={<ProtectedRoute moduleCode="laboratory-analysis" token={token} user={user}><LaboratoryAnalysesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/directories/cities" element={<ProtectedRoute moduleCode="access" token={token} user={user}><CitiesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
-      <Route path="/directories/suppliers" element={<ProtectedRoute moduleCode="access" token={token} user={user}><SuppliersPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/directories/suppliers" element={<ProtectedRoute moduleCode="suppliers" token={token} user={user}><SuppliersPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/access" element={<ProtectedRoute moduleCode="access" token={token} user={user}><Navigate to="/access/users" replace /></ProtectedRoute>} />
       <Route path="/access/users" element={<ProtectedRoute moduleCode="access" token={token} user={user}><AccessUsersPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/access/groups" element={<ProtectedRoute moduleCode="access" token={token} user={user}><AccessGroupsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />

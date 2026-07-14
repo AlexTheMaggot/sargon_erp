@@ -37,6 +37,7 @@ MODULE_ACCESS = 'access'
 MODULE_DASHBOARD = 'dashboard'
 MODULE_LABORATORY = 'laboratory-analysis'
 MODULE_RAW_MATERIAL = 'raw-material-receiving'
+MODULE_SUPPLIERS = 'suppliers'
 
 PERMISSION_APPROVE = 'approve'
 PERMISSION_VIEW = 'view'
@@ -204,7 +205,7 @@ def _has_any_permission(user, permission_pairs):
     return any(_has_permission(user, module_code, permission_code) for module_code, permission_code in permission_pairs)
 
 
-def _require_directory_permission(request):
+def _require_city_permission(request):
     user, error = _require_auth(request)
     if error:
         return None, error
@@ -213,10 +214,26 @@ def _require_directory_permission(request):
         can_view_directory = _has_any_permission(user, [
             (MODULE_ACCESS, PERMISSION_VIEW),
             (MODULE_RAW_MATERIAL, PERMISSION_VIEW),
+            (MODULE_SUPPLIERS, PERMISSION_VIEW),
         ])
         if not can_view_directory:
             return None, _permission_denied()
     elif not _has_permission(user, MODULE_ACCESS, _method_permission(request)):
+        return None, _permission_denied()
+
+    return user, None
+
+
+def _require_supplier_permission(request):
+    user, error = _require_auth(request)
+    if error:
+        return None, error
+
+    required_permission = _method_permission(request)
+    if not _has_any_permission(user, [
+        (MODULE_ACCESS, required_permission),
+        (MODULE_SUPPLIERS, required_permission),
+    ]):
         return None, _permission_denied()
 
     return user, None
@@ -862,7 +879,7 @@ def access_permission_detail_view(request, permission_id):
 
 @csrf_exempt
 def directory_cities_view(request):
-    _, error = _require_directory_permission(request)
+    _, error = _require_city_permission(request)
     if error:
         return error
 
@@ -890,7 +907,7 @@ def directory_cities_view(request):
 
 @csrf_exempt
 def directory_city_detail_view(request, city_id):
-    _, error = _require_directory_permission(request)
+    _, error = _require_city_permission(request)
     if error:
         return error
 
@@ -930,7 +947,7 @@ def directory_city_detail_view(request, city_id):
 
 @csrf_exempt
 def directory_suppliers_view(request):
-    _, error = _require_directory_permission(request)
+    _, error = _require_supplier_permission(request)
     if error:
         return error
 
@@ -969,7 +986,7 @@ def directory_suppliers_view(request):
 
 @csrf_exempt
 def directory_supplier_detail_view(request, supplier_id):
-    _, error = _require_directory_permission(request)
+    _, error = _require_supplier_permission(request)
     if error:
         return error
 

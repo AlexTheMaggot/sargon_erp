@@ -4,10 +4,9 @@ export const navItems = [
   { path: '/laboratory/analyses', label: 'Лабораторный анализ', moduleCode: 'laboratory-analysis' },
   {
     label: 'Справочник',
-    moduleCode: 'access',
     children: [
       { path: '/directories/cities', label: 'Города', moduleCode: 'access' },
-      { path: '/directories/suppliers', label: 'Поставщики', moduleCode: 'access' },
+      { path: '/directories/suppliers', label: 'Поставщики', moduleCode: 'suppliers' },
     ],
   },
   {
