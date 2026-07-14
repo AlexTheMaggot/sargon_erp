@@ -3,9 +3,18 @@ import { apiRequest, fetchOperationsData } from '../api/client'
 
 const MAX_RECONNECT_ATTEMPTS = 5
 const MAX_RECONNECT_DELAY = 10000
+const OPERATIONS_REFRESH_INTERVAL = 15000
 
 function receiptPath(id = '') {
   return `/api/raw-material/receipts/${id ? `${id}/` : ''}`
+}
+
+function receiptBatchesPath(receiptId) {
+  return `/api/raw-material/receipts/${receiptId}/batches/`
+}
+
+function batchPath(id) {
+  return `/api/raw-material/batches/${id}/`
 }
 
 function analysisPath(id) {
@@ -13,16 +22,16 @@ function analysisPath(id) {
 }
 
 function buildReceiptPayload(form) {
-  const payload = {
+  return {
     supplier_id: form.supplier_id,
   }
+}
 
-  if (form.can_set_quantity) {
-    payload.input_quantity = form.input_quantity
-    payload.input_unit = form.input_unit
+function buildBatchPayload(batch) {
+  return {
+    input_quantity: batch.input_quantity,
+    input_unit: batch.input_unit,
   }
-
-  return payload
 }
 
 function buildAnalysisPayload(form, statusPayload = {}) {
@@ -35,7 +44,7 @@ function buildAnalysisPayload(form, statusPayload = {}) {
   }
 }
 
-export function useOperationsCrud(token) {
+export function useOperationsCrud(token, { onReceiptCreated } = {}) {
   const [receipts, setReceipts] = useState([])
   const [analyses, setAnalyses] = useState([])
   const [suppliers, setSuppliers] = useState([])
@@ -76,10 +85,25 @@ export function useOperationsCrud(token) {
       return undefined
     }
 
+    const refreshTimer = window.setInterval(() => {
+      loadOperationsData().catch((loadError) => {
+        setError(loadError.message)
+      })
+    }, OPERATIONS_REFRESH_INTERVAL)
+
+    return () => {
+      window.clearInterval(refreshTimer)
+    }
+  }, [loadOperationsData, token])
+
+  useEffect(() => {
+    if (!token) {
+      return undefined
+    }
+
     let socket = null
     let reconnectTimer = null
     let isClosed = false
-    let hasConnected = false
     let reconnectAttempts = 0
 
     function scheduleReconnect() {
@@ -98,12 +122,15 @@ export function useOperationsCrud(token) {
       socket = new WebSocket(socketUrl)
 
       socket.onopen = () => {
-        hasConnected = true
         reconnectAttempts = 0
       }
 
-      socket.onmessage = async () => {
+      socket.onmessage = async (message) => {
         try {
+          const payload = JSON.parse(message.data)
+          if (payload.event === 'receipt_created' || payload.event === 'batch_created') {
+            onReceiptCreated?.(payload)
+          }
           await loadOperationsData()
         } catch (loadError) {
           setError(loadError.message)
@@ -111,7 +138,7 @@ export function useOperationsCrud(token) {
       }
 
       socket.onclose = (event) => {
-        if (isClosed || event.code === 4401 || event.code === 4403 || !hasConnected) {
+        if (isClosed || event.code === 4401 || event.code === 4403) {
           return
         }
 
@@ -130,16 +157,16 @@ export function useOperationsCrud(token) {
         socket.close()
       }
     }
-  }, [loadOperationsData, token])
+  }, [loadOperationsData, onReceiptCreated, token])
 
   async function runOperation(operation, resetForm) {
     setError('')
 
     try {
-      await operation()
+      const result = await operation()
       resetForm?.()
       await loadOperationsData()
-      return true
+      return result || true
     } catch (operationError) {
       setError(operationError.message)
       return false
@@ -169,6 +196,21 @@ export function useOperationsCrud(token) {
     )
   }
 
+  async function addReceiptBatch(receiptId) {
+    return runOperation(() => apiRequest(receiptBatchesPath(receiptId), token, { method: 'POST' }))
+  }
+
+  async function saveReceiptBatch(batch) {
+    return runOperation(() => apiRequest(batchPath(batch.id), token, {
+      method: 'PATCH',
+      body: JSON.stringify(buildBatchPayload(batch)),
+    }))
+  }
+
+  async function deleteReceiptBatch(id) {
+    return runOperation(() => apiRequest(batchPath(id), token, { method: 'DELETE' }))
+  }
+
   async function deleteReceipt(id) {
     return runOperation(() => apiRequest(receiptPath(id), token, { method: 'DELETE' }))
   }
@@ -181,13 +223,16 @@ export function useOperationsCrud(token) {
   }
 
   return {
+    addReceiptBatch,
     analyses,
     completeReceipt,
+    deleteReceiptBatch,
     error,
     receipts,
     suppliers,
     deleteReceipt,
     saveAnalysisStatus,
+    saveReceiptBatch,
     saveReceipt,
   }
 }
