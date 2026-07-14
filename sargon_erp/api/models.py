@@ -20,6 +20,7 @@ class Module(models.Model):
     code = models.SlugField(max_length=80, unique=True)
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
+    default_path = models.CharField(max_length=160, blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -33,6 +34,7 @@ class AccessGroup(models.Model):
     name = models.CharField(max_length=120, unique=True)
     description = models.TextField(blank=True)
     modules = models.ManyToManyField(Module, through='GroupModuleAccess', related_name='access_groups', blank=True)
+    start_module = models.ForeignKey(Module, on_delete=models.SET_NULL, null=True, blank=True, related_name='start_groups')
 
     class Meta:
         ordering = ['name']
@@ -110,6 +112,7 @@ class RawMaterialReceipt(models.Model):
     quantity_liters = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
     is_completed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at', '-id']
@@ -118,8 +121,27 @@ class RawMaterialReceipt(models.Model):
         return f'{self.supplier} · {self.quantity_liters or self.input_quantity}'
 
 
+class ReceiptBatch(models.Model):
+    receipt = models.ForeignKey(RawMaterialReceipt, on_delete=models.CASCADE, related_name='batches')
+    sequence_number = models.PositiveIntegerField(default=1)
+    input_quantity = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    input_unit = models.CharField(max_length=12, choices=RawMaterialReceipt.UNIT_CHOICES, default=RawMaterialReceipt.UNIT_LITERS)
+    quantity_liters = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['receipt', 'sequence_number'], name='unique_receipt_batch_number'),
+        ]
+        ordering = ['receipt_id', 'sequence_number']
+
+    def __str__(self):
+        return f'{self.receipt} · Партия #{self.sequence_number}'
+
+
 class LaboratoryAnalysis(models.Model):
-    receipt = models.OneToOneField(RawMaterialReceipt, on_delete=models.CASCADE, related_name='laboratory_analysis')
+    receipt = models.OneToOneField(RawMaterialReceipt, on_delete=models.CASCADE, related_name='laboratory_analysis', null=True, blank=True)
+    batch = models.OneToOneField(ReceiptBatch, on_delete=models.CASCADE, related_name='laboratory_analysis', null=True, blank=True)
     density = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
     flash_point_temperature = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     current_temperature = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
@@ -127,6 +149,7 @@ class LaboratoryAnalysis(models.Model):
     is_approved = models.BooleanField(default=False)
     is_rejected = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at', '-id']
