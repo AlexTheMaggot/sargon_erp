@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router'
 import sargonLogo from '../../assets/SARGON.svg'
-import { DashboardShell } from '../Layout/DashboardShell'
 import { AccessGroupsPage, AccessModulesPage, AccessPermissionsPage, AccessUsersPage } from '../../pages/access/AccessPages'
+import { OverviewPage } from '../../pages/dashboard/OverviewPage'
 import { CitiesPage, SuppliersPage } from '../../pages/directories/DirectoryPages'
 import { LaboratoryAnalysesPage, RawMaterialReceiptsPage } from '../../pages/operations/OperationsPages'
 import './App.css'
@@ -98,49 +98,6 @@ function LoginPage({ onLogin }) {
   )
 }
 
-function WelcomePage({ onLogout, token, user }) {
-  const [userName, setUserName] = useState('пользователь')
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
-
-  useEffect(() => {
-    if (!token) {
-      onLogout()
-      return
-    }
-
-    async function loadGreeting() {
-      const response = await fetch('/api/auth/me/', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      const data = await response.json()
-
-      if (!response.ok) {
-        onLogout()
-        return
-      }
-
-      setUserName(data.user.username)
-      setIsCheckingAuth(false)
-    }
-
-    loadGreeting()
-  }, [onLogout, token])
-
-  return (
-    <DashboardShell title="Операционная панель" onLogout={onLogout} user={user}>
-      <section className="dashboard-hero">
-        <div>
-          <p className="auth-eyebrow">Sargon ERP</p>
-          <h2>{isCheckingAuth ? 'Проверяем доступ...' : `Добро пожаловать, ${userName}`}</h2>
-          <p>Главная страница очищена и готова для подключения реальных данных.</p>
-        </div>
-      </section>
-    </DashboardShell>
-  )
-}
-
 function ProtectedRoute({ children, moduleCode, token, user }) {
   if (!token) {
     return <Navigate to="/login" replace />
@@ -162,7 +119,7 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
   return (
     <Routes>
       <Route path="/login" element={hasToken ? <Navigate to={startPath} replace /> : <LoginPage onLogin={onLogin} />} />
-      <Route path="/welcome" element={<ProtectedRoute token={token} user={user}><WelcomePage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/welcome" element={<ProtectedRoute token={token} user={user}><OverviewPage onLogout={onLogout} user={user} /></ProtectedRoute>} />
       <Route path="/raw-material/receipts" element={<ProtectedRoute moduleCode="raw-material-receiving" token={token} user={user}><RawMaterialReceiptsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/laboratory/analyses" element={<ProtectedRoute moduleCode="laboratory-analysis" token={token} user={user}><LaboratoryAnalysesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/directories/cities" element={<ProtectedRoute moduleCode="access" token={token} user={user}><CitiesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
