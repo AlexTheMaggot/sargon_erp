@@ -5,3 +5,5 @@ __pycache__/
 *.py[cod]
 /frontend/node_modules/
 /frontend/dist/
+/AGENTS.md
+/TODO.md
