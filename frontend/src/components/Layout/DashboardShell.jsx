@@ -1,23 +1,27 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router'
-import sargonLogo from '../../assets/SARGON.svg'
+import { NavLink, useLocation } from 'react-router'
+import shenollLogo from '../../assets/SHENOLL.svg'
 import { navItems } from '../../constants/navigation'
 
 function canViewModule(user, moduleCode) {
   if (!moduleCode) {
     return true
   }
-  return Boolean(user?.access?.[moduleCode]?.includes('view'))
+  return Boolean(user?.is_admin || user?.access?.[moduleCode]?.includes('view'))
 }
 
 function filterNavItems(items, user) {
+  function canViewItem(item) {
+    return (!item.adminOnly || user?.is_admin) && canViewModule(user, item.moduleCode)
+  }
+
   return items
     .map((item) => {
       if (!item.children) {
-        return canViewModule(user, item.moduleCode) ? item : null
+        return canViewItem(item) ? item : null
       }
 
-      const children = item.children.filter((child) => canViewModule(user, child.moduleCode))
+      const children = item.children.filter(canViewItem)
       if (!children.length) {
         return null
       }
@@ -27,12 +31,25 @@ function filterNavItems(items, user) {
 }
 
 export function DashboardShell({ children, title, onLogout, user }) {
+  const location = useLocation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [expandedSections, setExpandedSections] = useState(() => Object.fromEntries(
+    navItems
+      .filter((item) => item.children)
+      .map((item) => [item.label, item.children.some((child) => child.path === location.pathname)]),
+  ))
   const visibleNavItems = filterNavItems(navItems, user)
 
   function handleLogoutClick() {
     setIsMenuOpen(false)
     onLogout()
+  }
+
+  function toggleSection(sectionLabel) {
+    setExpandedSections((current) => ({
+      ...current,
+      [sectionLabel]: !current[sectionLabel],
+    }))
   }
 
   return (
@@ -50,7 +67,7 @@ export function DashboardShell({ children, title, onLogout, user }) {
           <span />
         </button>
         <div className="app-nav-brand">
-          <img src={sargonLogo} alt="Sargon ERP" />
+          <img src={shenollLogo} alt="Shenoll ERP" />
           <span>{title}</span>
         </div>
       </header>
@@ -63,22 +80,42 @@ export function DashboardShell({ children, title, onLogout, user }) {
 
       <nav className={`side-nav ${isMenuOpen ? 'open' : ''}`} aria-label="Основная навигация">
         <div className="side-nav-header">
-          <img src={sargonLogo} alt="Sargon ERP" />
+          <img src={shenollLogo} alt="Shenoll ERP" />
           <button className="side-nav-close" type="button" aria-label="Закрыть меню" onClick={() => setIsMenuOpen(false)}>
             ×
           </button>
         </div>
         <div className="app-nav-links">
-          {visibleNavItems.map((item) => (
+          {visibleNavItems.map((item, itemIndex) => (
             item.children ? (
               <div className="nav-section" key={item.label}>
-                <span className="nav-section-title">{item.label}</span>
-                <div className="nav-sub-links">
-                  {item.children.map((child) => (
-                    <NavLink key={child.path} to={child.path} onClick={() => setIsMenuOpen(false)}>
-                      {child.label}
-                    </NavLink>
-                  ))}
+                <button
+                  aria-controls={`nav-section-${itemIndex}`}
+                  aria-expanded={Boolean(expandedSections[item.label])}
+                  className={`nav-section-toggle ${item.children.some((child) => child.path === location.pathname) ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => toggleSection(item.label)}
+                >
+                  <span>{item.label}</span>
+                  <span aria-hidden="true" className="nav-section-chevron" />
+                </button>
+                <div
+                  aria-hidden={!expandedSections[item.label]}
+                  className={`nav-sub-links-shell ${expandedSections[item.label] ? 'open' : ''}`}
+                  id={`nav-section-${itemIndex}`}
+                >
+                  <div className="nav-sub-links">
+                    {item.children.map((child) => (
+                      <NavLink
+                        key={child.path}
+                        tabIndex={expandedSections[item.label] ? undefined : -1}
+                        to={child.path}
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        {child.label}
+                      </NavLink>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (

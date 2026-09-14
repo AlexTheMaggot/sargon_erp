@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router'
-import sargonLogo from '../../assets/SARGON.svg'
+import shenollLogo from '../../assets/SHENOLL.svg'
 import { AccessGroupsPage, AccessModulesPage, AccessPermissionsPage, AccessUsersPage } from '../../pages/access/AccessPages'
 import { OverviewPage } from '../../pages/dashboard/OverviewPage'
 import { CitiesPage, SuppliersPage } from '../../pages/directories/DirectoryPages'
 import { LaboratoryAnalysesPage, RawMaterialReceiptsPage } from '../../pages/operations/OperationsPages'
+import { BoilerLoadingPage, ChemicalMixerLoadingPage, ChemicalMixersPage, PreheatingBoilersPage, ProcessingJournalPage, ProcessingWorkshopsPage, RawDieselTankLoadingPage, RawDieselTanksPage, RawSpindleTankLoadingPage, RawSpindleTanksPage, ReceivingTanksPage, SeparatorLoadingPage, SeparatorOutputPage, SeparatorsPage, WorkshopLoadingPage } from '../../pages/processing/ProcessingPages'
+import { WarehouseCategoriesPage, WarehouseInventoryPage, WarehouseIssuesPage, WarehouseItemsPage, WarehouseOverviewPage, WarehouseReceiptsPage, WarehousesPage, WarehouseTransfersPage, WarehouseUnitsPage } from '../../pages/warehouse/WarehousePages'
 import './App.css'
 
 const TOKEN_STORAGE_KEY = 'sargon_access_token'
@@ -17,7 +19,7 @@ function hasModuleAccess(user, moduleCode) {
   if (!moduleCode) {
     return true
   }
-  return Boolean(user?.access?.[moduleCode]?.includes('view'))
+  return Boolean(user?.is_admin || user?.access?.[moduleCode]?.includes('view'))
 }
 
 function LoginPage({ onLogin }) {
@@ -59,8 +61,7 @@ function LoginPage({ onLogin }) {
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="login-title">
         <div className="brand-block">
-          <img className="brand-logo" src={sargonLogo} alt="Sargon ERP" />
-          <p className="auth-eyebrow">Sargon ERP</p>
+          <img className="brand-logo" src={shenollLogo} alt="Shenoll ERP" />
           <h1 id="login-title">Вход в систему</h1>
         </div>
 
@@ -98,14 +99,17 @@ function LoginPage({ onLogin }) {
   )
 }
 
-function ProtectedRoute({ children, moduleCode, token, user }) {
+function ProtectedRoute({ adminOnly = false, children, moduleCode, token, user }) {
   if (!token) {
     return <Navigate to="/login" replace />
   }
-  if (moduleCode && !user) {
+  if ((moduleCode || adminOnly) && !user) {
     return null
   }
   if (moduleCode && !hasModuleAccess(user, moduleCode)) {
+    return <Navigate to="/welcome" replace />
+  }
+  if (adminOnly && !user?.is_admin) {
     return <Navigate to="/welcome" replace />
   }
 
@@ -119,9 +123,33 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
   return (
     <Routes>
       <Route path="/login" element={hasToken ? <Navigate to={startPath} replace /> : <LoginPage onLogin={onLogin} />} />
-      <Route path="/welcome" element={<ProtectedRoute token={token} user={user}><OverviewPage onLogout={onLogout} user={user} /></ProtectedRoute>} />
+      <Route path="/welcome" element={<ProtectedRoute token={token} user={user}><OverviewPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/raw-material/receipts" element={<ProtectedRoute moduleCode="raw-material-receiving" token={token} user={user}><RawMaterialReceiptsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/laboratory/analyses" element={<ProtectedRoute moduleCode="laboratory-analysis" token={token} user={user}><LaboratoryAnalysesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/boiler-loading" element={<ProtectedRoute moduleCode="boiler-loading" token={token} user={user}><BoilerLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/separator-loading" element={<ProtectedRoute moduleCode="separator-loading" token={token} user={user}><SeparatorLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/separator-output" element={<ProtectedRoute moduleCode="separator-output" token={token} user={user}><SeparatorOutputPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/chemical-mixer-loading" element={<ProtectedRoute moduleCode="chemical-mixer-loading" token={token} user={user}><ChemicalMixerLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/workshop-loading" element={<ProtectedRoute moduleCode="workshop-loading" token={token} user={user}><WorkshopLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/raw-diesel-tank-loading" element={<ProtectedRoute moduleCode="raw-diesel-tank-loading" token={token} user={user}><RawDieselTankLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/raw-spindle-tank-loading" element={<ProtectedRoute moduleCode="raw-spindle-tank-loading" token={token} user={user}><RawSpindleTankLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/receiving-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><ReceivingTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/preheating-boilers" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><PreheatingBoilersPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/separators" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><SeparatorsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/chemical-mixers" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><ChemicalMixersPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/workshops" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><ProcessingWorkshopsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/raw-diesel-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><RawDieselTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/raw-spindle-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><RawSpindleTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/journal" element={<ProtectedRoute adminOnly token={token} user={user}><ProcessingJournalPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/warehouse/overview" element={<ProtectedRoute moduleCode="warehouse-accounting" token={token} user={user}><WarehouseOverviewPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/warehouse/receipts" element={<ProtectedRoute moduleCode="warehouse-accounting" token={token} user={user}><WarehouseReceiptsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/warehouse/issues" element={<ProtectedRoute moduleCode="warehouse-accounting" token={token} user={user}><WarehouseIssuesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/warehouse/transfers" element={<ProtectedRoute moduleCode="warehouse-accounting" token={token} user={user}><WarehouseTransfersPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/warehouse/inventory" element={<ProtectedRoute moduleCode="warehouse-accounting" token={token} user={user}><WarehouseInventoryPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/warehouse/settings/items" element={<ProtectedRoute moduleCode="warehouse-settings" token={token} user={user}><WarehouseItemsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/warehouse/settings/categories" element={<ProtectedRoute moduleCode="warehouse-settings" token={token} user={user}><WarehouseCategoriesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/warehouse/settings/units" element={<ProtectedRoute moduleCode="warehouse-settings" token={token} user={user}><WarehouseUnitsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/warehouse/settings/warehouses" element={<ProtectedRoute moduleCode="warehouse-settings" token={token} user={user}><WarehousesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/directories/cities" element={<ProtectedRoute moduleCode="access" token={token} user={user}><CitiesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/directories/suppliers" element={<ProtectedRoute moduleCode="suppliers" token={token} user={user}><SuppliersPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/access" element={<ProtectedRoute moduleCode="access" token={token} user={user}><Navigate to="/access/users" replace /></ProtectedRoute>} />

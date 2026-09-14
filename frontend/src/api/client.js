@@ -62,15 +62,17 @@ export async function fetchDirectoryData(token) {
 }
 
 export async function fetchOperationsData(token) {
-  const [receiptsResult, analysesResult, suppliersResult] = await Promise.allSettled([
+  const [receiptsResult, analysesResult, suppliersResult, receivingTanksResult] = await Promise.allSettled([
     apiRequest('/api/raw-material/receipts/', token),
     apiRequest('/api/laboratory/analyses/', token),
     apiRequest('/api/directories/suppliers/', token),
+    apiRequest('/api/processing/receiving-tanks/?purpose=receipt', token),
   ])
 
   return {
     receipts: receiptsResult.status === 'fulfilled' ? receiptsResult.value.items : [],
     analyses: analysesResult.status === 'fulfilled' ? analysesResult.value.items : [],
     suppliers: suppliersResult.status === 'fulfilled' ? suppliersResult.value.items : [],
+    receivingTanks: receivingTanksResult.status === 'fulfilled' ? receivingTanksResult.value.items : [],
   }
 }

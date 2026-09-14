@@ -48,12 +48,14 @@ export function useOperationsCrud(token, { onReceiptCreated } = {}) {
   const [receipts, setReceipts] = useState([])
   const [analyses, setAnalyses] = useState([])
   const [suppliers, setSuppliers] = useState([])
+  const [receivingTanks, setReceivingTanks] = useState([])
   const [error, setError] = useState('')
 
   function applyOperationsData(data) {
     setReceipts(data.receipts)
     setAnalyses(data.analyses)
     setSuppliers(data.suppliers)
+    setReceivingTanks(data.receivingTanks)
   }
 
   const loadOperationsData = useCallback(async function loadOperationsData() {
@@ -215,10 +217,10 @@ export function useOperationsCrud(token, { onReceiptCreated } = {}) {
     return runOperation(() => apiRequest(receiptPath(id), token, { method: 'DELETE' }))
   }
 
-  async function completeReceipt(id) {
+  async function completeReceipt(id, distributions) {
     return runOperation(() => apiRequest(receiptPath(id), token, {
       method: 'PATCH',
-      body: JSON.stringify({ is_completed: true }),
+      body: JSON.stringify({ is_completed: true, distributions }),
     }))
   }
 
@@ -228,6 +230,7 @@ export function useOperationsCrud(token, { onReceiptCreated } = {}) {
     completeReceipt,
     deleteReceiptBatch,
     error,
+    receivingTanks,
     receipts,
     suppliers,
     deleteReceipt,

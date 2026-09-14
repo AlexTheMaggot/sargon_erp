@@ -133,7 +133,7 @@ export function AccessUsersPage({ onLogout, token, user }) {
 }
 
 export function AccessGroupsPage({ onLogout, token, user }) {
-  const { groups, modules, error, saveEntity, deleteEntity } = useAccessCrud(token)
+  const { groups, modules, permissions, error, saveEntity, deleteEntity } = useAccessCrud(token)
   const groupControls = useListControls(groups, (item) => [
     item.name,
     item.description,
@@ -154,6 +154,9 @@ export function AccessGroupsPage({ onLogout, token, user }) {
       name: item.name,
       description: item.description,
       module_ids: item.module_ids,
+      module_permissions: Object.fromEntries(
+        item.modules.map((moduleItem) => [moduleItem.id, moduleItem.permissions.map((permission) => permission.id)]),
+      ),
       start_module_id: item.start_module_id || '',
     })
     setIsFormOpen(true)
@@ -176,10 +179,40 @@ export function AccessGroupsPage({ onLogout, token, user }) {
   function handleGroupModulesChange(event) {
     const moduleIds = Array.from(event.target.selectedOptions).map((option) => Number(option.value))
     const hasStartModule = moduleIds.map(String).includes(String(groupForm.start_module_id))
+    const viewPermission = permissions.find((permission) => permission.code === 'view')
+    const modulePermissions = Object.fromEntries(moduleIds.map((moduleId) => [
+      moduleId,
+      groupForm.module_permissions[moduleId] || (viewPermission ? [viewPermission.id] : []),
+    ]))
     setGroupForm({
       ...groupForm,
       module_ids: moduleIds,
+      module_permissions: modulePermissions,
       start_module_id: hasStartModule ? groupForm.start_module_id : '',
+    })
+  }
+
+  function availablePermissions(moduleItem) {
+    const permissionCodes = moduleItem.code === 'warehouse-accounting'
+      ? ['view', 'receipt', 'issue', 'transfer', 'transfer-confirm', 'inventory']
+      : moduleItem.code === 'laboratory-analysis'
+        ? ['view', 'update', 'approve']
+        : moduleItem.code === 'dashboard'
+          ? ['view']
+          : ['view', 'create', 'update', 'delete']
+    return permissions.filter((permission) => permissionCodes.includes(permission.code))
+  }
+
+  function handlePermissionChange(moduleId, permissionId, isChecked) {
+    const currentPermissions = groupForm.module_permissions[moduleId] || []
+    setGroupForm({
+      ...groupForm,
+      module_permissions: {
+        ...groupForm.module_permissions,
+        [moduleId]: isChecked
+          ? [...new Set([...currentPermissions, permissionId])]
+          : currentPermissions.filter((id) => id !== permissionId),
+      },
     })
   }
 
@@ -238,6 +271,27 @@ export function AccessGroupsPage({ onLogout, token, user }) {
             <select multiple value={groupForm.module_ids.map(String)} onChange={handleGroupModulesChange}>
               {modules.map((moduleItem) => <option key={moduleItem.id} value={moduleItem.id}>{moduleItem.name}</option>)}
             </select>
+            <div className="module-permission-list">
+              {modules
+                .filter((moduleItem) => groupForm.module_ids.includes(moduleItem.id))
+                .map((moduleItem) => (
+                  <fieldset className="module-permission-card" key={moduleItem.id}>
+                    <legend>{moduleItem.name}</legend>
+                    <div className="permission-checkbox-grid">
+                      {availablePermissions(moduleItem).map((permission) => (
+                        <label key={permission.id}>
+                          <input
+                            checked={(groupForm.module_permissions[moduleItem.id] || []).includes(permission.id)}
+                            type="checkbox"
+                            onChange={(event) => handlePermissionChange(moduleItem.id, permission.id, event.target.checked)}
+                          />
+                          <span>{permission.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                ))}
+            </div>
             <select value={groupForm.start_module_id} onChange={(event) => setGroupForm({ ...groupForm, start_module_id: event.target.value })}>
               <option value="">Стартовая страница автоматически</option>
               {modules

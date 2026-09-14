@@ -20,6 +20,39 @@ from .views import raw_material_batch_detail_view
 from .views import raw_material_receipt_batches_view
 from .views import raw_material_receipt_detail_view
 from .views import raw_material_receipts_view
+from .views import receiving_tanks_view
+from .views import preheating_boilers_view
+from .views import production_container_detail_view
+from .views import tank_to_boiler_movements_view
+from .views import compensate_movement_view
+from .views import processing_journal_view
+from .views import production_overview_view
+from .views import separators_view
+from .views import boiler_to_separator_movements_view
+from .views import separator_output_movements_view
+from .views import chemical_mixers_view
+from .views import separator_to_chemical_mixer_movements_view
+from .views import processing_workshops_view
+from .views import chemical_mixer_to_workshop_movements_view
+from .views import raw_diesel_tanks_view
+from .views import raw_spindle_tanks_view
+from .views import workshop_to_raw_diesel_tank_movements_view
+from .views import workshop_to_raw_spindle_tank_movements_view
+from .views import inventory_categories_view
+from .views import inventory_category_detail_view
+from .views import units_of_measure_view
+from .views import unit_of_measure_detail_view
+from .views import inventory_items_view
+from .views import inventory_item_detail_view
+from .views import warehouses_view
+from .views import warehouse_detail_view
+from .views import warehouse_reference_data_view
+from .views import warehouse_overview_view
+from .views import warehouse_documents_view
+from .views import warehouse_document_detail_view
+from .views import warehouse_document_post_view
+from .views import warehouse_transfer_decision_view
+from .views import warehouse_document_cancel_view
 
 
 urlpatterns = [
@@ -43,4 +76,37 @@ urlpatterns = [
     path('raw-material/batches/<int:batch_id>/', raw_material_batch_detail_view, name='raw-material-batch-detail'),
     path('laboratory/analyses/', laboratory_analyses_view, name='laboratory-analyses'),
     path('laboratory/analyses/<int:analysis_id>/', laboratory_analysis_detail_view, name='laboratory-analysis-detail'),
+    path('processing/receiving-tanks/', receiving_tanks_view, name='processing-receiving-tanks'),
+    path('processing/preheating-boilers/', preheating_boilers_view, name='processing-preheating-boilers'),
+    path('processing/separators/', separators_view, name='processing-separators'),
+    path('processing/chemical-mixers/', chemical_mixers_view, name='processing-chemical-mixers'),
+    path('processing/workshops/', processing_workshops_view, name='processing-workshops'),
+    path('processing/raw-diesel-tanks/', raw_diesel_tanks_view, name='processing-raw-diesel-tanks'),
+    path('processing/raw-spindle-tanks/', raw_spindle_tanks_view, name='processing-raw-spindle-tanks'),
+    path('processing/containers/<int:container_id>/', production_container_detail_view, name='processing-container-detail'),
+    path('processing/movements/tank-to-boiler/', tank_to_boiler_movements_view, name='processing-tank-to-boiler'),
+    path('processing/movements/boiler-to-separator/', boiler_to_separator_movements_view, name='processing-boiler-to-separator'),
+    path('processing/movements/separator-output/', separator_output_movements_view, name='processing-separator-output'),
+    path('processing/movements/separator-to-chemical-mixer/', separator_to_chemical_mixer_movements_view, name='processing-separator-to-chemical-mixer'),
+    path('processing/movements/chemical-mixer-to-workshop/', chemical_mixer_to_workshop_movements_view, name='processing-chemical-mixer-to-workshop'),
+    path('processing/movements/workshop-to-raw-diesel-tank/', workshop_to_raw_diesel_tank_movements_view, name='processing-workshop-to-raw-diesel-tank'),
+    path('processing/movements/workshop-to-raw-spindle-tank/', workshop_to_raw_spindle_tank_movements_view, name='processing-workshop-to-raw-spindle-tank'),
+    path('processing/movements/<int:movement_id>/compensate/', compensate_movement_view, name='processing-movement-compensate'),
+    path('processing/journal/', processing_journal_view, name='processing-journal'),
+    path('dashboard/overview/', production_overview_view, name='production-overview'),
+    path('warehouse/settings/categories/', inventory_categories_view, name='warehouse-categories'),
+    path('warehouse/settings/categories/<int:category_id>/', inventory_category_detail_view, name='warehouse-category-detail'),
+    path('warehouse/settings/units/', units_of_measure_view, name='warehouse-units'),
+    path('warehouse/settings/units/<int:unit_id>/', unit_of_measure_detail_view, name='warehouse-unit-detail'),
+    path('warehouse/settings/items/', inventory_items_view, name='warehouse-items'),
+    path('warehouse/settings/items/<int:item_id>/', inventory_item_detail_view, name='warehouse-item-detail'),
+    path('warehouse/settings/warehouses/', warehouses_view, name='warehouses'),
+    path('warehouse/settings/warehouses/<int:warehouse_id>/', warehouse_detail_view, name='warehouse-detail'),
+    path('warehouse/reference-data/', warehouse_reference_data_view, name='warehouse-reference-data'),
+    path('warehouse/overview/', warehouse_overview_view, name='warehouse-overview'),
+    path('warehouse/documents/', warehouse_documents_view, name='warehouse-documents'),
+    path('warehouse/documents/<int:document_id>/', warehouse_document_detail_view, name='warehouse-document-detail'),
+    path('warehouse/documents/<int:document_id>/post/', warehouse_document_post_view, name='warehouse-document-post'),
+    path('warehouse/documents/<int:document_id>/transfer-decision/', warehouse_transfer_decision_view, name='warehouse-transfer-decision'),
+    path('warehouse/documents/<int:document_id>/cancel/', warehouse_document_cancel_view, name='warehouse-document-cancel'),
 ]

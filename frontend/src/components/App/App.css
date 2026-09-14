@@ -367,21 +367,77 @@ button:disabled {
 
 .nav-section {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
-.nav-section-title {
+.nav-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: #0f3f31;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
-  padding: 8px 12px 2px;
+  padding: 10px 12px;
+  text-align: left;
   text-transform: uppercase;
+}
+
+.nav-section-toggle:hover:not(:disabled),
+.nav-section-toggle.active,
+.nav-section-toggle:active:not(:disabled) {
+  background: #f0f7f3;
+  box-shadow: none;
+  color: #064e3b;
+  transform: none;
+}
+
+.nav-section-chevron {
+  display: inline-grid;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  transform-origin: 50% 50%;
+  transform: rotate(-90deg);
+  transition: transform 180ms ease;
+}
+
+.nav-section-chevron::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.nav-section-toggle[aria-expanded='true'] .nav-section-chevron {
+  transform: rotate(0deg);
+}
+
+.nav-sub-links-shell {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 200ms ease, opacity 160ms ease;
+}
+
+.nav-sub-links-shell.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
 }
 
 .nav-sub-links {
   display: grid;
   gap: 8px;
+  min-height: 0;
+  overflow: hidden;
   padding-left: 10px;
 }
 
@@ -900,6 +956,26 @@ button:disabled {
   gap: 12px;
 }
 
+.form-error {
+  margin: 0;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #be123c;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+  padding: 12px 14px;
+}
+
+.form-action-hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: #577466;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .checkbox-row {
   align-items: center;
   display: flex;
@@ -1016,6 +1092,19 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.separator-output-options {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.separator-output-options legend {
+  color: #315344;
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 8px;
 }
 
 .filter-pills label,
@@ -1435,6 +1524,16 @@ button:disabled {
   box-shadow: 0 16px 34px rgba(11, 74, 50, 0.12);
   color: #ffffff;
   padding: 28px 30px;
+}
+
+.process-live-error {
+  margin: 14px 0 0;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #be123c;
+  font-weight: 800;
+  padding: 12px 14px;
 }
 
 .process-overview-header h1,
@@ -2059,6 +2158,14 @@ button:disabled {
   background: #ffffff;
   box-shadow: 0 10px 26px rgba(11, 74, 50, 0.06);
   padding: 22px;
+}
+
+.modal-card .process-details {
+  animation: none;
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
 }
 
 .process-details-heading {
@@ -3095,5 +3202,321 @@ button:disabled {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 1ms !important;
+  }
+}
+
+.processing-container-row > div:first-child,
+.journal-row > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.processing-container-row.disabled-row {
+  opacity: 0.65;
+}
+
+.boiler-loading-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 20px;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto 20px;
+}
+
+.boiler-loading-form-card {
+  min-width: 0;
+}
+
+.boiler-loading-form {
+  gap: 18px;
+}
+
+.boiler-loading-summary {
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  min-width: 0;
+}
+
+.movement-preview-card h3,
+.movement-success-card h3 {
+  margin: 0;
+}
+
+.movement-preview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.movement-preview-grid > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #d6e3dc;
+  border-radius: 8px;
+  background: #f7fbf9;
+}
+
+.movement-preview-grid span,
+.movement-preview-grid small,
+.movement-success-card span,
+.movement-success-card small {
+  color: #577466;
+}
+
+.movement-preview-grid strong {
+  overflow: hidden;
+  color: #13251d;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.movement-preview-arrow {
+  color: #047857 !important;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.movement-success-card {
+  gap: 8px;
+  border-color: #a7d7c2;
+  background: linear-gradient(145deg, #ffffff, #eff9f4);
+}
+
+.movement-success-card strong {
+  color: #047857;
+  font-size: 24px;
+}
+
+.receipt-distribution {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid #c9ded4;
+  border-radius: 16px;
+  background: #f7fbf9;
+}
+
+.receipt-distribution h3,
+.receipt-distribution p {
+  margin: 0;
+}
+
+.distribution-batch {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d6e3dc;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.distribution-batch-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #315344;
+}
+
+.distribution-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(130px, 180px) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.journal-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.journal-filters .form-actions {
+  grid-column: 1 / -1;
+}
+
+.journal-pagination {
+  margin-top: 16px;
+}
+
+.journal-details {
+  overflow: auto;
+  max-height: 60vh;
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: #10251c;
+  color: #d9f4e8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.warehouse-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  width: min(1470px, calc(100% - 40px));
+  margin: 0 auto 20px;
+}
+
+.warehouse-summary-grid article {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid #c9ded4;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #fff, #eff9f4);
+  box-shadow: 0 12px 28px rgba(4, 120, 87, 0.08);
+}
+
+.warehouse-summary-grid span,
+.warehouse-balance-values span {
+  color: #577466;
+}
+
+.warehouse-summary-grid strong {
+  color: #075f46;
+  font-size: 24px;
+}
+
+.warehouse-balance-values,
+.warehouse-document-actions {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  text-align: right;
+}
+
+.warehouse-document-row {
+  align-items: start;
+}
+
+.warehouse-document-form {
+  min-width: min(760px, 78vw);
+}
+
+.warehouse-document-form label,
+.warehouse-line label {
+  display: grid;
+  gap: 7px;
+}
+
+.warehouse-document-form label > span,
+.warehouse-line label > span {
+  color: #315344;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.warehouse-lines {
+  display: grid;
+  gap: 12px;
+  padding-top: 6px;
+}
+
+.warehouse-line {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid #d6e3dc;
+  border-radius: 12px;
+  background: #f7fbf9;
+}
+
+.line-remove-button {
+  min-width: 42px;
+  padding-inline: 12px;
+}
+
+.module-permission-list {
+  display: grid;
+  gap: 12px;
+}
+
+.module-permission-card {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #c9ded4;
+  border-radius: 12px;
+}
+
+.module-permission-card legend {
+  padding: 0 6px;
+  color: #153d2d;
+  font-weight: 800;
+}
+
+.permission-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.permission-checkbox-grid label,
+.checkbox-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.permission-checkbox-grid input,
+.checkbox-row input {
+  width: auto;
+}
+
+@media (max-width: 760px) {
+  .warehouse-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .warehouse-line,
+  .permission-checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .warehouse-document-form {
+    min-width: 0;
+  }
+
+  .warehouse-balance-values,
+  .warehouse-document-actions {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .boiler-loading-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .movement-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .movement-preview-arrow {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .distribution-batch-heading {
+    flex-direction: column;
+  }
+
+  .distribution-row,
+  .journal-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .journal-filters .form-actions {
+    grid-column: auto;
   }
 }

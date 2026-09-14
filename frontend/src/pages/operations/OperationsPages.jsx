@@ -111,6 +111,7 @@ function SearchableSupplierSelect({ disabled, onChange, suppliers, value }) {
         />
       </label>
       {selectedSupplier && <p className="selected-supplier">Выбран: {supplierOptionLabel(selectedSupplier)}</p>}
+      {!disabled && !selectedSupplier && <p className="select-hint">Выберите поставщика из результатов поиска.</p>}
       {!disabled && normalizedQuery.length >= 3 && (
         <div className="supplier-results">
           {filteredSuppliers.map((supplier) => (
@@ -150,6 +151,9 @@ function canManageReceipt(item, user) {
 }
 
 function canManageBatch(batch, receipt, user) {
+  if (batch.is_distributed) {
+    return false
+  }
   return isAdminUser(user) || !(receipt.is_completed || batch.is_locked || batch.is_analysis_rejected)
 }
 
@@ -159,6 +163,42 @@ function canManageAnalysis(item) {
 
 function hasPositiveQuantity(value) {
   return Number(value) > 0
+}
+
+function hasCompleteDistribution(receipt, distributions) {
+  const pendingBatches = receipt.batches.filter((batch) => batch.is_analysis_approved && !batch.is_distributed)
+  if (!pendingBatches.length) {
+    return false
+  }
+
+  return pendingBatches.every((batch) => {
+    const rows = distributions[batch.id] || []
+    if (!rows.length || rows.some((row) => !row.tank_id || !hasPositiveQuantity(row.volume_liters))) {
+      return false
+    }
+
+    const distributedVolume = rows.reduce((total, row) => total + Number(row.volume_liters), 0)
+    return Math.abs(distributedVolume - Number(batch.quantity_liters)) < 0.0005
+  })
+}
+
+function validateLaboratoryApproval(form) {
+  const fieldValues = [
+    form.density,
+    form.flash_point_temperature,
+    form.current_temperature,
+    form.water_percentage,
+  ]
+  if (fieldValues.some((value) => value === '' || !Number.isFinite(Number(value)))) {
+    return 'Заполните все показатели корректными числовыми значениями.'
+  }
+  if (Number(form.density) <= 0) {
+    return 'Плотность должна быть больше нуля.'
+  }
+  if (Number(form.water_percentage) < 0 || Number(form.water_percentage) > 100) {
+    return 'Количество воды должно быть в диапазоне от 0 до 100%.'
+  }
+  return ''
 }
 
 function filterAnalysesByDecision(analyses, filterValue) {
@@ -271,7 +311,7 @@ function DensityCheckNotice({ density, temperature }) {
 }
 
 export function RawMaterialReceiptsPage({ onLogout, token, user }) {
-  const { addReceiptBatch, completeReceipt, deleteReceipt, deleteReceiptBatch, error, receipts, saveReceipt, saveReceiptBatch, suppliers } = useOperationsCrud(token)
+  const { addReceiptBatch, completeReceipt, deleteReceipt, deleteReceiptBatch, error, receipts, receivingTanks, saveReceipt, saveReceiptBatch, suppliers } = useOperationsCrud(token)
   const receiptControls = useListControls(receipts, (item) => [
     item.id,
     item.supplier?.company_name,
@@ -282,10 +322,15 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
   const [receiptForm, setReceiptForm] = useState(emptyReceiptForm)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [distributions, setDistributions] = useState({})
+  const [formError, setFormError] = useState('')
   const selectedReceiptSupplier = suppliers.find((supplier) => String(supplier.id) === String(receiptForm.supplier_id))
+  const isDistributionComplete = hasCompleteDistribution(receiptForm, distributions)
 
   function openCreateModal() {
     setReceiptForm(emptyReceiptForm)
+    setDistributions({})
+    setFormError('')
     setIsFormOpen(true)
   }
 
@@ -302,10 +347,21 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
       is_existing: true,
       batches: item.batches || [],
     })
+    setDistributions(Object.fromEntries(
+      (item.batches || [])
+        .filter((batch) => batch.is_analysis_approved && !batch.is_distributed)
+        .map((batch) => [batch.id, [{ tank_id: '', volume_liters: '' }]]),
+    ))
+    setFormError('')
     setIsFormOpen(true)
   }
 
   async function handleReceiptSubmit(event) {
+    if (!receiptForm.supplier_id) {
+      event.preventDefault()
+      setFormError('Выберите поставщика из результатов поиска.')
+      return
+    }
     const isSaved = await saveReceipt(event, receiptForm, () => setReceiptForm(emptyReceiptForm))
     if (isSaved) {
       setIsFormOpen(false)
@@ -323,10 +379,43 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
     if (!receiptForm.id) {
       return
     }
-    const isCompleted = await completeReceipt(receiptForm.id)
+    if (!isDistributionComplete) {
+      setFormError('Полностью распределите объём каждой партии по приёмным бакам.')
+      return
+    }
+    setFormError('')
+    const distributionPayload = Object.entries(distributions).flatMap(([batchId, rows]) => rows
+      .filter((row) => row.tank_id && row.volume_liters)
+      .map((row) => ({
+        batch_id: Number(batchId),
+        tank_id: Number(row.tank_id),
+        volume_liters: row.volume_liters,
+      })))
+    const isCompleted = await completeReceipt(receiptForm.id, distributionPayload)
     if (isCompleted) {
       setIsFormOpen(false)
     }
+  }
+
+  function updateDistribution(batchId, rowIndex, updates) {
+    setDistributions((current) => ({
+      ...current,
+      [batchId]: current[batchId].map((row, index) => (index === rowIndex ? { ...row, ...updates } : row)),
+    }))
+  }
+
+  function addDistribution(batchId) {
+    setDistributions((current) => ({
+      ...current,
+      [batchId]: [...(current[batchId] || []), { tank_id: '', volume_liters: '' }],
+    }))
+  }
+
+  function removeDistribution(batchId, rowIndex) {
+    setDistributions((current) => ({
+      ...current,
+      [batchId]: current[batchId].filter((_, index) => index !== rowIndex),
+    }))
   }
 
   async function handleAddBatch() {
@@ -421,6 +510,7 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
       {isFormOpen && (
         <OperationsModal title={receiptForm.id ? 'Редактировать прием' : 'Новый прием сырья'} onClose={() => setIsFormOpen(false)}>
           <form className="crud-form" onSubmit={handleReceiptSubmit}>
+            {formError && <p className="form-error" role="alert">{formError}</p>}
             {receiptForm.is_locked && <p className="access-error">Запись заблокирована: лабораторный анализ заполнен, но ещё не одобрен.</p>}
             {receiptForm.is_existing ? (
               <>
@@ -432,7 +522,10 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
                 disabled={receiptForm.is_locked}
                 suppliers={suppliers}
                 value={receiptForm.supplier_id}
-                onChange={(supplierId) => setReceiptForm({ ...receiptForm, supplier_id: supplierId })}
+                onChange={(supplierId) => {
+                  setReceiptForm({ ...receiptForm, supplier_id: supplierId })
+                  setFormError('')
+                }}
               />
             )}
             {receiptForm.is_existing && (
@@ -442,7 +535,7 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
                     <p className="auth-eyebrow">Партии</p>
                     <h3>Порции приема</h3>
                   </div>
-                  <button disabled={receiptForm.is_completed && !isAdminUser(user)} type="button" onClick={handleAddBatch}>Добавить партию</button>
+                  <button disabled={receiptForm.is_completed} type="button" onClick={handleAddBatch}>Добавить партию</button>
                 </div>
                 {receiptForm.batches.map((batch) => (
                   <div className="entity-row supplier-row" key={batch.id}>
@@ -454,28 +547,77 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
                     {batch.can_set_quantity ? (
                       <div className="row-actions">
                         <input disabled={!canManageBatch(batch, receiptForm, user)} min="0" placeholder="Количество" step="0.001" type="number" value={batch.input_quantity} onChange={(event) => updateBatchForm(batch.id, { input_quantity: event.target.value })} />
-                        <select disabled={!canManageBatch(batch, receiptForm, user)} value={batch.input_unit} onChange={(event) => updateBatchForm(batch.id, { input_unit: event.target.value })}>
-                          <option value="liters">Литры</option>
-                          <option value="kilograms">Килограммы</option>
-                        </select>
+                        <div className="unit-radio-group" role="radiogroup" aria-label={`Единица измерения партии ${batch.sequence_number}`}>
+                          {[
+                            { value: 'liters', label: 'Литры' },
+                            { value: 'kilograms', label: 'Килограммы' },
+                          ].map((unit) => (
+                            <label className={batch.input_unit === unit.value ? 'active' : ''} key={unit.value}>
+                              <input
+                                checked={batch.input_unit === unit.value}
+                                disabled={!canManageBatch(batch, receiptForm, user)}
+                                name={`batch-unit-${batch.id}`}
+                                type="radio"
+                                value={unit.value}
+                                onChange={(event) => updateBatchForm(batch.id, { input_unit: event.target.value })}
+                              />
+                              {unit.label}
+                            </label>
+                          ))}
+                        </div>
                         <button disabled={!canManageBatch(batch, receiptForm, user) || !hasPositiveQuantity(batch.input_quantity)} type="button" onClick={() => handleBatchSave(batch)}>Сохранить</button>
                         <button className="danger-button" disabled={!canManageBatch(batch, receiptForm, user) || receiptForm.batches.length <= 1} type="button" onClick={() => handleBatchDelete(batch)}>Удалить</button>
                       </div>
                     ) : (
                       <div className="row-actions">
-                        <span className="empty-state">Количество после одобрения анализа</span>
+                        <span className="empty-state">{batch.is_distributed ? 'Партия уже распределена' : 'Количество после одобрения анализа'}</span>
                         <button className="danger-button" disabled={!canManageBatch(batch, receiptForm, user) || receiptForm.batches.length <= 1} type="button" onClick={() => handleBatchDelete(batch)}>Удалить</button>
                       </div>
                     )}
                   </div>
                 ))}
+                {receiptForm.can_complete && receiptForm.batches.some((batch) => batch.is_analysis_approved && !batch.is_distributed) && (
+                  <section className="receipt-distribution">
+                    <div>
+                      <p className="auth-eyebrow">Распределение</p>
+                      <h3>Разместить партии по приёмным бакам</h3>
+                      <p>Сумма по каждой партии должна точно совпадать с её объёмом в литрах.</p>
+                    </div>
+                    {receiptForm.batches.filter((batch) => batch.is_analysis_approved && !batch.is_distributed).map((batch) => (
+                      <div className="distribution-batch" key={batch.id}>
+                        <div className="distribution-batch-heading">
+                          <strong>Партия #{batch.sequence_number}</strong>
+                          <span>Нужно распределить: {batch.quantity_liters} л</span>
+                        </div>
+                        {(distributions[batch.id] || []).map((row, rowIndex) => (
+                          <div className="distribution-row" key={`${batch.id}-${rowIndex}`}>
+                            <select required value={row.tank_id} onChange={(event) => updateDistribution(batch.id, rowIndex, { tank_id: event.target.value })}>
+                              <option value="">Выберите бак</option>
+                              {receivingTanks.map((tank) => (
+                                <option key={tank.id} value={tank.id}>{tank.name} · свободно {tank.free_volume_liters} л</option>
+                              ))}
+                            </select>
+                            <input min="0.001" placeholder="Объём, л" required step="0.001" type="number" value={row.volume_liters} onChange={(event) => updateDistribution(batch.id, rowIndex, { volume_liters: event.target.value })} />
+                            {(distributions[batch.id] || []).length > 1 && (
+                              <button className="danger-button" type="button" onClick={() => removeDistribution(batch.id, rowIndex)}>Убрать</button>
+                            )}
+                          </div>
+                        ))}
+                        <button className="secondary-button" type="button" onClick={() => addDistribution(batch.id)}>Добавить бак</button>
+                      </div>
+                    ))}
+                  </section>
+                )}
               </div>
             )}
             <div className="form-actions">
-              {receiptForm.can_complete && (
-                <button type="button" onClick={handleReceiptCompleteFromModal}>Завершить прием</button>
+              {receiptForm.can_complete && !isDistributionComplete && (
+                <p className="form-action-hint">Кнопка завершения станет доступна после полного распределения каждой партии.</p>
               )}
-              {!receiptForm.is_existing && <button disabled={receiptForm.is_locked && !isAdminUser(user)} type="submit">Создать</button>}
+              {receiptForm.can_complete && (
+                <button disabled={!isDistributionComplete} type="button" onClick={handleReceiptCompleteFromModal}>Завершить прием</button>
+              )}
+              {!receiptForm.is_existing && <button disabled={!receiptForm.supplier_id || (receiptForm.is_locked && !isAdminUser(user))} type="submit">Создать</button>}
               <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>Отмена</button>
             </div>
           </form>
@@ -564,6 +706,7 @@ export function LaboratoryAnalysesPage({ onLogout, token, user }) {
   ].join(' '))
   const [analysisForm, setAnalysisForm] = useState(emptyLaboratoryAnalysisForm)
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [formError, setFormError] = useState('')
 
   function openEditModal(item) {
     setAnalysisForm({
@@ -575,6 +718,7 @@ export function LaboratoryAnalysesPage({ onLogout, token, user }) {
       is_approved: item.is_approved,
       is_rejected: item.is_rejected,
     })
+    setFormError('')
     setIsFormOpen(true)
   }
 
@@ -582,6 +726,14 @@ export function LaboratoryAnalysesPage({ onLogout, token, user }) {
 
   async function handleAnalysisSubmit(event, statusPayload) {
     event.preventDefault()
+    if (statusPayload.is_approved) {
+      const validationError = validateLaboratoryApproval(analysisForm)
+      if (validationError) {
+        setFormError(validationError)
+        return
+      }
+    }
+    setFormError('')
     const isSaved = await saveAnalysisStatus(analysisForm, () => setAnalysisForm(emptyLaboratoryAnalysisForm), statusPayload)
     if (isSaved) {
       setIsFormOpen(false)
@@ -662,10 +814,23 @@ export function LaboratoryAnalysesPage({ onLogout, token, user }) {
         <OperationsModal title="Редактировать лабораторный анализ" onClose={() => setIsFormOpen(false)}>
           <form className="crud-form" onSubmit={(event) => handleAnalysisSubmit(event, {})}>
             {isDecisionLocked && <p className="empty-state">Статус уже выставлен. Данные и решение может изменить только администратор.</p>}
-            <input disabled={isDecisionLocked} placeholder="Плотность, г/см³" min="0" step="0.0001" type="number" value={analysisForm.density} onChange={(event) => setAnalysisForm({ ...analysisForm, density: event.target.value })} />
-            <input disabled={isDecisionLocked} placeholder="Температура вспышки, °C" step="0.01" type="number" value={analysisForm.flash_point_temperature} onChange={(event) => setAnalysisForm({ ...analysisForm, flash_point_temperature: event.target.value })} />
-            <input disabled={isDecisionLocked} placeholder="Текущая температура, °C" step="0.01" type="number" value={analysisForm.current_temperature} onChange={(event) => setAnalysisForm({ ...analysisForm, current_temperature: event.target.value })} />
-            <input disabled={isDecisionLocked} placeholder="Количество воды, %" min="0" step="0.001" type="number" value={analysisForm.water_percentage} onChange={(event) => setAnalysisForm({ ...analysisForm, water_percentage: event.target.value })} />
+            {formError && <p className="form-error" role="alert">{formError}</p>}
+            <label>
+              <span>Плотность, г/см³</span>
+              <input disabled={isDecisionLocked} min="0" step="0.0001" type="number" value={analysisForm.density} onChange={(event) => setAnalysisForm({ ...analysisForm, density: event.target.value })} />
+            </label>
+            <label>
+              <span>Температура вспышки, °C</span>
+              <input disabled={isDecisionLocked} step="0.01" type="number" value={analysisForm.flash_point_temperature} onChange={(event) => setAnalysisForm({ ...analysisForm, flash_point_temperature: event.target.value })} />
+            </label>
+            <label>
+              <span>Текущая температура, °C</span>
+              <input disabled={isDecisionLocked} step="0.01" type="number" value={analysisForm.current_temperature} onChange={(event) => setAnalysisForm({ ...analysisForm, current_temperature: event.target.value })} />
+            </label>
+            <label>
+              <span>Количество воды, %</span>
+              <input disabled={isDecisionLocked} min="0" max="100" step="0.001" type="number" value={analysisForm.water_percentage} onChange={(event) => setAnalysisForm({ ...analysisForm, water_percentage: event.target.value })} />
+            </label>
             <DensityCheckNotice density={analysisForm.density} temperature={analysisForm.current_temperature} />
             <div className="form-actions">
               <button disabled={isDecisionLocked} type="button" onClick={(event) => handleAnalysisSubmit(event, { is_approved: true, is_rejected: false })}>Одобрить</button>

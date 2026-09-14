@@ -1,5 +1,5 @@
 export const emptyUserForm = { id: null, username: '', password: '', first_name: '', last_name: '', email: '', group_id: '', is_active: true }
-export const emptyGroupForm = { id: null, name: '', description: '', module_ids: [], start_module_id: '' }
+export const emptyGroupForm = { id: null, name: '', description: '', module_ids: [], module_permissions: {}, start_module_id: '' }
 export const emptyModuleForm = { id: null, code: '', name: '', description: '', default_path: '', is_active: true }
 export const emptyPermissionForm = { id: null, code: '', name: '', description: '' }
 export const emptySupplierForm = { id: null, company_name: '', city_id: '', address: '', phone: '' }

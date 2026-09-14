@@ -1,4 +1,4 @@
-name: Deploy Sargon ERP
+name: Deploy Shenoll ERP
 
 on:
   push:
