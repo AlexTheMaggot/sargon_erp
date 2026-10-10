@@ -1,5 +1,6 @@
 export const navItems = [
   { path: '/welcome', label: 'Обзор' },
+  { path: '/knowledge', label: 'База знаний', moduleCode: 'knowledge-base' },
   {
     label: 'Переработка',
     children: [

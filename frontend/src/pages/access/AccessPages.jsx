@@ -1,3 +1,4 @@
+import { t } from '../../i18n/core'
 import { useState } from 'react'
 import { DashboardShell } from '../../components/Layout/DashboardShell'
 import { ListControls } from '../../components/ListControls/ListControls'
@@ -23,8 +24,8 @@ export function AccessUsersPage({ onLogout, token, user }) {
     item.first_name,
     item.last_name,
     item.email,
-    item.group?.name,
-    item.is_active ? 'активен' : 'выключен',
+    t(item.group?.name),
+    item.is_active ? t('активен') : t('выключен'),
   ].join(' '))
   const [userForm, setUserForm] = useState(emptyUserForm)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -55,22 +56,22 @@ export function AccessUsersPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Пользователи" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Пользователи')} onLogout={onLogout} user={user}>
       <AccessPageHeader
-        title="Пользователи"
-        description="Создание пользователей и привязка каждого пользователя только к одной группе."
+        title={t('Пользователи')}
+        description={t('Создание пользователей и привязка каждого пользователя только к одной группе.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="access-grid">
         <article className="access-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Пользователи</p>
-              <h3>Список пользователей</h3>
+              <p className="auth-eyebrow">{t('Пользователи')}</p>
+              <h3>{t('Список пользователей')}</h3>
             </div>
-            <button type="button" onClick={openCreateModal}>Создать</button>
+            <button type="button" onClick={openCreateModal}>{t('Создать')}</button>
           </div>
           <ListControls
             currentPage={userControls.currentPage}
@@ -84,37 +85,35 @@ export function AccessUsersPage({ onLogout, token, user }) {
           <div className="entity-list">
             {userControls.paginatedItems.map((item) => (
               <div className="entity-row" key={item.id}>
-                <div><strong>{item.username}</strong><span>{item.group?.name || 'Без группы'}</span></div>
+                <div><strong>{item.username}</strong><span>{t(item.group?.name) || t('Без группы')}</span></div>
                 <div className="row-actions">
-                  <button type="button" onClick={() => openEditModal(item)}>Изменить</button>
-                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>Удалить</button>
+                  <button type="button" onClick={() => openEditModal(item)}>{t('Изменить')}</button>
+                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>{t('Удалить')}</button>
                 </div>
               </div>
             ))}
-            {!userControls.filteredCount && <p className="empty-state">По вашему запросу ничего не найдено.</p>}
+            {!userControls.filteredCount && <p className="empty-state">{t('По вашему запросу ничего не найдено.')}</p>}
           </div>
         </article>
       </section>
 
       {isFormOpen && (
-        <AccessModal title={userForm.id ? 'Редактировать пользователя' : 'Новый пользователь'} onClose={() => setIsFormOpen(false)}>
+        <AccessModal title={userForm.id ? t('Редактировать пользователя') : t('Новый пользователь')} onClose={() => setIsFormOpen(false)}>
           <form className="crud-form" onSubmit={handleUserSubmit}>
-            <input placeholder="Логин" value={userForm.username} onChange={(event) => setUserForm({ ...userForm, username: event.target.value })} />
-            <input placeholder={userForm.id ? 'Новый пароль, если нужно' : 'Пароль'} type="password" value={userForm.password} onChange={(event) => setUserForm({ ...userForm, password: event.target.value })} />
-            <input placeholder="Имя" value={userForm.first_name} onChange={(event) => setUserForm({ ...userForm, first_name: event.target.value })} />
-            <input placeholder="Фамилия" value={userForm.last_name} onChange={(event) => setUserForm({ ...userForm, last_name: event.target.value })} />
-            <input placeholder="Email" value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} />
+            <input placeholder={t('Логин')} value={userForm.username} onChange={(event) => setUserForm({ ...userForm, username: event.target.value })} />
+            <input placeholder={userForm.id ? t('Новый пароль, если нужно') : t('Пароль')} type="password" value={userForm.password} onChange={(event) => setUserForm({ ...userForm, password: event.target.value })} />
+            <input placeholder={t('Имя')} value={userForm.first_name} onChange={(event) => setUserForm({ ...userForm, first_name: event.target.value })} />
+            <input placeholder={t('Фамилия')} value={userForm.last_name} onChange={(event) => setUserForm({ ...userForm, last_name: event.target.value })} />
+            <input placeholder={t('Электронная почта')} value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} />
             <select value={userForm.group_id || ''} onChange={(event) => setUserForm({ ...userForm, group_id: event.target.value ? Number(event.target.value) : '' })}>
-              <option value="">Без группы</option>
-              {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+              <option value="">{t('Без группы')}</option>
+              {groups.map((group) => <option key={group.id} value={group.id}>{t(group.name)}</option>)}
             </select>
             <label className="inline-check">
-              <input type="checkbox" checked={userForm.is_active} onChange={(event) => setUserForm({ ...userForm, is_active: event.target.checked })} />
-              Активен
-            </label>
+              <input type="checkbox" checked={userForm.is_active} onChange={(event) => setUserForm({ ...userForm, is_active: event.target.checked })} />{t('Активен')}</label>
             <div className="form-actions">
-              <button type="submit">{userForm.id ? 'Сохранить' : 'Создать'}</button>
-              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>Отмена</button>
+              <button type="submit">{userForm.id ? t('Сохранить') : t('Создать')}</button>
+              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>{t('Отмена')}</button>
             </div>
           </form>
         </AccessModal>
@@ -122,7 +121,7 @@ export function AccessUsersPage({ onLogout, token, user }) {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          entityName="пользователя"
+          entityName={t('пользователя')}
           itemName={deleteTarget.username}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleUserDelete}
@@ -135,9 +134,9 @@ export function AccessUsersPage({ onLogout, token, user }) {
 export function AccessGroupsPage({ onLogout, token, user }) {
   const { groups, modules, permissions, error, saveEntity, deleteEntity } = useAccessCrud(token)
   const groupControls = useListControls(groups, (item) => [
-    item.name,
+    t(item.name),
     item.description,
-    item.modules.map((moduleItem) => moduleItem.name).join(' '),
+    item.modules.map((moduleItem) => t(moduleItem.name)).join(' '),
   ].join(' '))
   const [groupForm, setGroupForm] = useState(emptyGroupForm)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -217,23 +216,23 @@ export function AccessGroupsPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Группы" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Группы')} onLogout={onLogout} user={user}>
       <AccessPageHeader
-        title="Группы"
-        description="Группы связаны с модулями через Many To Many и определяют доступ пользователей."
+        title={t('Группы')}
+        description={t('Группы связаны с модулями через Many To Many и определяют доступ пользователей.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="access-grid">
 
         <article className="access-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Группы</p>
-              <h3>Список групп</h3>
+              <p className="auth-eyebrow">{t('Группы')}</p>
+              <h3>{t('Список групп')}</h3>
             </div>
-            <button type="button" onClick={openCreateModal}>Создать</button>
+            <button type="button" onClick={openCreateModal}>{t('Создать')}</button>
           </div>
           <ListControls
             currentPage={groupControls.currentPage}
@@ -248,35 +247,35 @@ export function AccessGroupsPage({ onLogout, token, user }) {
             {groupControls.paginatedItems.map((item) => (
               <div className="entity-row" key={item.id}>
                 <div>
-                  <strong>{item.name}</strong>
-                  <span>{item.modules.map((moduleItem) => moduleItem.name).join(', ') || 'Без модулей'}</span>
-                  <span>Стартовая страница: {item.start_module?.name || 'автоматически'}</span>
+                  <strong>{t(item.name)}</strong>
+                  <span>{item.modules.map((moduleItem) => t(moduleItem.name)).join(', ') || t('Без модулей')}</span>
+                  <span>{t('Стартовая страница: ')}{t(item.start_module?.name) || t('автоматически')}</span>
                 </div>
                 <div className="row-actions">
-                  <button type="button" onClick={() => openEditModal(item)}>Изменить</button>
-                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>Удалить</button>
+                  <button type="button" onClick={() => openEditModal(item)}>{t('Изменить')}</button>
+                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>{t('Удалить')}</button>
                 </div>
               </div>
             ))}
-            {!groupControls.filteredCount && <p className="empty-state">По вашему запросу ничего не найдено.</p>}
+            {!groupControls.filteredCount && <p className="empty-state">{t('По вашему запросу ничего не найдено.')}</p>}
           </div>
         </article>
       </section>
 
       {isFormOpen && (
-        <AccessModal title={groupForm.id ? 'Редактировать группу' : 'Новая группа'} onClose={() => setIsFormOpen(false)}>
+        <AccessModal title={groupForm.id ? t('Редактировать группу') : t('Новая группа')} onClose={() => setIsFormOpen(false)}>
           <form className="crud-form" onSubmit={handleGroupSubmit}>
-            <input placeholder="Название группы" value={groupForm.name} onChange={(event) => setGroupForm({ ...groupForm, name: event.target.value })} />
-            <textarea placeholder="Описание" value={groupForm.description} onChange={(event) => setGroupForm({ ...groupForm, description: event.target.value })} />
+            <input placeholder={t('Название группы')} value={groupForm.name} onChange={(event) => setGroupForm({ ...groupForm, name: event.target.value })} />
+            <textarea placeholder={t('Описание')} value={groupForm.description} onChange={(event) => setGroupForm({ ...groupForm, description: event.target.value })} />
             <select multiple value={groupForm.module_ids.map(String)} onChange={handleGroupModulesChange}>
-              {modules.map((moduleItem) => <option key={moduleItem.id} value={moduleItem.id}>{moduleItem.name}</option>)}
+              {modules.map((moduleItem) => <option key={moduleItem.id} value={moduleItem.id}>{t(moduleItem.name)}</option>)}
             </select>
             <div className="module-permission-list">
               {modules
                 .filter((moduleItem) => groupForm.module_ids.includes(moduleItem.id))
                 .map((moduleItem) => (
                   <fieldset className="module-permission-card" key={moduleItem.id}>
-                    <legend>{moduleItem.name}</legend>
+                    <legend>{t(moduleItem.name)}</legend>
                     <div className="permission-checkbox-grid">
                       {availablePermissions(moduleItem).map((permission) => (
                         <label key={permission.id}>
@@ -285,7 +284,7 @@ export function AccessGroupsPage({ onLogout, token, user }) {
                             type="checkbox"
                             onChange={(event) => handlePermissionChange(moduleItem.id, permission.id, event.target.checked)}
                           />
-                          <span>{permission.name}</span>
+                          <span>{t(permission.name)}</span>
                         </label>
                       ))}
                     </div>
@@ -293,14 +292,14 @@ export function AccessGroupsPage({ onLogout, token, user }) {
                 ))}
             </div>
             <select value={groupForm.start_module_id} onChange={(event) => setGroupForm({ ...groupForm, start_module_id: event.target.value })}>
-              <option value="">Стартовая страница автоматически</option>
+              <option value="">{t('Стартовая страница автоматически')}</option>
               {modules
                 .filter((moduleItem) => groupForm.module_ids.map(String).includes(String(moduleItem.id)))
-                .map((moduleItem) => <option key={moduleItem.id} value={moduleItem.id}>{moduleItem.name}</option>)}
+                .map((moduleItem) => <option key={moduleItem.id} value={moduleItem.id}>{t(moduleItem.name)}</option>)}
             </select>
             <div className="form-actions">
-              <button type="submit">{groupForm.id ? 'Сохранить' : 'Создать'}</button>
-              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>Отмена</button>
+              <button type="submit">{groupForm.id ? t('Сохранить') : t('Создать')}</button>
+              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>{t('Отмена')}</button>
             </div>
           </form>
         </AccessModal>
@@ -308,8 +307,8 @@ export function AccessGroupsPage({ onLogout, token, user }) {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          entityName="группу"
-          itemName={deleteTarget.name}
+          entityName={t('группу')}
+          itemName={t(deleteTarget.name)}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleGroupDelete}
         />
@@ -322,10 +321,10 @@ export function AccessModulesPage({ onLogout, token, user }) {
   const { modules, error, saveEntity, deleteEntity } = useAccessCrud(token)
   const moduleControls = useListControls(modules, (item) => [
     item.code,
-    item.name,
+    t(item.name),
     item.description,
     item.default_path,
-    item.is_active ? 'активен' : 'выключен',
+    item.is_active ? t('активен') : t('выключен'),
   ].join(' '))
   const [moduleForm, setModuleForm] = useState(emptyModuleForm)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -356,23 +355,23 @@ export function AccessModulesPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Модули" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Модули')} onLogout={onLogout} user={user}>
       <AccessPageHeader
-        title="Модули"
-        description="Справочник функциональных модулей, которые подключаются к группам доступа."
+        title={t('Модули')}
+        description={t('Справочник функциональных модулей, которые подключаются к группам доступа.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="access-grid">
 
         <article className="access-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Модули</p>
-              <h3>Список модулей</h3>
+              <p className="auth-eyebrow">{t('Модули')}</p>
+              <h3>{t('Список модулей')}</h3>
             </div>
-            <button type="button" onClick={openCreateModal}>Создать</button>
+            <button type="button" onClick={openCreateModal}>{t('Создать')}</button>
           </div>
           <ListControls
             currentPage={moduleControls.currentPage}
@@ -386,32 +385,30 @@ export function AccessModulesPage({ onLogout, token, user }) {
           <div className="entity-list">
             {moduleControls.paginatedItems.map((item) => (
               <div className="entity-row" key={item.id}>
-                <div><strong>{item.name}</strong><span>{item.code} · {item.default_path || 'маршрут не задан'} · {item.is_active ? 'активен' : 'выключен'}</span></div>
+                <div><strong>{t(item.name)}</strong><span>{item.code} · {item.default_path || t('маршрут не задан')} · {item.is_active ? t('активен') : t('выключен')}</span></div>
                 <div className="row-actions">
-                  <button type="button" onClick={() => openEditModal(item)}>Изменить</button>
-                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>Удалить</button>
+                  <button type="button" onClick={() => openEditModal(item)}>{t('Изменить')}</button>
+                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>{t('Удалить')}</button>
                 </div>
               </div>
             ))}
-            {!moduleControls.filteredCount && <p className="empty-state">По вашему запросу ничего не найдено.</p>}
+            {!moduleControls.filteredCount && <p className="empty-state">{t('По вашему запросу ничего не найдено.')}</p>}
           </div>
         </article>
       </section>
 
       {isFormOpen && (
-        <AccessModal title={moduleForm.id ? 'Редактировать модуль' : 'Новый модуль'} onClose={() => setIsFormOpen(false)}>
+        <AccessModal title={moduleForm.id ? t('Редактировать модуль') : t('Новый модуль')} onClose={() => setIsFormOpen(false)}>
           <form className="crud-form" onSubmit={handleModuleSubmit}>
-            <input placeholder="Код" value={moduleForm.code} onChange={(event) => setModuleForm({ ...moduleForm, code: event.target.value })} />
-            <input placeholder="Название" value={moduleForm.name} onChange={(event) => setModuleForm({ ...moduleForm, name: event.target.value })} />
-            <input placeholder="Стартовый маршрут, например /laboratory/analyses" value={moduleForm.default_path} onChange={(event) => setModuleForm({ ...moduleForm, default_path: event.target.value })} />
-            <textarea placeholder="Описание" value={moduleForm.description} onChange={(event) => setModuleForm({ ...moduleForm, description: event.target.value })} />
+            <input placeholder={t('Код')} value={moduleForm.code} onChange={(event) => setModuleForm({ ...moduleForm, code: event.target.value })} />
+            <input placeholder={t('Название')} value={moduleForm.name} onChange={(event) => setModuleForm({ ...moduleForm, name: event.target.value })} />
+            <input placeholder={t('Стартовый маршрут, например /laboratory/analyses')} value={moduleForm.default_path} onChange={(event) => setModuleForm({ ...moduleForm, default_path: event.target.value })} />
+            <textarea placeholder={t('Описание')} value={moduleForm.description} onChange={(event) => setModuleForm({ ...moduleForm, description: event.target.value })} />
             <label className="inline-check">
-              <input type="checkbox" checked={moduleForm.is_active} onChange={(event) => setModuleForm({ ...moduleForm, is_active: event.target.checked })} />
-              Активен
-            </label>
+              <input type="checkbox" checked={moduleForm.is_active} onChange={(event) => setModuleForm({ ...moduleForm, is_active: event.target.checked })} />{t('Активен')}</label>
             <div className="form-actions">
-              <button type="submit">{moduleForm.id ? 'Сохранить' : 'Создать'}</button>
-              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>Отмена</button>
+              <button type="submit">{moduleForm.id ? t('Сохранить') : t('Создать')}</button>
+              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>{t('Отмена')}</button>
             </div>
           </form>
         </AccessModal>
@@ -419,8 +416,8 @@ export function AccessModulesPage({ onLogout, token, user }) {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          entityName="модуль"
-          itemName={deleteTarget.name}
+          entityName={t('модуль')}
+          itemName={t(deleteTarget.name)}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleModuleDelete}
         />
@@ -433,7 +430,7 @@ export function AccessPermissionsPage({ onLogout, token, user }) {
   const { permissions, error, saveEntity, deleteEntity } = useAccessCrud(token)
   const permissionControls = useListControls(permissions, (item) => [
     item.code,
-    item.name,
+    t(item.name),
     item.description,
   ].join(' '))
   const [permissionForm, setPermissionForm] = useState(emptyPermissionForm)
@@ -465,23 +462,23 @@ export function AccessPermissionsPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Разрешения" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Разрешения')} onLogout={onLogout} user={user}>
       <AccessPageHeader
-        title="Разрешения"
-        description="Справочник разрешений для дальнейшего расширения модели контроля доступа."
+        title={t('Разрешения')}
+        description={t('Справочник разрешений для дальнейшего расширения модели контроля доступа.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="access-grid">
 
         <article className="access-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Разрешения</p>
-              <h3>Список разрешений</h3>
+              <p className="auth-eyebrow">{t('Разрешения')}</p>
+              <h3>{t('Список разрешений')}</h3>
             </div>
-            <button type="button" onClick={openCreateModal}>Создать</button>
+            <button type="button" onClick={openCreateModal}>{t('Создать')}</button>
           </div>
           <ListControls
             currentPage={permissionControls.currentPage}
@@ -495,27 +492,27 @@ export function AccessPermissionsPage({ onLogout, token, user }) {
           <div className="entity-list">
             {permissionControls.paginatedItems.map((item) => (
               <div className="entity-row" key={item.id}>
-                <div><strong>{item.name}</strong><span>{item.code}</span></div>
+                <div><strong>{t(item.name)}</strong><span>{item.code}</span></div>
                 <div className="row-actions">
-                  <button type="button" onClick={() => openEditModal(item)}>Изменить</button>
-                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>Удалить</button>
+                  <button type="button" onClick={() => openEditModal(item)}>{t('Изменить')}</button>
+                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>{t('Удалить')}</button>
                 </div>
               </div>
             ))}
-            {!permissionControls.filteredCount && <p className="empty-state">По вашему запросу ничего не найдено.</p>}
+            {!permissionControls.filteredCount && <p className="empty-state">{t('По вашему запросу ничего не найдено.')}</p>}
           </div>
         </article>
       </section>
 
       {isFormOpen && (
-        <AccessModal title={permissionForm.id ? 'Редактировать разрешение' : 'Новое разрешение'} onClose={() => setIsFormOpen(false)}>
+        <AccessModal title={permissionForm.id ? t('Редактировать разрешение') : t('Новое разрешение')} onClose={() => setIsFormOpen(false)}>
           <form className="crud-form" onSubmit={handlePermissionSubmit}>
-            <input placeholder="Код" value={permissionForm.code} onChange={(event) => setPermissionForm({ ...permissionForm, code: event.target.value })} />
-            <input placeholder="Название" value={permissionForm.name} onChange={(event) => setPermissionForm({ ...permissionForm, name: event.target.value })} />
-            <textarea placeholder="Описание" value={permissionForm.description} onChange={(event) => setPermissionForm({ ...permissionForm, description: event.target.value })} />
+            <input placeholder={t('Код')} value={permissionForm.code} onChange={(event) => setPermissionForm({ ...permissionForm, code: event.target.value })} />
+            <input placeholder={t('Название')} value={permissionForm.name} onChange={(event) => setPermissionForm({ ...permissionForm, name: event.target.value })} />
+            <textarea placeholder={t('Описание')} value={permissionForm.description} onChange={(event) => setPermissionForm({ ...permissionForm, description: event.target.value })} />
             <div className="form-actions">
-              <button type="submit">{permissionForm.id ? 'Сохранить' : 'Создать'}</button>
-              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>Отмена</button>
+              <button type="submit">{permissionForm.id ? t('Сохранить') : t('Создать')}</button>
+              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>{t('Отмена')}</button>
             </div>
           </form>
         </AccessModal>
@@ -523,8 +520,8 @@ export function AccessPermissionsPage({ onLogout, token, user }) {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          entityName="разрешение"
-          itemName={deleteTarget.name}
+          entityName={t('разрешение')}
+          itemName={t(deleteTarget.name)}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handlePermissionDelete}
         />

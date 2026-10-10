@@ -1,3 +1,4 @@
+import { getLocale, t } from '../../i18n/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DashboardShell } from '../../components/Layout/DashboardShell'
 import { ListControls } from '../../components/ListControls/ListControls'
@@ -27,7 +28,7 @@ const DENSITY_TEMPERATURE_CORRECTION = 0.00065
 function OperationsPageHeader({ description, title }) {
   return (
     <section className="page-title access-page-title">
-      <p className="auth-eyebrow">Производство</p>
+      <p className="auth-eyebrow">{t('Производство')}</p>
       <h1>{title}</h1>
       <p>{description}</p>
     </section>
@@ -35,36 +36,36 @@ function OperationsPageHeader({ description, title }) {
 }
 
 function receiptLabel(receipt) {
-  return `#${receipt.id} · ${receipt.supplier?.company_name || 'Поставщик не указан'}`
+  return `#${receipt.id} · ${receipt.supplier?.company_name || t('Поставщик не указан')}`
 }
 
 function receiptStatusLabel(receipt) {
   if (receipt.is_completed) {
-    return 'Прием завершен'
+    return t('Прием завершен')
   }
   if (receipt.has_pending_batches) {
-    return 'Есть партии, ожидающие решения'
+    return t('Есть партии, ожидающие решения')
   }
   if (receipt.has_rejected_batches) {
-    return 'Есть отклоненные партии'
+    return t('Есть отклоненные партии')
   }
   if (receipt.approved_batch_count) {
-    return 'Все партии обработаны'
+    return t('Все партии обработаны')
   }
-  return 'Ожидает партий'
+  return t('Ожидает партий')
 }
 
 function batchStatusLabel(batch) {
   if (batch.is_analysis_rejected) {
-    return 'Анализ отклонен'
+    return t('Анализ отклонен')
   }
   if (batch.is_analysis_approved) {
-    return 'Анализ одобрен'
+    return t('Анализ одобрен')
   }
   if (batch.is_analysis_filled) {
-    return 'Заполнен, ожидает решения'
+    return t('Заполнен, ожидает решения')
   }
-  return 'Ожидает анализа'
+  return t('Ожидает анализа')
 }
 
 function normalizeSearchText(value) {
@@ -81,7 +82,7 @@ function supplierSearchText(supplier) {
 }
 
 function supplierOptionLabel(supplier) {
-  const cityName = supplier.city?.name || 'город не указан'
+  const cityName = supplier.city?.name || t('город не указан')
   return `${supplier.company_name} · ${cityName}`
 }
 
@@ -101,43 +102,43 @@ function SearchableSupplierSelect({ disabled, onChange, suppliers, value }) {
   return (
     <div className="searchable-select">
       <label>
-        <span>Поставщик</span>
+        <span>{t('Поставщик')}</span>
         <input
           disabled={disabled}
-          placeholder="Слепой поиск по поставщику, городу, адресу или телефону"
+          placeholder={t('Слепой поиск по поставщику, городу, адресу или телефону')}
           type="search"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
         />
       </label>
-      {selectedSupplier && <p className="selected-supplier">Выбран: {supplierOptionLabel(selectedSupplier)}</p>}
-      {!disabled && !selectedSupplier && <p className="select-hint">Выберите поставщика из результатов поиска.</p>}
+      {selectedSupplier && <p className="selected-supplier">{t('Выбран: ')}{supplierOptionLabel(selectedSupplier)}</p>}
+      {!disabled && !selectedSupplier && <p className="select-hint">{t('Выберите поставщика из результатов поиска.')}</p>}
       {!disabled && normalizedQuery.length >= 3 && (
         <div className="supplier-results">
           {filteredSuppliers.map((supplier) => (
             <button key={supplier.id} type="button" onClick={() => handleSupplierSelect(supplier)}>
               <strong>{supplier.company_name}</strong>
-              <span>{supplier.city?.name || 'Город не указан'} · {supplier.address || 'Адрес не указан'} · {supplier.phone || 'Телефон не указан'}</span>
+              <span>{supplier.city?.name || t('Город не указан')} · {supplier.address || t('Адрес не указан')} · {supplier.phone || t('Телефон не указан')}</span>
             </button>
           ))}
-          {!filteredSuppliers.length && <p className="select-hint">Поставщики не найдены.</p>}
+          {!filteredSuppliers.length && <p className="select-hint">{t('Поставщики не найдены.')}</p>}
         </div>
       )}
-      {!disabled && normalizedQuery.length > 0 && normalizedQuery.length < 3 && <p className="select-hint">Введите минимум 3 символа для поиска.</p>}
+      {!disabled && normalizedQuery.length > 0 && normalizedQuery.length < 3 && <p className="select-hint">{t('Введите минимум 3 символа для поиска.')}</p>}
     </div>
   )
 }
 
 function SelectedSupplierCard({ supplier }) {
   if (!supplier) {
-    return <p className="empty-state">Поставщик не найден.</p>
+    return <p className="empty-state">{t('Поставщик не найден.')}</p>
   }
 
   return (
     <div className="selected-supplier-card">
-      <span>Поставщик</span>
+      <span>{t('Поставщик')}</span>
       <strong>{supplier.company_name}</strong>
-      <p>{supplier.city?.name || 'Город не указан'} · {supplier.address || 'Адрес не указан'} · {supplier.phone || 'Телефон не указан'}</p>
+      <p>{supplier.city?.name || t('Город не указан')} · {supplier.address || t('Адрес не указан')} · {supplier.phone || t('Телефон не указан')}</p>
     </div>
   )
 }
@@ -190,13 +191,13 @@ function validateLaboratoryApproval(form) {
     form.water_percentage,
   ]
   if (fieldValues.some((value) => value === '' || !Number.isFinite(Number(value)))) {
-    return 'Заполните все показатели корректными числовыми значениями.'
+    return t('Заполните все показатели корректными числовыми значениями.')
   }
   if (Number(form.density) <= 0) {
-    return 'Плотность должна быть больше нуля.'
+    return t('Плотность должна быть больше нуля.')
   }
   if (Number(form.water_percentage) < 0 || Number(form.water_percentage) > 100) {
-    return 'Количество воды должно быть в диапазоне от 0 до 100%.'
+    return t('Количество воды должно быть в диапазоне от 0 до 100%.')
   }
   return ''
 }
@@ -247,7 +248,7 @@ function formatDateTime(value) {
     return '—'
   }
 
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat(getLocale(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -273,30 +274,30 @@ function getDensityCheck(densityValue, temperatureValue) {
   if (temperature === null) {
     return {
       tone: 'neutral',
-      message: 'Введите текущую температуру, чтобы проверить плотность по температурной поправке.',
+      message: t('Введите текущую температуру, чтобы проверить плотность по температурной поправке.'),
     }
   }
 
   const range = calculateDensityRange(temperature)
-  const rangeText = `${formatDensity(range.min)}–${formatDensity(range.max)} г/см³`
+  const rangeText = t`${formatDensity(range.min)}–${formatDensity(range.max)} г/см³`
 
   if (density === null) {
     return {
       tone: 'neutral',
-      message: `Рекомендуемый диапазон при ${temperature}°C: ${rangeText}.`,
+      message: t`Рекомендуемый диапазон при ${temperature}°C: ${rangeText}.`,
     }
   }
 
   if (density < range.min || density > range.max) {
     return {
       tone: 'warning',
-      message: `Плотность вне рекомендуемого диапазона при ${temperature}°C: ${rangeText}.`,
+      message: t`Плотность вне рекомендуемого диапазона при ${temperature}°C: ${rangeText}.`,
     }
   }
 
   return {
     tone: 'success',
-    message: `Плотность в рекомендуемом диапазоне при ${temperature}°C: ${rangeText}.`,
+    message: t`Плотность в рекомендуемом диапазоне при ${temperature}°C: ${rangeText}.`,
   }
 }
 
@@ -325,7 +326,13 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
   const [distributions, setDistributions] = useState({})
   const [formError, setFormError] = useState('')
   const selectedReceiptSupplier = suppliers.find((supplier) => String(supplier.id) === String(receiptForm.supplier_id))
+  const hasApprovedBatchesToDistribute = receiptForm.batches.some(
+    (batch) => batch.is_analysis_approved && !batch.is_distributed,
+  )
   const isDistributionComplete = hasCompleteDistribution(receiptForm, distributions)
+  const canSubmitCompletion = receiptForm.can_complete && (
+    !hasApprovedBatchesToDistribute || isDistributionComplete
+  )
 
   function openCreateModal() {
     setReceiptForm(emptyReceiptForm)
@@ -359,7 +366,7 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
   async function handleReceiptSubmit(event) {
     if (!receiptForm.supplier_id) {
       event.preventDefault()
-      setFormError('Выберите поставщика из результатов поиска.')
+      setFormError(t('Выберите поставщика из результатов поиска.'))
       return
     }
     const isSaved = await saveReceipt(event, receiptForm, () => setReceiptForm(emptyReceiptForm))
@@ -379,8 +386,8 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
     if (!receiptForm.id) {
       return
     }
-    if (!isDistributionComplete) {
-      setFormError('Полностью распределите объём каждой партии по приёмным бакам.')
+    if (hasApprovedBatchesToDistribute && !isDistributionComplete) {
+      setFormError(t('Полностью распределите объём каждой партии по приёмным бакам.'))
       return
     }
     setFormError('')
@@ -456,22 +463,22 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Прием сырья" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Прием сырья')} onLogout={onLogout} user={user}>
       <OperationsPageHeader
-        title="Прием сырья"
-        description="Регистрация поступления сырья от поставщиков. Количество хранится в литрах; килограммы пересчитываются по плотности лабораторного анализа."
+        title={t('Прием сырья')}
+        description={t('Регистрация поступления сырья от поставщиков. Количество хранится в литрах; килограммы пересчитываются по плотности лабораторного анализа.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="access-grid">
         <article className="access-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Прием</p>
-              <h3>Поступления сырья</h3>
+              <p className="auth-eyebrow">{t('Прием')}</p>
+              <h3>{t('Поступления сырья')}</h3>
             </div>
-            <button type="button" onClick={openCreateModal}>Создать</button>
+            <button type="button" onClick={openCreateModal}>{t('Создать')}</button>
           </div>
 
           <ListControls
@@ -489,33 +496,32 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
               <div className={`entity-row supplier-row ${item.is_completed && !isAdminUser(user) ? 'disabled-row' : ''}`} key={item.id}>
                 <div>
                   <strong>{receiptLabel(item)}</strong>
-                  <span>
-                    Партии: {item.batch_count || 0} · Одобрено: {item.approved_batch_count || 0} · Отказано: {item.rejected_batch_count || 0} · Ожидает: {item.pending_batch_count || 0}
+                  <span>{t('Партии: ')}{item.batch_count || 0}{t(' · Одобрено: ')}{item.approved_batch_count || 0}{t(' · Отказано: ')}{item.rejected_batch_count || 0}{t(' · Ожидает: ')}{item.pending_batch_count || 0}
                   </span>
-                  <span>{item.supplier?.city?.name || 'Город не указан'} · В литрах: {item.quantity_liters || '—'} · {receiptStatusLabel(item)}</span>
-                  <span>Создано: {formatDateTime(item.created_at)} · Завершено: {formatDateTime(item.completed_at)}</span>
+                  <span>{item.supplier?.city?.name || t('Город не указан')}{t(' · В литрах: ')}{item.quantity_liters || '—'} · {receiptStatusLabel(item)}</span>
+                  <span>{t('Создано: ')}{formatDateTime(item.created_at)}{t(' · Завершено: ')}{formatDateTime(item.completed_at)}</span>
                 </div>
                 <div className="row-actions">
-                  <button disabled={!canManageReceipt(item, user)} type="button" onClick={() => openEditModal(item)}>Изменить</button>
-                  <button className="danger-button" disabled={!canManageReceipt(item, user)} type="button" onClick={() => setDeleteTarget(item)}>Удалить</button>
+                  <button disabled={!canManageReceipt(item, user)} type="button" onClick={() => openEditModal(item)}>{t('Изменить')}</button>
+                  <button className="danger-button" disabled={!canManageReceipt(item, user)} type="button" onClick={() => setDeleteTarget(item)}>{t('Удалить')}</button>
                 </div>
               </div>
             ))}
-            {!receipts.length && <p className="empty-state">Поступлений пока нет. Добавьте первую запись приема.</p>}
-            {Boolean(receipts.length) && !receiptControls.filteredCount && <p className="empty-state">По вашему запросу ничего не найдено.</p>}
+            {!receipts.length && <p className="empty-state">{t('Поступлений пока нет. Добавьте первую запись приема.')}</p>}
+            {Boolean(receipts.length) && !receiptControls.filteredCount && <p className="empty-state">{t('По вашему запросу ничего не найдено.')}</p>}
           </div>
         </article>
       </section>
 
       {isFormOpen && (
-        <OperationsModal title={receiptForm.id ? 'Редактировать прием' : 'Новый прием сырья'} onClose={() => setIsFormOpen(false)}>
+        <OperationsModal title={receiptForm.id ? t('Редактировать прием') : t('Новый прием сырья')} onClose={() => setIsFormOpen(false)}>
           <form className="crud-form" onSubmit={handleReceiptSubmit}>
-            {formError && <p className="form-error" role="alert">{formError}</p>}
-            {receiptForm.is_locked && <p className="access-error">Запись заблокирована: лабораторный анализ заполнен, но ещё не одобрен.</p>}
+            {formError && <p className="form-error" role="alert">{t(formError)}</p>}
+            {receiptForm.is_locked && <p className="access-error">{t('Запись заблокирована: лабораторный анализ заполнен, но ещё не одобрен.')}</p>}
             {receiptForm.is_existing ? (
               <>
                 <SelectedSupplierCard supplier={selectedReceiptSupplier} />
-                <p className="empty-state">Поставщик фиксируется при создании заявки и больше не изменяется.</p>
+                <p className="empty-state">{t('Поставщик фиксируется при создании заявки и больше не изменяется.')}</p>
               </>
             ) : (
               <SearchableSupplierSelect
@@ -532,25 +538,25 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
               <div className="entity-list">
                 <div className="panel-heading">
                   <div>
-                    <p className="auth-eyebrow">Партии</p>
-                    <h3>Порции приема</h3>
+                    <p className="auth-eyebrow">{t('Партии')}</p>
+                    <h3>{t('Порции приема')}</h3>
                   </div>
-                  <button disabled={receiptForm.is_completed} type="button" onClick={handleAddBatch}>Добавить партию</button>
+                  <button disabled={receiptForm.is_completed} type="button" onClick={handleAddBatch}>{t('Добавить партию')}</button>
                 </div>
                 {receiptForm.batches.map((batch) => (
                   <div className="entity-row supplier-row" key={batch.id}>
                     <div>
-                      <strong>Партия #{batch.sequence_number}</strong>
-                      <span>Анализ: #{batch.laboratory_analysis_id} · {batchStatusLabel(batch)}</span>
-                      <span>Введено: {batch.input_quantity ? `${batch.input_quantity} ${unitLabels[batch.input_unit]}` : 'не указано'} · В литрах: {batch.quantity_liters || '—'}</span>
+                      <strong>{t('Партия #')}{batch.sequence_number}</strong>
+                      <span>{t('Анализ: #')}{batch.laboratory_analysis_id} · {batchStatusLabel(batch)}</span>
+                      <span>{t('Введено: ')}{batch.input_quantity ? `${batch.input_quantity} ${t(unitLabels[batch.input_unit])}` : t('не указано')}{t(' · В литрах: ')}{batch.quantity_liters || '—'}</span>
                     </div>
                     {batch.can_set_quantity ? (
                       <div className="row-actions">
-                        <input disabled={!canManageBatch(batch, receiptForm, user)} min="0" placeholder="Количество" step="0.001" type="number" value={batch.input_quantity} onChange={(event) => updateBatchForm(batch.id, { input_quantity: event.target.value })} />
-                        <div className="unit-radio-group" role="radiogroup" aria-label={`Единица измерения партии ${batch.sequence_number}`}>
+                        <input disabled={!canManageBatch(batch, receiptForm, user)} min="0" placeholder={t('Количество')} step="0.001" type="number" value={batch.input_quantity} onChange={(event) => updateBatchForm(batch.id, { input_quantity: event.target.value })} />
+                        <div className="unit-radio-group" role="radiogroup" aria-label={t`Единица измерения партии ${batch.sequence_number}`}>
                           {[
-                            { value: 'liters', label: 'Литры' },
-                            { value: 'kilograms', label: 'Килограммы' },
+                            { value: 'liters', label: t('Литры') },
+                            { value: 'kilograms', label: t('Килограммы') },
                           ].map((unit) => (
                             <label className={batch.input_unit === unit.value ? 'active' : ''} key={unit.value}>
                               <input
@@ -565,13 +571,13 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
                             </label>
                           ))}
                         </div>
-                        <button disabled={!canManageBatch(batch, receiptForm, user) || !hasPositiveQuantity(batch.input_quantity)} type="button" onClick={() => handleBatchSave(batch)}>Сохранить</button>
-                        <button className="danger-button" disabled={!canManageBatch(batch, receiptForm, user) || receiptForm.batches.length <= 1} type="button" onClick={() => handleBatchDelete(batch)}>Удалить</button>
+                        <button disabled={!canManageBatch(batch, receiptForm, user) || !hasPositiveQuantity(batch.input_quantity)} type="button" onClick={() => handleBatchSave(batch)}>{t('Сохранить')}</button>
+                        <button className="danger-button" disabled={!canManageBatch(batch, receiptForm, user) || receiptForm.batches.length <= 1} type="button" onClick={() => handleBatchDelete(batch)}>{t('Удалить')}</button>
                       </div>
                     ) : (
                       <div className="row-actions">
-                        <span className="empty-state">{batch.is_distributed ? 'Партия уже распределена' : 'Количество после одобрения анализа'}</span>
-                        <button className="danger-button" disabled={!canManageBatch(batch, receiptForm, user) || receiptForm.batches.length <= 1} type="button" onClick={() => handleBatchDelete(batch)}>Удалить</button>
+                        <span className="empty-state">{batch.is_distributed ? t('Партия уже распределена') : t('Количество после одобрения анализа')}</span>
+                        <button className="danger-button" disabled={!canManageBatch(batch, receiptForm, user) || receiptForm.batches.length <= 1} type="button" onClick={() => handleBatchDelete(batch)}>{t('Удалить')}</button>
                       </div>
                     )}
                   </div>
@@ -579,31 +585,31 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
                 {receiptForm.can_complete && receiptForm.batches.some((batch) => batch.is_analysis_approved && !batch.is_distributed) && (
                   <section className="receipt-distribution">
                     <div>
-                      <p className="auth-eyebrow">Распределение</p>
-                      <h3>Разместить партии по приёмным бакам</h3>
-                      <p>Сумма по каждой партии должна точно совпадать с её объёмом в литрах.</p>
+                      <p className="auth-eyebrow">{t('Распределение')}</p>
+                      <h3>{t('Разместить партии по приёмным бакам')}</h3>
+                      <p>{t('Сумма по каждой партии должна точно совпадать с её объёмом в литрах.')}</p>
                     </div>
                     {receiptForm.batches.filter((batch) => batch.is_analysis_approved && !batch.is_distributed).map((batch) => (
                       <div className="distribution-batch" key={batch.id}>
                         <div className="distribution-batch-heading">
-                          <strong>Партия #{batch.sequence_number}</strong>
-                          <span>Нужно распределить: {batch.quantity_liters} л</span>
+                          <strong>{t('Партия #')}{batch.sequence_number}</strong>
+                          <span>{t('Нужно распределить: ')}{batch.quantity_liters}{t(' л')}</span>
                         </div>
                         {(distributions[batch.id] || []).map((row, rowIndex) => (
                           <div className="distribution-row" key={`${batch.id}-${rowIndex}`}>
                             <select required value={row.tank_id} onChange={(event) => updateDistribution(batch.id, rowIndex, { tank_id: event.target.value })}>
-                              <option value="">Выберите бак</option>
+                              <option value="">{t('Выберите бак')}</option>
                               {receivingTanks.map((tank) => (
-                                <option key={tank.id} value={tank.id}>{tank.name} · свободно {tank.free_volume_liters} л</option>
+                                <option key={tank.id} value={tank.id}>{tank.name}{t(' · свободно ')}{tank.free_volume_liters}{t(' л')}</option>
                               ))}
                             </select>
-                            <input min="0.001" placeholder="Объём, л" required step="0.001" type="number" value={row.volume_liters} onChange={(event) => updateDistribution(batch.id, rowIndex, { volume_liters: event.target.value })} />
+                            <input min="0.001" placeholder={t('Объём, л')} required step="0.001" type="number" value={row.volume_liters} onChange={(event) => updateDistribution(batch.id, rowIndex, { volume_liters: event.target.value })} />
                             {(distributions[batch.id] || []).length > 1 && (
-                              <button className="danger-button" type="button" onClick={() => removeDistribution(batch.id, rowIndex)}>Убрать</button>
+                              <button className="danger-button" type="button" onClick={() => removeDistribution(batch.id, rowIndex)}>{t('Убрать')}</button>
                             )}
                           </div>
                         ))}
-                        <button className="secondary-button" type="button" onClick={() => addDistribution(batch.id)}>Добавить бак</button>
+                        <button className="secondary-button" type="button" onClick={() => addDistribution(batch.id)}>{t('Добавить бак')}</button>
                       </div>
                     ))}
                   </section>
@@ -611,14 +617,16 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
               </div>
             )}
             <div className="form-actions">
-              {receiptForm.can_complete && !isDistributionComplete && (
-                <p className="form-action-hint">Кнопка завершения станет доступна после полного распределения каждой партии.</p>
+              {receiptForm.can_complete && hasApprovedBatchesToDistribute && !isDistributionComplete && (
+                <p className="form-action-hint">{t('Кнопка завершения станет доступна после полного распределения каждой партии.')}</p>
               )}
               {receiptForm.can_complete && (
-                <button disabled={!isDistributionComplete} type="button" onClick={handleReceiptCompleteFromModal}>Завершить прием</button>
+                <button disabled={!canSubmitCompletion} type="button" onClick={handleReceiptCompleteFromModal}>
+                  {hasApprovedBatchesToDistribute ? t('Завершить прием') : t('Закрыть отклоненный прием')}
+                </button>
               )}
-              {!receiptForm.is_existing && <button disabled={!receiptForm.supplier_id || (receiptForm.is_locked && !isAdminUser(user))} type="submit">Создать</button>}
-              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>Отмена</button>
+              {!receiptForm.is_existing && <button disabled={!receiptForm.supplier_id || (receiptForm.is_locked && !isAdminUser(user))} type="submit">{t('Создать')}</button>}
+              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>{t('Отмена')}</button>
             </div>
           </form>
         </OperationsModal>
@@ -626,7 +634,7 @@ export function RawMaterialReceiptsPage({ onLogout, token, user }) {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          entityName="запись приема"
+          entityName={t('запись приема')}
           itemName={receiptLabel(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleReceiptDelete}
@@ -741,24 +749,24 @@ export function LaboratoryAnalysesPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Лабораторный анализ" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Лабораторный анализ')} onLogout={onLogout} user={user}>
       <audio ref={notificationAudioRef} src={notificationSound} preload="auto" />
 
       <OperationsPageHeader
-        title="Лабораторный анализ"
-        description="Фиксация плотности, температурных показателей и процента воды. Анализ один-к-одному связан с записью приема сырья."
+        title={t('Лабораторный анализ')}
+        description={t('Фиксация плотности, температурных показателей и процента воды. Анализ один-к-одному связан с записью приема сырья.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="access-grid">
         <article className="access-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Лаборатория</p>
-              <h3>Анализы сырья</h3>
+              <p className="auth-eyebrow">{t('Лаборатория')}</p>
+              <h3>{t('Анализы сырья')}</h3>
             </div>
-            <span className="empty-state">Создается автоматически при приеме</span>
+            <span className="empty-state">{t('Создается автоматически при приеме')}</span>
           </div>
 
           <ListControls
@@ -771,7 +779,7 @@ export function LaboratoryAnalysesPage({ onLogout, token, user }) {
             totalCount={analysisControls.totalCount}
           />
 
-          <div className="filter-pills" role="radiogroup" aria-label="Фильтр статуса анализа">
+          <div className="filter-pills" role="radiogroup" aria-label={t('Фильтр статуса анализа')}>
             {analysisFilterOptions.map((option) => (
               <label className={decisionFilter === option.value ? 'active' : ''} key={option.value}>
                 <input
@@ -781,7 +789,7 @@ export function LaboratoryAnalysesPage({ onLogout, token, user }) {
                   checked={decisionFilter === option.value}
                   onChange={(event) => setDecisionFilter(event.target.value)}
                 />
-                <span>{option.label}</span>
+                <span>{t(option.label)}</span>
               </label>
             ))}
           </div>
@@ -790,53 +798,53 @@ export function LaboratoryAnalysesPage({ onLogout, token, user }) {
             {analysisControls.paginatedItems.map((item) => (
               <div className={analysisRowClassName(item)} key={item.id}>
                 <div>
-                  <strong>Анализ #{item.id} · {receiptLabel(item.receipt)} · Партия #{item.batch_sequence_number || '—'}</strong>
-                  <span>Плотность: {item.density || '—'} г/см³ · Вода: {item.water_percentage || '—'}%</span>
-                  <span>Температура вспышки: {item.flash_point_temperature || '—'} °C · Текущая: {item.current_temperature || '—'} °C</span>
-                  <span>Создано: {formatDateTime(item.created_at)} · Решение: {formatDateTime(item.decided_at)}</span>
-                  <span>{item.is_rejected ? 'Отказан' : item.is_approved ? 'Одобрен' : item.is_filled ? 'Заполнен, ожидает решения' : 'Ожидает заполнения'}</span>
+                  <strong>{t('Анализ #')}{item.id} · {receiptLabel(item.receipt)}{t(' · Партия #')}{item.batch_sequence_number || '—'}</strong>
+                  <span>{t('Плотность: ')}{item.density || '—'}{t(' г/см³ · Вода: ')}{item.water_percentage || '—'}%</span>
+                  <span>{t('Температура вспышки: ')}{item.flash_point_temperature || '—'}{t(' °C · Текущая: ')}{item.current_temperature || '—'} °C</span>
+                  <span>{t('Создано: ')}{formatDateTime(item.created_at)}{t(' · Решение: ')}{formatDateTime(item.decided_at)}</span>
+                  <span>{item.is_rejected ? t('Отказан') : item.is_approved ? t('Одобрен') : item.is_filled ? t('Заполнен, ожидает решения') : t('Ожидает заполнения')}</span>
                   <DensityCheckNotice density={item.density} temperature={item.current_temperature} />
                 </div>
                 {canManageAnalysis(item) && (
                   <div className="row-actions">
-                    <button type="button" onClick={() => openEditModal(item)}>Изменить</button>
+                    <button type="button" onClick={() => openEditModal(item)}>{t('Изменить')}</button>
                   </div>
                 )}
               </div>
             ))}
-            {!analyses.length && <p className="empty-state">Анализов пока нет. Добавьте первый лабораторный анализ.</p>}
-            {Boolean(analyses.length) && !analysisControls.filteredCount && <p className="empty-state">По вашему запросу ничего не найдено.</p>}
+            {!analyses.length && <p className="empty-state">{t('Анализов пока нет. Добавьте первый лабораторный анализ.')}</p>}
+            {Boolean(analyses.length) && !analysisControls.filteredCount && <p className="empty-state">{t('По вашему запросу ничего не найдено.')}</p>}
           </div>
         </article>
       </section>
 
       {isFormOpen && (
-        <OperationsModal title="Редактировать лабораторный анализ" onClose={() => setIsFormOpen(false)}>
+        <OperationsModal title={t('Редактировать лабораторный анализ')} onClose={() => setIsFormOpen(false)}>
           <form className="crud-form" onSubmit={(event) => handleAnalysisSubmit(event, {})}>
-            {isDecisionLocked && <p className="empty-state">Статус уже выставлен. Данные и решение может изменить только администратор.</p>}
-            {formError && <p className="form-error" role="alert">{formError}</p>}
+            {isDecisionLocked && <p className="empty-state">{t('Статус уже выставлен. Данные и решение может изменить только администратор.')}</p>}
+            {formError && <p className="form-error" role="alert">{t(formError)}</p>}
             <label>
-              <span>Плотность, г/см³</span>
+              <span>{t('Плотность, г/см³')}</span>
               <input disabled={isDecisionLocked} min="0" step="0.0001" type="number" value={analysisForm.density} onChange={(event) => setAnalysisForm({ ...analysisForm, density: event.target.value })} />
             </label>
             <label>
-              <span>Температура вспышки, °C</span>
+              <span>{t('Температура вспышки, °C')}</span>
               <input disabled={isDecisionLocked} step="0.01" type="number" value={analysisForm.flash_point_temperature} onChange={(event) => setAnalysisForm({ ...analysisForm, flash_point_temperature: event.target.value })} />
             </label>
             <label>
-              <span>Текущая температура, °C</span>
+              <span>{t('Текущая температура, °C')}</span>
               <input disabled={isDecisionLocked} step="0.01" type="number" value={analysisForm.current_temperature} onChange={(event) => setAnalysisForm({ ...analysisForm, current_temperature: event.target.value })} />
             </label>
             <label>
-              <span>Количество воды, %</span>
+              <span>{t('Количество воды, %')}</span>
               <input disabled={isDecisionLocked} min="0" max="100" step="0.001" type="number" value={analysisForm.water_percentage} onChange={(event) => setAnalysisForm({ ...analysisForm, water_percentage: event.target.value })} />
             </label>
             <DensityCheckNotice density={analysisForm.density} temperature={analysisForm.current_temperature} />
             <div className="form-actions">
-              <button disabled={isDecisionLocked} type="button" onClick={(event) => handleAnalysisSubmit(event, { is_approved: true, is_rejected: false })}>Одобрить</button>
-              <button className="danger-button" disabled={isDecisionLocked} type="button" onClick={(event) => handleAnalysisSubmit(event, { is_approved: false, is_rejected: true })}>Отказать</button>
-              <button className="secondary-button" disabled={isDecisionLocked} type="submit">Сохранить без решения</button>
-              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>Отмена</button>
+              <button disabled={isDecisionLocked} type="button" onClick={(event) => handleAnalysisSubmit(event, { is_approved: true, is_rejected: false })}>{t('Одобрить')}</button>
+              <button className="danger-button" disabled={isDecisionLocked} type="button" onClick={(event) => handleAnalysisSubmit(event, { is_approved: false, is_rejected: true })}>{t('Отказать')}</button>
+              <button className="secondary-button" disabled={isDecisionLocked} type="submit">{t('Сохранить без решения')}</button>
+              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>{t('Отмена')}</button>
             </div>
           </form>
         </OperationsModal>

@@ -4,6 +4,8 @@ export const emptyModuleForm = { id: null, code: '', name: '', description: '', 
 export const emptyPermissionForm = { id: null, code: '', name: '', description: '' }
 export const emptySupplierForm = { id: null, company_name: '', city_id: '', address: '', phone: '' }
 export const emptyCityForm = { id: null, name: '' }
+export const emptyKnowledgeArticleForm = { id: null, title: '', category_id: '', summary: '', content: '' }
+export const emptyKnowledgeCategoryForm = { id: null, name: '', description: '' }
 export const emptyReceiptForm = { id: null, supplier_id: '', input_quantity: '', input_unit: 'liters', can_set_quantity: false, can_complete: false, is_completed: false, is_locked: false, is_existing: false, batches: [] }
 export const emptyLaboratoryAnalysisForm = {
   id: null,

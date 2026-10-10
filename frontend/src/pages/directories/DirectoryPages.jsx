@@ -1,3 +1,4 @@
+import { t } from '../../i18n/core'
 import { useState } from 'react'
 import { DashboardShell } from '../../components/Layout/DashboardShell'
 import { ListControls } from '../../components/ListControls/ListControls'
@@ -9,7 +10,7 @@ import { useListControls } from '../../hooks/useListControls'
 function DirectoryPageHeader({ description, title }) {
   return (
     <section className="page-title access-page-title">
-      <p className="auth-eyebrow">Справочник</p>
+      <p className="auth-eyebrow">{t('Справочник')}</p>
       <h1>{title}</h1>
       <p>{description}</p>
     </section>
@@ -48,22 +49,22 @@ export function CitiesPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Города" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Города')} onLogout={onLogout} user={user}>
       <DirectoryPageHeader
-        title="Города"
-        description="Отдельный справочник городов. Город нельзя удалить, если он используется поставщиком."
+        title={t('Города')}
+        description={t('Отдельный справочник городов. Город нельзя удалить, если он используется поставщиком.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="access-grid">
         <article className="access-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Города</p>
-              <h3>Список городов</h3>
+              <p className="auth-eyebrow">{t('Города')}</p>
+              <h3>{t('Список городов')}</h3>
             </div>
-            <button type="button" onClick={openCreateModal}>Создать</button>
+            <button type="button" onClick={openCreateModal}>{t('Создать')}</button>
           </div>
 
           <ListControls
@@ -81,24 +82,24 @@ export function CitiesPage({ onLogout, token, user }) {
               <div className="entity-row" key={item.id}>
                 <div><strong>{item.name}</strong><span>ID: {item.id}</span></div>
                 <div className="row-actions">
-                  <button type="button" onClick={() => openEditModal(item)}>Изменить</button>
-                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>Удалить</button>
+                  <button type="button" onClick={() => openEditModal(item)}>{t('Изменить')}</button>
+                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>{t('Удалить')}</button>
                 </div>
               </div>
             ))}
-            {!cities.length && <p className="empty-state">Городов пока нет. Добавьте первый город.</p>}
-            {Boolean(cities.length) && !cityControls.filteredCount && <p className="empty-state">По вашему запросу ничего не найдено.</p>}
+            {!cities.length && <p className="empty-state">{t('Городов пока нет. Добавьте первый город.')}</p>}
+            {Boolean(cities.length) && !cityControls.filteredCount && <p className="empty-state">{t('По вашему запросу ничего не найдено.')}</p>}
           </div>
         </article>
       </section>
 
       {isFormOpen && (
-        <AccessModal title={cityForm.id ? 'Редактировать город' : 'Новый город'} onClose={() => setIsFormOpen(false)}>
+        <AccessModal title={cityForm.id ? t('Редактировать город') : t('Новый город')} onClose={() => setIsFormOpen(false)}>
           <form className="crud-form" onSubmit={handleCitySubmit}>
-            <input placeholder="Название города" value={cityForm.name} onChange={(event) => setCityForm({ ...cityForm, name: event.target.value })} />
+            <input placeholder={t('Название города')} value={cityForm.name} onChange={(event) => setCityForm({ ...cityForm, name: event.target.value })} />
             <div className="form-actions">
-              <button type="submit">{cityForm.id ? 'Сохранить' : 'Создать'}</button>
-              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>Отмена</button>
+              <button type="submit">{cityForm.id ? t('Сохранить') : t('Создать')}</button>
+              <button className="secondary-button" type="button" onClick={() => setIsFormOpen(false)}>{t('Отмена')}</button>
             </div>
           </form>
         </AccessModal>
@@ -106,7 +107,7 @@ export function CitiesPage({ onLogout, token, user }) {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          entityName="город"
+          entityName={t('город')}
           itemName={deleteTarget.name}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleCityDelete}
@@ -159,23 +160,23 @@ export function SuppliersPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Поставщики" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Поставщики')} onLogout={onLogout} user={user}>
       <DirectoryPageHeader
-        title="Поставщики"
-        description="Справочник поставщиков сырья и услуг. Город хранится отдельной сущностью и выбирается в карточке поставщика."
+        title={t('Поставщики')}
+        description={t('Справочник поставщиков сырья и услуг. Город хранится отдельной сущностью и выбирается в карточке поставщика.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="access-grid">
         <article className="access-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Поставщики</p>
-              <h3>Список поставщиков</h3>
+              <p className="auth-eyebrow">{t('Поставщики')}</p>
+              <h3>{t('Список поставщиков')}</h3>
             </div>
             <div className="row-actions">
-              <button type="button" onClick={openCreateModal}>Создать</button>
+              <button type="button" onClick={openCreateModal}>{t('Создать')}</button>
             </div>
           </div>
 
@@ -194,33 +195,33 @@ export function SuppliersPage({ onLogout, token, user }) {
               <div className="entity-row supplier-row" key={item.id}>
                 <div>
                   <strong>{item.company_name}</strong>
-                  <span>{item.city?.name || 'Город не указан'} · {item.address} · {item.phone}</span>
+                  <span>{item.city?.name || t('Город не указан')} · {item.address} · {item.phone}</span>
                 </div>
                 <div className="row-actions">
-                  <button type="button" onClick={() => openEditModal(item)}>Изменить</button>
-                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>Удалить</button>
+                  <button type="button" onClick={() => openEditModal(item)}>{t('Изменить')}</button>
+                  <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>{t('Удалить')}</button>
                 </div>
               </div>
             ))}
-            {!suppliers.length && <p className="empty-state">Поставщиков пока нет. Добавьте первого поставщика.</p>}
-            {Boolean(suppliers.length) && !supplierControls.filteredCount && <p className="empty-state">По вашему запросу ничего не найдено.</p>}
+            {!suppliers.length && <p className="empty-state">{t('Поставщиков пока нет. Добавьте первого поставщика.')}</p>}
+            {Boolean(suppliers.length) && !supplierControls.filteredCount && <p className="empty-state">{t('По вашему запросу ничего не найдено.')}</p>}
           </div>
         </article>
       </section>
 
       {isSupplierFormOpen && (
-        <AccessModal title={supplierForm.id ? 'Редактировать поставщика' : 'Новый поставщик'} onClose={() => setIsSupplierFormOpen(false)}>
+        <AccessModal title={supplierForm.id ? t('Редактировать поставщика') : t('Новый поставщик')} onClose={() => setIsSupplierFormOpen(false)}>
           <form className="crud-form" onSubmit={handleSupplierSubmit}>
-            <input placeholder="Название компании" value={supplierForm.company_name} onChange={(event) => setSupplierForm({ ...supplierForm, company_name: event.target.value })} />
+            <input placeholder={t('Название компании')} value={supplierForm.company_name} onChange={(event) => setSupplierForm({ ...supplierForm, company_name: event.target.value })} />
             <select value={supplierForm.city_id || ''} onChange={(event) => setSupplierForm({ ...supplierForm, city_id: event.target.value ? Number(event.target.value) : '' })}>
-              <option value="">Выберите город</option>
+              <option value="">{t('Выберите город')}</option>
               {cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}
             </select>
-            <input placeholder="Адрес" value={supplierForm.address} onChange={(event) => setSupplierForm({ ...supplierForm, address: event.target.value })} />
-            <input placeholder="Номер телефона" value={supplierForm.phone} onChange={(event) => setSupplierForm({ ...supplierForm, phone: event.target.value })} />
+            <input placeholder={t('Адрес')} value={supplierForm.address} onChange={(event) => setSupplierForm({ ...supplierForm, address: event.target.value })} />
+            <input placeholder={t('Номер телефона')} value={supplierForm.phone} onChange={(event) => setSupplierForm({ ...supplierForm, phone: event.target.value })} />
             <div className="form-actions">
-              <button type="submit">{supplierForm.id ? 'Сохранить' : 'Создать'}</button>
-              <button className="secondary-button" type="button" onClick={() => setIsSupplierFormOpen(false)}>Отмена</button>
+              <button type="submit">{supplierForm.id ? t('Сохранить') : t('Создать')}</button>
+              <button className="secondary-button" type="button" onClick={() => setIsSupplierFormOpen(false)}>{t('Отмена')}</button>
             </div>
           </form>
         </AccessModal>
@@ -228,7 +229,7 @@ export function SuppliersPage({ onLogout, token, user }) {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          entityName="поставщика"
+          entityName={t('поставщика')}
           itemName={deleteTarget.company_name}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleSupplierDelete}

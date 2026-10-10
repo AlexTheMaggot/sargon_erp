@@ -591,3 +591,43 @@ class WarehouseMovement(models.Model):
 
     def __str__(self):
         return f'{self.document} · {self.item}'
+
+
+class KnowledgeCategory(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    description = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class KnowledgeArticle(models.Model):
+    category = models.ForeignKey(KnowledgeCategory, on_delete=models.PROTECT, related_name='articles')
+    title = models.CharField(max_length=200)
+    summary = models.CharField(max_length=500, blank=True)
+    content = models.TextField()
+    created_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        related_name='created_knowledge_articles',
+        null=True,
+        blank=True,
+    )
+    updated_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        related_name='updated_knowledge_articles',
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category__name', 'title', 'id']
+
+    def __str__(self):
+        return self.title

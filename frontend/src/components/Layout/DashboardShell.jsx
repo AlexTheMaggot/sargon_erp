@@ -1,7 +1,9 @@
+import { t } from '../../i18n/core'
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router'
 import shenollLogo from '../../assets/SHENOLL.svg'
 import { navItems } from '../../constants/navigation'
+import { LanguageSwitcher } from '../LanguageSwitcher/LanguageSwitcher'
 
 function canViewModule(user, moduleCode) {
   if (!moduleCode) {
@@ -58,7 +60,7 @@ export function DashboardShell({ children, title, onLogout, user }) {
         <button
           className="burger-button"
           type="button"
-          aria-label="Открыть меню"
+          aria-label={t('Открыть меню')}
           aria-expanded={isMenuOpen}
           onClick={() => setIsMenuOpen(true)}
         >
@@ -70,6 +72,7 @@ export function DashboardShell({ children, title, onLogout, user }) {
           <img src={shenollLogo} alt="Shenoll ERP" />
           <span>{title}</span>
         </div>
+        <LanguageSwitcher />
       </header>
 
       <div
@@ -78,10 +81,10 @@ export function DashboardShell({ children, title, onLogout, user }) {
         onClick={() => setIsMenuOpen(false)}
       />
 
-      <nav className={`side-nav ${isMenuOpen ? 'open' : ''}`} aria-label="Основная навигация">
+      <nav className={`side-nav ${isMenuOpen ? 'open' : ''}`} aria-label={t('Основная навигация')}>
         <div className="side-nav-header">
           <img src={shenollLogo} alt="Shenoll ERP" />
-          <button className="side-nav-close" type="button" aria-label="Закрыть меню" onClick={() => setIsMenuOpen(false)}>
+          <button className="side-nav-close" type="button" aria-label={t('Закрыть меню')} onClick={() => setIsMenuOpen(false)}>
             ×
           </button>
         </div>
@@ -96,7 +99,7 @@ export function DashboardShell({ children, title, onLogout, user }) {
                   type="button"
                   onClick={() => toggleSection(item.label)}
                 >
-                  <span>{item.label}</span>
+                  <span>{t(item.label)}</span>
                   <span aria-hidden="true" className="nav-section-chevron" />
                 </button>
                 <div
@@ -112,7 +115,7 @@ export function DashboardShell({ children, title, onLogout, user }) {
                         to={child.path}
                         onClick={() => setIsMenuOpen(false)}
                       >
-                        {child.label}
+                        {t(child.label)}
                       </NavLink>
                     ))}
                   </div>
@@ -120,14 +123,12 @@ export function DashboardShell({ children, title, onLogout, user }) {
               </div>
             ) : (
               <NavLink key={item.path} to={item.path} onClick={() => setIsMenuOpen(false)}>
-                {item.label}
+                {t(item.label)}
               </NavLink>
             )
           ))}
         </div>
-        <button className="secondary-button" type="button" onClick={handleLogoutClick}>
-          Выйти
-        </button>
+        <button className="secondary-button" type="button" onClick={handleLogoutClick}>{t('Выйти')}</button>
       </nav>
 
       {children}

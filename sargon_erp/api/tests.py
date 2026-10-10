@@ -15,6 +15,8 @@ from .models import (
     GroupModuleAccess,
     InventoryCategory,
     InventoryItem,
+    KnowledgeArticle,
+    KnowledgeCategory,
     LaboratoryAnalysis,
     MaterialMovement,
     Module,
@@ -835,3 +837,109 @@ class WarehouseAccountingTests(TestCase):
         self.assertEqual(response.status_code, 201, response.content)
         access = GroupModuleAccess.objects.get(group_id=response.json()['id'], module=module)
         self.assertEqual(set(access.permissions.values_list('code', flat=True)), {'view', 'issue'})
+
+
+class KnowledgeBaseTests(TestCase):
+    def setUp(self):
+        self.editor = get_user_model().objects.create_user('knowledge-editor')
+        self.reader = get_user_model().objects.create_user('knowledge-reader')
+        self.outsider = get_user_model().objects.create_user('knowledge-outsider')
+        self.module = Module.objects.get(code='knowledge-base')
+        for user, codes in (
+            (self.editor, ('view', 'create', 'update', 'delete')),
+            (self.reader, ('view',)),
+        ):
+            group = AccessGroup.objects.create(name=f'Группа {user.username}')
+            access = GroupModuleAccess.objects.create(group=group, module=self.module)
+            access.permissions.set(Permission.objects.filter(code__in=codes))
+            UserProfile.objects.filter(user=user).update(group=group)
+        self.category = KnowledgeCategory.objects.create(name='Инструкции для теста')
+        self.article = KnowledgeArticle.objects.create(
+            category=self.category,
+            title='Порядок приёма',
+            summary='Инструкция',
+            content='## Заявка\n\nСоздайте заявку и дождитесь анализа.',
+        )
+
+    def request_json(self, method, path, payload=None, user=None):
+        return getattr(self.client, method)(
+            path,
+            data=json.dumps(payload if payload is not None else {}),
+            content_type='application/json',
+            HTTP_AUTHORIZATION=f'Bearer {create_access_token(user or self.editor)}',
+        )
+
+    def test_seeded_guides_and_role_access_exist(self):
+        self.assertEqual(self.module.default_path, '/knowledge')
+        self.assertTrue(KnowledgeArticle.objects.filter(title='Оформление приёма: от заявки до бака').exists())
+        for name in ('Лаборант', 'Менеджер приема сырья'):
+            access = GroupModuleAccess.objects.get(group__name=name, module=self.module)
+            self.assertEqual(set(access.permissions.values_list('code', flat=True)), {'view'})
+
+    def test_reader_can_read_but_cannot_mutate_articles_or_categories(self):
+        headers = {'HTTP_AUTHORIZATION': f'Bearer {create_access_token(self.reader)}'}
+        response = self.client.get('/api/knowledge/articles/', **headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(any(item['id'] == self.article.pk for item in response.json()['items']))
+        for entity, item_id in (('articles', self.article.pk), ('categories', self.category.pk)):
+            path = f'/api/knowledge/{entity}/'
+            for method, url in (('post', path), ('patch', f'{path}{item_id}/'), ('delete', f'{path}{item_id}/')):
+                response = self.request_json(method, url, {'title': 'Подмена', 'name': 'Подмена'}, self.reader)
+                self.assertEqual(response.status_code, 403)
+        self.article.refresh_from_db()
+        self.assertEqual(self.article.title, 'Порядок приёма')
+
+    def test_authentication_and_module_access_are_required(self):
+        for entity in ('articles', 'categories'):
+            path = f'/api/knowledge/{entity}/'
+            self.assertEqual(self.client.get(path).status_code, 401)
+            response = self.client.get(path, HTTP_AUTHORIZATION=f'Bearer {create_access_token(self.outsider)}')
+            self.assertEqual(response.status_code, 403)
+        self.module.is_active = False
+        self.module.save(update_fields=['is_active'])
+        response = self.client.get('/api/knowledge/articles/', HTTP_AUTHORIZATION=f'Bearer {create_access_token(self.reader)}')
+        self.assertEqual(response.status_code, 403)
+
+    def test_article_crud_preserves_authorship_and_plain_text(self):
+        response = self.request_json('post', '/api/knowledge/articles/', {
+            'category_id': self.category.pk,
+            'title': 'Новая статья',
+            'summary': 'Описание',
+            'content': '<script>example()</script>\n\nОбычный текст.',
+        })
+        self.assertEqual(response.status_code, 201, response.content)
+        article = KnowledgeArticle.objects.get(pk=response.json()['id'])
+        self.assertEqual(article.created_by, self.editor)
+        self.assertEqual(response.json()['content'], '<script>example()</script>\n\nОбычный текст.')
+        path = f'/api/knowledge/articles/{article.pk}/'
+        response = self.request_json('patch', path, {'title': 'Обновлённая статья'})
+        self.assertEqual(response.status_code, 200)
+        article.refresh_from_db()
+        self.assertEqual(article.title, 'Обновлённая статья')
+        self.assertEqual(article.updated_by, self.editor)
+        self.assertEqual(self.request_json('delete', path).status_code, 200)
+        self.assertFalse(KnowledgeArticle.objects.filter(pk=article.pk).exists())
+
+    def test_category_with_articles_cannot_be_deleted(self):
+        path = f'/api/knowledge/categories/{self.category.pk}/'
+        self.assertEqual(self.request_json('delete', path).status_code, 400)
+        self.assertTrue(KnowledgeCategory.objects.filter(pk=self.category.pk).exists())
+        self.article.delete()
+        self.assertEqual(self.request_json('delete', path).status_code, 200)
+
+    def test_validation_and_duplicate_categories_return_client_errors(self):
+        for payload in (
+            {'category_id': self.category.pk, 'title': '', 'content': 'Текст'},
+            {'category_id': 999999, 'title': 'Статья', 'content': 'Текст'},
+            {'category_id': '9' * 100, 'title': 'Статья', 'content': 'Текст'},
+            {'category_id': self.category.pk, 'title': 'Статья', 'content': ['Неверный тип']},
+            {'category_id': self.category.pk, 'title': 'Статья', 'content': ''},
+            {'category_id': self.category.pk, 'title': 'x' * 201, 'content': 'Текст'},
+            [],
+        ):
+            response = self.request_json('post', '/api/knowledge/articles/', payload)
+            self.assertEqual(response.status_code, 400, response.content)
+        response = self.request_json('post', '/api/knowledge/categories/', {'name': self.category.name})
+        self.assertEqual(response.status_code, 400)
+        response = self.request_json('post', '/api/knowledge/categories/', {'name': 'Отдельный раздел'})
+        self.assertEqual(response.status_code, 201, response.content)

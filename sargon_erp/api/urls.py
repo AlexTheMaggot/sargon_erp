@@ -53,9 +53,17 @@ from .views import warehouse_document_detail_view
 from .views import warehouse_document_post_view
 from .views import warehouse_transfer_decision_view
 from .views import warehouse_document_cancel_view
+from .views import knowledge_categories_view
+from .views import knowledge_category_detail_view
+from .views import knowledge_articles_view
+from .views import knowledge_article_detail_view
 
 
 urlpatterns = [
+    path('knowledge/categories/', knowledge_categories_view, name='knowledge-categories'),
+    path('knowledge/categories/<int:category_id>/', knowledge_category_detail_view, name='knowledge-category-detail'),
+    path('knowledge/articles/', knowledge_articles_view, name='knowledge-articles'),
+    path('knowledge/articles/<int:article_id>/', knowledge_article_detail_view, name='knowledge-article-detail'),
     path('auth/login/', login_view, name='auth-login'),
     path('auth/me/', me_view, name='auth-me'),
     path('access/users/', access_users_view, name='access-users'),

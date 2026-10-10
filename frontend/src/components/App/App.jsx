@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react'
+import { t } from '../../i18n/core'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router'
 import shenollLogo from '../../assets/SHENOLL.svg'
+import { LanguageSwitcher } from '../LanguageSwitcher/LanguageSwitcher'
+import { useLanguage } from '../../i18n/useLanguage'
 import { AccessGroupsPage, AccessModulesPage, AccessPermissionsPage, AccessUsersPage } from '../../pages/access/AccessPages'
 import { OverviewPage } from '../../pages/dashboard/OverviewPage'
 import { CitiesPage, SuppliersPage } from '../../pages/directories/DirectoryPages'
@@ -10,6 +13,7 @@ import { WarehouseCategoriesPage, WarehouseInventoryPage, WarehouseIssuesPage, W
 import './App.css'
 
 const TOKEN_STORAGE_KEY = 'sargon_access_token'
+const KnowledgePage = lazy(() => import('../../pages/knowledge/KnowledgePage').then((module) => ({ default: module.KnowledgePage })))
 
 function getUserStartPath(user) {
   return user?.start_path || '/welcome'
@@ -45,7 +49,7 @@ function LoginPage({ onLogin }) {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.detail || 'Не удалось войти')
+        throw new Error(data.detail || t('Не удалось войти'))
       }
 
       const startPath = onLogin(data.access, data.user)
@@ -60,15 +64,14 @@ function LoginPage({ onLogin }) {
   return (
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="login-title">
+        <LanguageSwitcher />
         <div className="brand-block">
           <img className="brand-logo" src={shenollLogo} alt="Shenoll ERP" />
-          <h1 id="login-title">Вход в систему</h1>
+          <h1 id="login-title">{t('Вход в систему')}</h1>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <label>
-            Логин
-            <input
+          <label>{t('Логин')}<input
               autoComplete="username"
               name="username"
               onChange={(event) => setUsername(event.target.value)}
@@ -77,9 +80,7 @@ function LoginPage({ onLogin }) {
             />
           </label>
 
-          <label>
-            Пароль
-            <input
+          <label>{t('Пароль')}<input
               autoComplete="current-password"
               name="password"
               onChange={(event) => setPassword(event.target.value)}
@@ -88,10 +89,10 @@ function LoginPage({ onLogin }) {
             />
           </label>
 
-          {error && <p className="auth-error">{error}</p>}
+          {error && <p className="auth-error">{t(error)}</p>}
 
           <button disabled={isLoading} type="submit">
-            {isLoading ? 'Входим...' : 'Войти'}
+            {isLoading ? t('Входим...') : t('Войти')}
           </button>
         </form>
       </section>
@@ -124,6 +125,7 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
     <Routes>
       <Route path="/login" element={hasToken ? <Navigate to={startPath} replace /> : <LoginPage onLogin={onLogin} />} />
       <Route path="/welcome" element={<ProtectedRoute token={token} user={user}><OverviewPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/knowledge" element={<ProtectedRoute moduleCode="knowledge-base" token={token} user={user}><Suspense fallback={<p className="empty-state">{t('Загрузка…')}</p>}><KnowledgePage onLogout={onLogout} token={token} user={user} /></Suspense></ProtectedRoute>} />
       <Route path="/raw-material/receipts" element={<ProtectedRoute moduleCode="raw-material-receiving" token={token} user={user}><RawMaterialReceiptsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/laboratory/analyses" element={<ProtectedRoute moduleCode="laboratory-analysis" token={token} user={user}><LaboratoryAnalysesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/boiler-loading" element={<ProtectedRoute moduleCode="boiler-loading" token={token} user={user}><BoilerLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
@@ -163,6 +165,7 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
 }
 
 function AppContent() {
+  useLanguage()
   const navigate = useNavigate()
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY))
   const [user, setUser] = useState(null)

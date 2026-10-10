@@ -1,3 +1,5 @@
+import { t } from '../i18n/core'
+
 export async function apiRequest(path, token, options = {}) {
   const response = await fetch(path, {
     ...options,
@@ -6,7 +8,7 @@ export async function apiRequest(path, token, options = {}) {
 
   const data = await parseResponseJson(response)
   if (!response.ok) {
-    throw new Error(data.detail || 'Ошибка запроса')
+    throw new Error(data.detail || t('Ошибка запроса'))
   }
 
   return data

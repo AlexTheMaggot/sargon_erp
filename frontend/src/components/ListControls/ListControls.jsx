@@ -1,10 +1,11 @@
+import { t } from '../../i18n/core'
 export function ListControls({
   currentPage,
   filteredCount,
   onPageChange,
   onSearchChange,
   pageCount,
-  searchPlaceholder = 'Слепой поиск',
+  searchPlaceholder = t('Слепой поиск'),
   searchQuery,
   totalCount,
 }) {
@@ -13,7 +14,7 @@ export function ListControls({
       <label className="list-search">
         <span>{searchPlaceholder}</span>
         <input
-          placeholder="Введите текст для поиска"
+          placeholder={t('Введите текст для поиска')}
           type="search"
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
@@ -21,25 +22,21 @@ export function ListControls({
       </label>
 
       <div className="list-pagination">
-        <span>{filteredCount} из {totalCount}</span>
+        <span>{t`${filteredCount} из ${totalCount}`}</span>
         <div className="pagination-actions">
           <button
             className="secondary-button"
             disabled={currentPage <= 1}
             type="button"
             onClick={() => onPageChange(currentPage - 1)}
-          >
-            Назад
-          </button>
+          >{t('Назад')}</button>
           <strong>{currentPage} / {pageCount}</strong>
           <button
             className="secondary-button"
             disabled={currentPage >= pageCount}
             type="button"
             onClick={() => onPageChange(currentPage + 1)}
-          >
-            Вперёд
-          </button>
+          >{t('Вперёд')}</button>
         </div>
       </div>
     </div>

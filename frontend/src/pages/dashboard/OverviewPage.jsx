@@ -1,3 +1,5 @@
+import { getLocale, localizeStaticData, t } from '../../i18n/core'
+import { useLanguage } from '../../i18n/useLanguage'
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { apiRequest } from '../../api/client'
 import { DashboardShell } from '../../components/Layout/DashboardShell'
@@ -446,14 +448,14 @@ const FLOW_NODES = {
 const FlowNodesContext = createContext(FLOW_NODES)
 
 function formatLiveVolume(value) {
-  return `${Number(value || 0).toLocaleString('ru-RU', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} л`
+  return t`${Number(value || 0).toLocaleString(getLocale(), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} л`
 }
 
 function formatLiveDateTime(value) {
   if (!value) {
-    return 'Движений пока нет'
+    return t('Движений пока нет')
   }
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat(getLocale(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -467,15 +469,15 @@ function buildOverviewContainerNode(baseNode, container, defaultName) {
     return {
       ...baseNode,
       name: defaultName,
-      status: 'Не настроен',
+      status: t('Не настроен'),
       statusTone: 'ready',
-      currentFlow: '0,000 л',
-      throughput: '0,000 л',
-      capacityCaption: 'вместимость',
-      throughputLabel: 'Вместимость',
+      currentFlow: t('0,000 л'),
+      throughput: t('0,000 л'),
+      capacityCaption: t('вместимость'),
+      throughputLabel: t('Вместимость'),
       metrics: [
-        ['Текущий объём', '0,000 л'],
-        ['Состояние', 'Нет активной ёмкости'],
+        [t('Текущий объём'), t('0,000 л')],
+        [t('Состояние'), t('Нет активной ёмкости')],
       ],
       isLive: true,
     }
@@ -484,18 +486,18 @@ function buildOverviewContainerNode(baseNode, container, defaultName) {
   const hasVolume = Number(container.current_volume_liters) > 0
   return {
     ...baseNode,
-    name: container.name,
-    status: hasVolume ? 'Загружен' : 'Ожидает загрузки',
+    name: t(container.name),
+    status: hasVolume ? t('Загружен') : t('Ожидает загрузки'),
     statusTone: hasVolume ? 'running' : 'ready',
     currentFlow: formatLiveVolume(container.current_volume_liters),
     throughput: formatLiveVolume(container.capacity_liters),
-    capacityCaption: 'вместимость',
-    throughputLabel: 'Вместимость',
+    capacityCaption: t('вместимость'),
+    throughputLabel: t('Вместимость'),
     metrics: [
-      ['Текущий объём', formatLiveVolume(container.current_volume_liters)],
-      ['Свободно', formatLiveVolume(container.free_volume_liters)],
-      ['Заполнение', `${container.fill_percentage}%`],
-      ['Последняя загрузка', formatLiveDateTime(container.last_loading_at)],
+      [t('Текущий объём'), formatLiveVolume(container.current_volume_liters)],
+      [t('Свободно'), formatLiveVolume(container.free_volume_liters)],
+      [t('Заполнение'), `${container.fill_percentage}%`],
+      [t('Последняя загрузка'), formatLiveDateTime(container.last_loading_at)],
     ],
     isLive: true,
   }
@@ -507,18 +509,18 @@ function buildOverviewTankSummaryNode(baseNode, summary, singularName, pluralNam
   return {
     ...baseNode,
     name: activeCount === 1 ? singularName : pluralName,
-    status: activeCount === 0 ? 'Не настроен' : hasVolume ? 'Накапливается' : 'Ожидает загрузки',
+    status: activeCount === 0 ? t('Не настроен') : hasVolume ? t('Накапливается') : t('Ожидает загрузки'),
     statusTone: hasVolume ? 'running' : 'ready',
     currentFlow: formatLiveVolume(summary?.current_volume_liters),
     throughput: formatLiveVolume(summary?.capacity_liters),
-    capacityCaption: 'вместимость',
-    throughputLabel: 'Общая вместимость',
+    capacityCaption: t('вместимость'),
+    throughputLabel: t('Общая вместимость'),
     metrics: [
-      ['Текущий объём', formatLiveVolume(summary?.current_volume_liters)],
-      ['Свободно', formatLiveVolume(summary?.free_volume_liters)],
-      ['Заполнение', `${summary?.fill_percentage || '0.00'}%`],
-      ['Активных баков', String(activeCount)],
-      ['Последняя загрузка', formatLiveDateTime(summary?.last_loading_at)],
+      [t('Текущий объём'), formatLiveVolume(summary?.current_volume_liters)],
+      [t('Свободно'), formatLiveVolume(summary?.free_volume_liters)],
+      [t('Заполнение'), `${summary?.fill_percentage || '0.00'}%`],
+      [t('Активных баков'), String(activeCount)],
+      [t('Последняя загрузка'), formatLiveDateTime(summary?.last_loading_at)],
     ],
     isLive: true,
   }
@@ -541,7 +543,7 @@ function ProcessNode({ nodeId, selectedNodeId, onSelect, compact = false }) {
       <span className="process-node-stage">{node.stage}</span>
       <strong>{node.name}</strong>
       <span className="process-node-reading">{node.currentFlow}</span>
-      <span className="process-node-capacity">{node.capacityCaption || 'до'} {node.throughput}</span>
+      <span className="process-node-capacity">{node.capacityCaption ? `${node.capacityCaption} ${node.throughput}` : t`до ${node.throughput}`}</span>
     </button>
   )
 }
@@ -582,7 +584,7 @@ function CompactNodeGroup({ nodeIds, selectedNodeId, onSelect }) {
 
 function OilRoutingMatrix() {
   return (
-    <div className="oil-routing-matrix" aria-label="Любой смеситель может подавать масло в любой продуктовый бак">
+    <div className="oil-routing-matrix" aria-label={t('Любой смеситель может подавать масло в любой продуктовый бак')}>
       <svg viewBox="0 0 100 300" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <marker id="oil-route-arrow" markerHeight="6" markerWidth="6" orient="auto" refX="5" refY="3">
@@ -644,7 +646,7 @@ function ProcessDetails({ nodeId }) {
       <p className="process-details-description">{node.description}</p>
       <dl>
         <div>
-          <dt>{node.throughputLabel || 'Пропускная способность'}</dt>
+          <dt>{node.throughputLabel || t('Пропускная способность')}</dt>
           <dd>{node.throughput}</dd>
         </div>
         {node.metrics.map(([label, value]) => (
@@ -654,12 +656,13 @@ function ProcessDetails({ nodeId }) {
           </div>
         ))}
       </dl>
-      <p className="process-data-note">{node.isLive ? 'Актуальные данные производственного учёта' : 'Демонстрационные данные · узел подготовлен для подключения к API'}</p>
+      <p className="process-data-note">{node.isLive ? t('Актуальные данные производственного учёта') : t('Демонстрационные данные · узел подготовлен для подключения к API')}</p>
     </aside>
   )
 }
 
 export function OverviewPage({ onLogout, token, user }) {
+  const language = useLanguage()
   const [activeTab, setActiveTab] = useState('recycling')
   const [selectedNodeId, setSelectedNodeIdState] = useState('reception')
   const [detailsNodeId, setDetailsNodeId] = useState(null)
@@ -692,8 +695,9 @@ export function OverviewPage({ onLogout, token, user }) {
   }, [token])
 
   const flowNodes = useMemo(() => {
+    const nodes = localizeStaticData(FLOW_NODES, language)
     if (!overviewData) {
-      return FLOW_NODES
+      return nodes
     }
 
     const reception = overviewData.reception
@@ -705,84 +709,84 @@ export function OverviewPage({ onLogout, token, user }) {
     const rawDieselTanks = overviewData.raw_diesel_tanks
     const rawSpindleTanks = overviewData.raw_spindle_tanks
     return {
-      ...FLOW_NODES,
+      ...nodes,
       reception: {
-        ...FLOW_NODES.reception,
-        status: reception.open_receipt_count > 0 ? 'Прием идет' : 'Нет активных приемов',
+        ...nodes.reception,
+        status: reception.open_receipt_count > 0 ? t('Прием идет') : t('Нет активных приемов'),
         statusTone: reception.open_receipt_count > 0 ? 'running' : 'ready',
         currentFlow: formatLiveVolume(reception.accepted_today_liters),
-        throughput: `${reception.completed_today_count} завершено`,
-        capacityCaption: 'сегодня',
-        throughputLabel: 'Завершено сегодня',
+        throughput: t`${reception.completed_today_count} завершено`,
+        capacityCaption: t('сегодня'),
+        throughputLabel: t('Завершено сегодня'),
         metrics: [
-          ['Принято сегодня', formatLiveVolume(reception.accepted_today_liters)],
-          ['Открытых приемов', String(reception.open_receipt_count)],
-          ['Средний прием', formatLiveVolume(reception.average_receipt_liters)],
+          [t('Принято сегодня'), formatLiveVolume(reception.accepted_today_liters)],
+          [t('Открытых приемов'), String(reception.open_receipt_count)],
+          [t('Средний прием'), formatLiveVolume(reception.average_receipt_liters)],
         ],
         isLive: true,
       },
       storageTank: {
-        ...FLOW_NODES.storageTank,
-        name: tanks.active_count === 1 ? 'Приемный бак' : 'Приемные баки',
-        status: Number(tanks.current_volume_liters) > 0 ? 'Накапливается' : 'Пусто',
+        ...nodes.storageTank,
+        name: tanks.active_count === 1 ? t('Приемный бак') : t('Приемные баки'),
+        status: Number(tanks.current_volume_liters) > 0 ? t('Накапливается') : t('Пусто'),
         statusTone: Number(tanks.current_volume_liters) > 0 ? 'running' : 'ready',
         currentFlow: formatLiveVolume(tanks.current_volume_liters),
         throughput: formatLiveVolume(tanks.capacity_liters),
-        capacityCaption: 'вместимость',
-        throughputLabel: 'Общая вместимость',
+        capacityCaption: t('вместимость'),
+        throughputLabel: t('Общая вместимость'),
         metrics: [
-          ['Текущий объем', formatLiveVolume(tanks.current_volume_liters)],
-          ['Свободно', formatLiveVolume(tanks.free_volume_liters)],
-          ['Заполнение', `${tanks.fill_percentage}%`],
-          ['Активных баков', String(tanks.active_count)],
-          ['Последнее движение', formatLiveDateTime(tanks.last_movement_at)],
+          [t('Текущий объем'), formatLiveVolume(tanks.current_volume_liters)],
+          [t('Свободно'), formatLiveVolume(tanks.free_volume_liters)],
+          [t('Заполнение'), `${tanks.fill_percentage}%`],
+          [t('Активных баков'), String(tanks.active_count)],
+          [t('Последнее движение'), formatLiveDateTime(tanks.last_movement_at)],
         ],
         isLive: true,
       },
       preheater: {
-        ...FLOW_NODES.preheater,
-        name: boilers.active_count === 1 ? 'Котел первичного прогрева' : 'Котлы первичного прогрева',
-        status: Number(boilers.current_volume_liters) > 0 ? 'Загружен' : 'Ожидает загрузки',
+        ...nodes.preheater,
+        name: boilers.active_count === 1 ? t('Котел первичного прогрева') : t('Котлы первичного прогрева'),
+        status: Number(boilers.current_volume_liters) > 0 ? t('Загружен') : t('Ожидает загрузки'),
         statusTone: Number(boilers.current_volume_liters) > 0 ? 'running' : 'ready',
         currentFlow: formatLiveVolume(boilers.current_volume_liters),
         throughput: formatLiveVolume(boilers.capacity_liters),
-        capacityCaption: 'вместимость',
-        throughputLabel: 'Общая вместимость',
+        capacityCaption: t('вместимость'),
+        throughputLabel: t('Общая вместимость'),
         metrics: [
-          ['Текущий объем', formatLiveVolume(boilers.current_volume_liters)],
-          ['Свободно', formatLiveVolume(boilers.free_volume_liters)],
-          ['Заполнение', `${boilers.fill_percentage}%`],
-          ['Активных котлов', String(boilers.active_count)],
-          ['Последняя загрузка', formatLiveDateTime(boilers.last_loading_at)],
+          [t('Текущий объем'), formatLiveVolume(boilers.current_volume_liters)],
+          [t('Свободно'), formatLiveVolume(boilers.free_volume_liters)],
+          [t('Заполнение'), `${boilers.fill_percentage}%`],
+          [t('Активных котлов'), String(boilers.active_count)],
+          [t('Последняя загрузка'), formatLiveDateTime(boilers.last_loading_at)],
         ],
         isLive: true,
       },
       separator: {
-        ...FLOW_NODES.separator,
-        name: separators.active_count === 1 ? 'Сепаратор' : 'Сепараторы',
-        status: Number(separators.current_volume_liters) > 0 ? 'Загружен' : 'Ожидает загрузки',
+        ...nodes.separator,
+        name: separators.active_count === 1 ? t('Сепаратор') : t('Сепараторы'),
+        status: Number(separators.current_volume_liters) > 0 ? t('Загружен') : t('Ожидает загрузки'),
         statusTone: Number(separators.current_volume_liters) > 0 ? 'running' : 'ready',
         currentFlow: formatLiveVolume(separators.current_volume_liters),
         throughput: formatLiveVolume(separators.capacity_liters),
-        capacityCaption: 'вместимость',
-        throughputLabel: 'Общая вместимость',
+        capacityCaption: t('вместимость'),
+        throughputLabel: t('Общая вместимость'),
         metrics: [
-          ['Текущий объем', formatLiveVolume(separators.current_volume_liters)],
-          ['Свободно', formatLiveVolume(separators.free_volume_liters)],
-          ['Заполнение', `${separators.fill_percentage}%`],
-          ['Активных сепараторов', String(separators.active_count)],
-          ['Последняя загрузка', formatLiveDateTime(separators.last_loading_at)],
+          [t('Текущий объем'), formatLiveVolume(separators.current_volume_liters)],
+          [t('Свободно'), formatLiveVolume(separators.free_volume_liters)],
+          [t('Заполнение'), `${separators.fill_percentage}%`],
+          [t('Активных сепараторов'), String(separators.active_count)],
+          [t('Последняя загрузка'), formatLiveDateTime(separators.last_loading_at)],
         ],
         isLive: true,
       },
-      chemicalMixer1: buildOverviewContainerNode(FLOW_NODES.chemicalMixer1, chemicalMixers[0], 'Химический миксер №1'),
-      chemicalMixer2: buildOverviewContainerNode(FLOW_NODES.chemicalMixer2, chemicalMixers[1], 'Химический миксер №2'),
-      workshop1: buildOverviewContainerNode(FLOW_NODES.workshop1, processingWorkshops[0], 'Цех переработки №1'),
-      workshop2: buildOverviewContainerNode(FLOW_NODES.workshop2, processingWorkshops[1], 'Цех переработки №2'),
-      rawDieselTank: buildOverviewTankSummaryNode(FLOW_NODES.rawDieselTank, rawDieselTanks, 'Бак сырой солярки', 'Баки сырой солярки'),
-      rawSpindleTank: buildOverviewTankSummaryNode(FLOW_NODES.rawSpindleTank, rawSpindleTanks, 'Бак сырой веретенки', 'Баки сырой веретенки'),
+      chemicalMixer1: buildOverviewContainerNode(nodes.chemicalMixer1, chemicalMixers[0], t('Химический миксер №1')),
+      chemicalMixer2: buildOverviewContainerNode(nodes.chemicalMixer2, chemicalMixers[1], t('Химический миксер №2')),
+      workshop1: buildOverviewContainerNode(nodes.workshop1, processingWorkshops[0], t('Цех переработки №1')),
+      workshop2: buildOverviewContainerNode(nodes.workshop2, processingWorkshops[1], t('Цех переработки №2')),
+      rawDieselTank: buildOverviewTankSummaryNode(nodes.rawDieselTank, rawDieselTanks, t('Бак сырой солярки'), t('Баки сырой солярки')),
+      rawSpindleTank: buildOverviewTankSummaryNode(nodes.rawSpindleTank, rawSpindleTanks, t('Бак сырой веретенки'), t('Баки сырой веретенки')),
     }
-  }, [overviewData])
+  }, [overviewData, language])
 
   const selectTab = (tabId) => {
     setActiveTab(tabId)
@@ -796,10 +800,10 @@ export function OverviewPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Обзор производства" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Обзор производства')} onLogout={onLogout} user={user}>
       <FlowNodesContext.Provider value={flowNodes}>
       <section className="process-overview">
-        <div className="process-tabs" role="tablist" aria-label="Производственные схемы">
+        <div className="process-tabs" role="tablist" aria-label={t('Производственные схемы')}>
           <button
             type="button"
             role="tab"
@@ -807,9 +811,7 @@ export function OverviewPage({ onLogout, token, user }) {
             aria-controls="recycling-process-panel"
             className={activeTab === 'recycling' ? 'process-tab process-tab--active' : 'process-tab'}
             onClick={() => selectTab('recycling')}
-          >
-            Переработка отработанного масла
-          </button>
+          >{t('Переработка отработанного масла')}</button>
           <button
             type="button"
             role="tab"
@@ -817,41 +819,39 @@ export function OverviewPage({ onLogout, token, user }) {
             aria-controls="oil-production-panel"
             className={activeTab === 'oil-production' ? 'process-tab process-tab--active' : 'process-tab'}
             onClick={() => selectTab('oil-production')}
-          >
-            Производство масла
-          </button>
+          >{t('Производство масла')}</button>
         </div>
 
         {activeTab === 'recycling' && (
           <div id="recycling-process-panel" role="tabpanel">
             <header className="process-overview-header">
               <div>
-                <p className="auth-eyebrow">Технологическая линия</p>
-                <h1>Переработка отработанного масла</h1>
-                <p>Реальный учёт подключён к этапам от приёма до баков сырой продукции; последующие узлы пока остаются демонстрационными.</p>
+                <p className="auth-eyebrow">{t('Технологическая линия')}</p>
+                <h1>{t('Переработка отработанного масла')}</h1>
+                <p>{t('Реальный учёт подключён к этапам от приёма до баков сырой продукции; последующие узлы пока остаются демонстрационными.')}</p>
               </div>
               <div className="process-summary">
-                <span><i className="summary-indicator" />Учёт подключён</span>
-                <strong>{overviewData ? formatLiveVolume(overviewData.reception.accepted_today_liters) : 'Загрузка...'}</strong>
-                <small>принято сегодня</small>
+                <span><i className="summary-indicator" />{t('Учёт подключён')}</span>
+                <strong>{overviewData ? formatLiveVolume(overviewData.reception.accepted_today_liters) : t('Загрузка...')}</strong>
+                <small>{t('принято сегодня')}</small>
               </div>
             </header>
 
-            {overviewError && <p className="process-live-error">Не удалось обновить реальные показатели: {overviewError}</p>}
+            {overviewError && <p className="process-live-error">{t('Не удалось обновить реальные показатели: ')}{t(overviewError)}</p>}
 
-            <div className="process-legend" aria-label="Легенда схемы">
-              <span><i className="legend-line legend-line--product" />Основной продукт</span>
-              <span><i className="legend-line legend-line--water" />Вода</span>
-              <span><i className="legend-line legend-line--waste" />Мусор</span>
-              <span><i className="legend-line legend-line--sorbent" />Сорбент</span>
-              <span><i className="legend-status legend-status--running" />В работе</span>
-              <span><i className="legend-status legend-status--ready" />Готов / ожидает</span>
-              <small>Все объемы указаны в литрах</small>
+            <div className="process-legend" aria-label={t('Легенда схемы')}>
+              <span><i className="legend-line legend-line--product" />{t('Основной продукт')}</span>
+              <span><i className="legend-line legend-line--water" />{t('Вода')}</span>
+              <span><i className="legend-line legend-line--waste" />{t('Мусор')}</span>
+              <span><i className="legend-line legend-line--sorbent" />{t('Сорбент')}</span>
+              <span><i className="legend-status legend-status--running" />{t('В работе')}</span>
+              <span><i className="legend-status legend-status--ready" />{t('Готов / ожидает')}</span>
+              <small>{t('Все объемы указаны в литрах')}</small>
             </div>
 
             <div className="process-scroll-hint">
-              <span>Нажмите на этап, чтобы посмотреть показатели</span>
-              <span>Направление потока показано змейкой ↓</span>
+              <span>{t('Нажмите на этап, чтобы посмотреть показатели')}</span>
+              <span>{t('Направление потока показано змейкой ↓')}</span>
             </div>
 
             <div className="process-snake">
@@ -877,7 +877,7 @@ export function OverviewPage({ onLogout, token, user }) {
 
           <div className="snake-row snake-row--reverse">
             <div className="snake-sorbent-inline">
-              <span>↔ замкнутый контур сорбента</span>
+              <span>{t('↔ замкнутый контур сорбента')}</span>
               <ProcessNode compact nodeId="sorbentTank" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
               <ProcessNode compact nodeId="sorbentSystem" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
             </div>
@@ -908,27 +908,27 @@ export function OverviewPage({ onLogout, token, user }) {
         <section id="oil-production-panel" className="oil-production-section" role="tabpanel">
           <header className="oil-production-header">
             <div>
-              <p className="auth-eyebrow">Дополнительная производственная линия</p>
-              <h2>Производство масел</h2>
-              <p>Изготовление товарных масел из готовой веретенки, концентрата и пакетов присадок.</p>
+              <p className="auth-eyebrow">{t('Дополнительная производственная линия')}</p>
+              <h2>{t('Производство масел')}</h2>
+              <p>{t('Изготовление товарных масел из готовой веретенки, концентрата и пакетов присадок.')}</p>
             </div>
             <div className="oil-production-summary">
-              <span><i />Блендинг выполняется</span>
-              <strong>7 850 л</strong>
-              <small>в работе на трех смесителях</small>
+              <span><i />{t('Блендинг выполняется')}</span>
+              <strong>{t('7 850 л')}</strong>
+              <small>{t('в работе на трех смесителях')}</small>
             </div>
           </header>
 
           <div className="oil-production-legend">
-            <span><i className="legend-line legend-line--product" />Веретенка и концентрат</span>
-            <span><i className="legend-line legend-line--material" />Загуститель и присадки</span>
-            <span><i className="legend-line legend-line--oil" />Готовые масла</span>
-            <small>Жидкие продукты — литры, твердые компоненты — килограммы</small>
+            <span><i className="legend-line legend-line--product" />{t('Веретенка и концентрат')}</span>
+            <span><i className="legend-line legend-line--material" />{t('Загуститель и присадки')}</span>
+            <span><i className="legend-line legend-line--oil" />{t('Готовые масла')}</span>
+            <small>{t('Жидкие продукты — литры, твердые компоненты — килограммы')}</small>
           </div>
 
           <div className="oil-production-map">
             <div className="oil-stage oil-preparation-stage">
-              <span className="oil-stage-title">Приготовление концентрата</span>
+              <span className="oil-stage-title">{t('Приготовление концентрата')}</span>
               <div className="oil-preparation-inputs">
                 <ProcessNode compact nodeId="finishedSpindleTank" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
                 <ProcessNode compact nodeId="polypropyleneFeed" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
@@ -940,7 +940,7 @@ export function OverviewPage({ onLogout, token, user }) {
             <FlowArrow />
 
             <div className="oil-stage oil-blending-stage">
-              <span className="oil-stage-title">Блендинговые смесители</span>
+              <span className="oil-stage-title">{t('Блендинговые смесители')}</span>
               <div className="oil-blending-feeds">
                 <ProcessOutlet nodeId="finishedSpindleTank" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
                 <ProcessOutlet nodeId="additiveStation" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
@@ -955,7 +955,7 @@ export function OverviewPage({ onLogout, token, user }) {
             <OilRoutingMatrix />
 
             <div className="oil-stage oil-product-tanks">
-              <span className="oil-stage-title">Баки готовых масел</span>
+              <span className="oil-stage-title">{t('Баки готовых масел')}</span>
               <div>
                 {['transmissionOilTank', 'hydraulicOilTank', 'industrialOilTank', 'motorOilTank'].map((nodeId) => (
                   <ProcessNode compact key={nodeId} nodeId={nodeId} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
@@ -966,7 +966,7 @@ export function OverviewPage({ onLogout, token, user }) {
             <OilTankMerge />
 
             <div className="oil-stage oil-filling-stage">
-              <span className="oil-stage-title">Общий розлив</span>
+              <span className="oil-stage-title">{t('Общий розлив')}</span>
               <ProcessNode compact nodeId="fillingLine" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
             </div>
           </div>
@@ -974,7 +974,7 @@ export function OverviewPage({ onLogout, token, user }) {
         )}
 
         {detailsNodeId && (
-          <Modal title="Информация об этапе" onClose={() => setDetailsNodeId(null)}>
+          <Modal title={t('Информация об этапе')} onClose={() => setDetailsNodeId(null)}>
             <ProcessDetails nodeId={detailsNodeId} />
           </Modal>
         )}

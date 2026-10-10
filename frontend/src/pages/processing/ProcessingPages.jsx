@@ -1,3 +1,5 @@
+import { getLocale, t } from '../../i18n/core'
+import { localizeAuditEntry } from '../../i18n/audit'
 import { useState } from 'react'
 import { DashboardShell } from '../../components/Layout/DashboardShell'
 import { ListControls } from '../../components/ListControls/ListControls'
@@ -29,7 +31,7 @@ const emptyJournalFilters = {
 function ProcessingPageHeader({ description, title }) {
   return (
     <section className="page-title access-page-title">
-      <p className="auth-eyebrow">Переработка отработанного масла</p>
+      <p className="auth-eyebrow">{t('Переработка отработанного масла')}</p>
       <h1>{title}</h1>
       <p>{description}</p>
     </section>
@@ -40,7 +42,7 @@ function formatDateTime(value) {
   if (!value) {
     return '—'
   }
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat(getLocale(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -53,7 +55,7 @@ function formatVolume(value) {
   if (value === '' || value === null || value === undefined) {
     return '—'
   }
-  return `${Number(value).toLocaleString('ru-RU', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} л`
+  return t`${Number(value).toLocaleString(getLocale(), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} л`
 }
 
 function createIdempotencyKey() {
@@ -66,42 +68,42 @@ function ContainerPage({ kind, onLogout, token, user }) {
   const pageConfig = {
     receiving_tank: {
       containers: receivingTanks,
-      description: 'Текущий объём принятого отработанного масла и передача сырья в котлы.',
-      title: 'Приёмные баки',
+      description: t('Текущий объём принятого отработанного масла и передача сырья в котлы.'),
+      title: t('Приёмные баки'),
     },
     preheating_boiler: {
       containers: boilers,
-      description: 'Учёт загрузки котлов первичного прогрева без запуска и параметров прогрева.',
-      title: 'Котлы первичного прогрева',
+      description: t('Учёт загрузки котлов первичного прогрева без запуска и параметров прогрева.'),
+      title: t('Котлы первичного прогрева'),
     },
     separator: {
       containers: separators,
-      description: 'Учёт вместимости, текущего объёма и доступности сепараторов.',
-      title: 'Сепараторы',
+      description: t('Учёт вместимости, текущего объёма и доступности сепараторов.'),
+      title: t('Сепараторы'),
     },
     chemical_mixer: {
       containers: chemicalMixers,
-      description: 'Учёт вместимости, текущего объёма и доступности химических миксеров.',
-      title: 'Химические миксеры',
+      description: t('Учёт вместимости, текущего объёма и доступности химических миксеров.'),
+      title: t('Химические миксеры'),
     },
     processing_workshop: {
       containers: processingWorkshops,
-      description: 'Учёт вместимости, текущего объёма и доступности цехов переработки.',
-      title: 'Цеха переработки',
+      description: t('Учёт вместимости, текущего объёма и доступности цехов переработки.'),
+      title: t('Цеха переработки'),
     },
     raw_diesel_tank: {
       containers: rawDieselTanks,
-      description: 'Учёт вместимости, текущего объёма и доступности баков сырой солярки.',
-      title: 'Баки сырой солярки',
+      description: t('Учёт вместимости, текущего объёма и доступности баков сырой солярки.'),
+      title: t('Баки сырой солярки'),
     },
     raw_spindle_tank: {
       containers: rawSpindleTanks,
-      description: 'Учёт вместимости, текущего объёма и доступности баков сырой веретенки.',
-      title: 'Баки сырой веретенки',
+      description: t('Учёт вместимости, текущего объёма и доступности баков сырой веретенки.'),
+      title: t('Баки сырой веретенки'),
     },
   }[kind]
   const containers = pageConfig.containers
-  const controls = useListControls(containers, (item) => [item.number, item.name, item.current_volume_liters].join(' '))
+  const controls = useListControls(containers, (item) => [item.number, t(item.name), item.current_volume_liters].join(' '))
   const [containerForm, setContainerForm] = useState({ ...emptyContainerForm, kind })
   const [isContainerFormOpen, setIsContainerFormOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -145,16 +147,16 @@ function ContainerPage({ kind, onLogout, token, user }) {
         description={pageConfig.description}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="access-grid">
         <article className="access-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Ёмкости</p>
+              <p className="auth-eyebrow">{t('Ёмкости')}</p>
               <h3>{title}</h3>
             </div>
-            {isAdmin && <button type="button" onClick={openCreateModal}>Создать</button>}
+            {isAdmin && <button type="button" onClick={openCreateModal}>{t('Создать')}</button>}
           </div>
 
           <ListControls
@@ -171,49 +173,47 @@ function ContainerPage({ kind, onLogout, token, user }) {
             {controls.paginatedItems.map((item) => (
               <div className={`entity-row processing-container-row ${!item.is_active ? 'disabled-row' : ''}`} key={item.id}>
                 <div>
-                  <strong>{item.name}</strong>
-                  <span>Текущий объём: {formatVolume(item.current_volume_liters)}</span>
+                  <strong>{t(item.name)}</strong>
+                  <span>{t('Текущий объём: ')}{formatVolume(item.current_volume_liters)}</span>
                   {isAdmin && (
                     <>
-                      <span>Вместимость: {formatVolume(item.capacity_liters)} · Свободно: {formatVolume(item.free_volume_liters)}</span>
-                      <span>Заполнение: {item.fill_percentage}% · Последнее движение: {formatDateTime(item.last_movement_at)}</span>
-                      <span>{item.is_active ? 'Активна' : 'Деактивирована'}</span>
+                      <span>{t('Вместимость: ')}{formatVolume(item.capacity_liters)}{t(' · Свободно: ')}{formatVolume(item.free_volume_liters)}</span>
+                      <span>{t('Заполнение: ')}{item.fill_percentage}{t('% · Последнее движение: ')}{formatDateTime(item.last_movement_at)}</span>
+                      <span>{item.is_active ? t('Активна') : t('Деактивирована')}</span>
                       {!isTankPage && Boolean(item.recent_loadings?.length) && (
-                        <span>Последние загрузки: {item.recent_loadings.map((movement) => `${formatDateTime(movement.moved_at)} — ${formatVolume(movement.volume_liters)}`).join('; ')}</span>
+                        <span>{t('Последние загрузки: ')}{item.recent_loadings.map((movement) => `${formatDateTime(movement.moved_at)} — ${formatVolume(movement.volume_liters)}`).join('; ')}</span>
                       )}
                     </>
                   )}
                 </div>
                 <div className="row-actions">
-                  {isAdmin && <button type="button" onClick={() => openEditModal(item)}>Изменить</button>}
-                  {isAdmin && <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>Удалить</button>}
+                  {isAdmin && <button type="button" onClick={() => openEditModal(item)}>{t('Изменить')}</button>}
+                  {isAdmin && <button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>{t('Удалить')}</button>}
                 </div>
               </div>
             ))}
-            {!containers.length && <p className="empty-state">Ёмкости пока не созданы.</p>}
-            {Boolean(containers.length) && !controls.filteredCount && <p className="empty-state">По вашему запросу ничего не найдено.</p>}
+            {!containers.length && <p className="empty-state">{t('Ёмкости пока не созданы.')}</p>}
+            {Boolean(containers.length) && !controls.filteredCount && <p className="empty-state">{t('По вашему запросу ничего не найдено.')}</p>}
           </div>
         </article>
       </section>
 
       {isContainerFormOpen && (
-        <Modal title={containerForm.id ? 'Изменить ёмкость' : 'Новая ёмкость'} onClose={() => setIsContainerFormOpen(false)}>
+        <Modal title={containerForm.id ? t('Изменить ёмкость') : t('Новая ёмкость')} onClose={() => setIsContainerFormOpen(false)}>
           <form className="crud-form" onSubmit={handleContainerSubmit}>
             <label>
-              <span>Номер</span>
+              <span>{t('Номер')}</span>
               <input min="1" required type="number" value={containerForm.number} onChange={(event) => setContainerForm({ ...containerForm, number: event.target.value })} />
             </label>
             <label>
-              <span>Вместимость, л</span>
+              <span>{t('Вместимость, л')}</span>
               <input min="1" required step="1" type="number" value={containerForm.capacity_liters} onChange={(event) => setContainerForm({ ...containerForm, capacity_liters: event.target.value })} />
             </label>
             <label className="checkbox-row">
-              <input checked={containerForm.is_active} type="checkbox" onChange={(event) => setContainerForm({ ...containerForm, is_active: event.target.checked })} />
-              Активна
-            </label>
+              <input checked={containerForm.is_active} type="checkbox" onChange={(event) => setContainerForm({ ...containerForm, is_active: event.target.checked })} />{t('Активна')}</label>
             <div className="form-actions">
-              <button type="submit">{containerForm.id ? 'Сохранить' : 'Создать'}</button>
-              <button className="secondary-button" type="button" onClick={() => setIsContainerFormOpen(false)}>Отмена</button>
+              <button type="submit">{containerForm.id ? t('Сохранить') : t('Создать')}</button>
+              <button className="secondary-button" type="button" onClick={() => setIsContainerFormOpen(false)}>{t('Отмена')}</button>
             </div>
           </form>
         </Modal>
@@ -221,8 +221,8 @@ function ContainerPage({ kind, onLogout, token, user }) {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          entityName="ёмкость"
-          itemName={deleteTarget.name}
+          entityName={t('ёмкость')}
+          itemName={t(deleteTarget.name)}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleDelete}
         />
@@ -305,46 +305,46 @@ export function BoilerLoadingPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Загрузка котла отработки" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Загрузка котла отработки')} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
-        title="Загрузка котла отработки"
-        description="Регистрация движения отработанного масла из приёмного бака в котёл первичного прогрева."
+        title={t('Загрузка котла отработки')}
+        description={t('Регистрация движения отработанного масла из приёмного бака в котёл первичного прогрева.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="boiler-loading-layout">
         <article className="access-card boiler-loading-form-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Новое движение</p>
-              <h3>Выберите источник, котёл и объём</h3>
+              <p className="auth-eyebrow">{t('Новое движение')}</p>
+              <h3>{t('Выберите источник, котёл и объём')}</h3>
             </div>
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
             <label>
-              <span>Приёмный бак</span>
+              <span>{t('Приёмный бак')}</span>
               <select required value={form.source_tank_id} onChange={(event) => setForm({ ...form, source_tank_id: event.target.value })}>
-                <option value="">Выберите приёмный бак</option>
+                <option value="">{t('Выберите приёмный бак')}</option>
                 {availableTanks.map((tank) => (
-                  <option key={tank.id} value={tank.id}>{tank.name} · доступно {formatVolume(tank.current_volume_liters)}</option>
+                  <option key={tank.id} value={tank.id}>{t(tank.name)}{t(' · доступно ')}{formatVolume(tank.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span>Котёл первичного прогрева</span>
+              <span>{t('Котёл первичного прогрева')}</span>
               <select required value={form.destination_boiler_id} onChange={(event) => setForm({ ...form, destination_boiler_id: event.target.value })}>
-                <option value="">Выберите котёл</option>
+                <option value="">{t('Выберите котёл')}</option>
                 {availableBoilers.map((boiler) => (
-                  <option key={boiler.id} value={boiler.id}>{boiler.name} · сейчас {formatVolume(boiler.current_volume_liters)}</option>
+                  <option key={boiler.id} value={boiler.id}>{t(boiler.name)}{t(' · сейчас ')}{formatVolume(boiler.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span>Объём движения, л</span>
+              <span>{t('Объём движения, л')}</span>
               <input
                 min="0.001"
                 placeholder="0.000"
@@ -356,13 +356,13 @@ export function BoilerLoadingPage({ onLogout, token, user }) {
               />
             </label>
 
-            {exceedsSource && <p className="access-error">Указанный объём превышает остаток выбранного приёмного бака.</p>}
-            {exceedsDestination && <p className="access-error">Указанный объём превышает свободное место выбранного котла.</p>}
-            {!availableTanks.length && <p className="empty-state">Нет активных приёмных баков с доступным маслом.</p>}
-            {!availableBoilers.length && <p className="empty-state">Нет активных котлов, доступных для загрузки.</p>}
+            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного приёмного бака.')}</p>}
+            {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место выбранного котла.')}</p>}
+            {!availableTanks.length && <p className="empty-state">{t('Нет активных приёмных баков с доступным маслом.')}</p>}
+            {!availableBoilers.length && <p className="empty-state">{t('Нет активных котлов, доступных для загрузки.')}</p>}
 
             <div className="form-actions">
-              <button disabled={!canSubmit} type="submit">{isSubmitting ? 'Выполняется...' : 'Подтвердить движение'}</button>
+              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить движение')}</button>
               <button
                 className="secondary-button"
                 type="button"
@@ -375,39 +375,37 @@ export function BoilerLoadingPage({ onLogout, token, user }) {
                     idempotency_key: createIdempotencyKey(),
                   })
                 }}
-              >
-                Очистить
-              </button>
+              >{t('Очистить')}</button>
             </div>
           </form>
         </article>
 
         <aside className="boiler-loading-summary">
           <article className="access-card movement-preview-card">
-            <p className="auth-eyebrow">Предварительный баланс</p>
-            <h3>После движения</h3>
+            <p className="auth-eyebrow">{t('Предварительный баланс')}</p>
+            <h3>{t('После движения')}</h3>
             <div className="movement-preview-grid">
               <div>
-                <span>Приёмный бак</span>
-                <strong>{selectedTank?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedTank?.current_volume_liters)}</small>
-                <small>Останется: {selectedTank && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
+                <span>{t('Приёмный бак')}</span>
+                <strong>{t(selectedTank?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedTank?.current_volume_liters)}</small>
+                <small>{t('Останется: ')}{selectedTank && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
               </div>
               <span aria-hidden="true" className="movement-preview-arrow">→</span>
               <div>
-                <span>Котёл</span>
-                <strong>{selectedBoiler?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedBoiler?.current_volume_liters)}</small>
-                <small>Будет: {selectedBoiler && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
+                <span>{t('Котёл')}</span>
+                <strong>{t(selectedBoiler?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedBoiler?.current_volume_liters)}</small>
+                <small>{t('Будет: ')}{selectedBoiler && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
               </div>
             </div>
           </article>
 
           {createdMovement && (
             <article className="access-card movement-success-card">
-              <p className="auth-eyebrow">Движение выполнено</p>
+              <p className="auth-eyebrow">{t('Движение выполнено')}</p>
               <h3>{createdMovement.movement_number}</h3>
-              <span>{createdMovement.source} → {createdMovement.destination}</span>
+              <span>{t(createdMovement.source)} → {t(createdMovement.destination)}</span>
               <strong>{formatVolume(createdMovement.volume_liters)}</strong>
               <small>{formatDateTime(createdMovement.moved_at)}</small>
             </article>
@@ -464,46 +462,46 @@ export function SeparatorLoadingPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Загрузка сепаратора" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Загрузка сепаратора')} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
-        title="Загрузка сепаратора"
-        description="Регистрация движения отработанного масла из котла первичного прогрева в сепаратор."
+        title={t('Загрузка сепаратора')}
+        description={t('Регистрация движения отработанного масла из котла первичного прогрева в сепаратор.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="boiler-loading-layout">
         <article className="access-card boiler-loading-form-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Новое движение</p>
-              <h3>Выберите котёл, сепаратор и объём</h3>
+              <p className="auth-eyebrow">{t('Новое движение')}</p>
+              <h3>{t('Выберите котёл, сепаратор и объём')}</h3>
             </div>
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
             <label>
-              <span>Котёл первичного прогрева</span>
+              <span>{t('Котёл первичного прогрева')}</span>
               <select required value={form.source_boiler_id} onChange={(event) => setForm({ ...form, source_boiler_id: event.target.value })}>
-                <option value="">Выберите котёл</option>
+                <option value="">{t('Выберите котёл')}</option>
                 {availableBoilers.map((boiler) => (
-                  <option key={boiler.id} value={boiler.id}>{boiler.name} · доступно {formatVolume(boiler.current_volume_liters)}</option>
+                  <option key={boiler.id} value={boiler.id}>{t(boiler.name)}{t(' · доступно ')}{formatVolume(boiler.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span>Сепаратор</span>
+              <span>{t('Сепаратор')}</span>
               <select required value={form.destination_separator_id} onChange={(event) => setForm({ ...form, destination_separator_id: event.target.value })}>
-                <option value="">Выберите сепаратор</option>
+                <option value="">{t('Выберите сепаратор')}</option>
                 {availableSeparators.map((separator) => (
-                  <option key={separator.id} value={separator.id}>{separator.name} · сейчас {formatVolume(separator.current_volume_liters)}</option>
+                  <option key={separator.id} value={separator.id}>{t(separator.name)}{t(' · сейчас ')}{formatVolume(separator.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span>Объём движения, л</span>
+              <span>{t('Объём движения, л')}</span>
               <input
                 min="0.001"
                 placeholder="0.000"
@@ -515,13 +513,13 @@ export function SeparatorLoadingPage({ onLogout, token, user }) {
               />
             </label>
 
-            {exceedsSource && <p className="access-error">Указанный объём превышает остаток выбранного котла.</p>}
-            {exceedsDestination && <p className="access-error">Указанный объём превышает свободное место сепаратора.</p>}
-            {!availableBoilers.length && <p className="empty-state">Нет активных котлов с доступным маслом.</p>}
-            {!availableSeparators.length && <p className="empty-state">Нет активных сепараторов, доступных для загрузки.</p>}
+            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного котла.')}</p>}
+            {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место сепаратора.')}</p>}
+            {!availableBoilers.length && <p className="empty-state">{t('Нет активных котлов с доступным маслом.')}</p>}
+            {!availableSeparators.length && <p className="empty-state">{t('Нет активных сепараторов, доступных для загрузки.')}</p>}
 
             <div className="form-actions">
-              <button disabled={!canSubmit} type="submit">{isSubmitting ? 'Выполняется...' : 'Подтвердить движение'}</button>
+              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить движение')}</button>
               <button
                 className="secondary-button"
                 type="button"
@@ -534,39 +532,37 @@ export function SeparatorLoadingPage({ onLogout, token, user }) {
                     idempotency_key: createIdempotencyKey(),
                   })
                 }}
-              >
-                Очистить
-              </button>
+              >{t('Очистить')}</button>
             </div>
           </form>
         </article>
 
         <aside className="boiler-loading-summary">
           <article className="access-card movement-preview-card">
-            <p className="auth-eyebrow">Предварительный баланс</p>
-            <h3>После движения</h3>
+            <p className="auth-eyebrow">{t('Предварительный баланс')}</p>
+            <h3>{t('После движения')}</h3>
             <div className="movement-preview-grid">
               <div>
-                <span>Котёл</span>
-                <strong>{selectedBoiler?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedBoiler?.current_volume_liters)}</small>
-                <small>Останется: {selectedBoiler && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
+                <span>{t('Котёл')}</span>
+                <strong>{t(selectedBoiler?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedBoiler?.current_volume_liters)}</small>
+                <small>{t('Останется: ')}{selectedBoiler && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
               </div>
               <span aria-hidden="true" className="movement-preview-arrow">→</span>
               <div>
-                <span>Сепаратор</span>
-                <strong>{selectedSeparator?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedSeparator?.current_volume_liters)}</small>
-                <small>Будет: {selectedSeparator && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
+                <span>{t('Сепаратор')}</span>
+                <strong>{t(selectedSeparator?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedSeparator?.current_volume_liters)}</small>
+                <small>{t('Будет: ')}{selectedSeparator && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
               </div>
             </div>
           </article>
 
           {createdMovement && (
             <article className="access-card movement-success-card">
-              <p className="auth-eyebrow">Движение выполнено</p>
+              <p className="auth-eyebrow">{t('Движение выполнено')}</p>
               <h3>{createdMovement.movement_number}</h3>
-              <span>{createdMovement.source} → {createdMovement.destination}</span>
+              <span>{t(createdMovement.source)} → {t(createdMovement.destination)}</span>
               <strong>{formatVolume(createdMovement.volume_liters)}</strong>
               <small>{formatDateTime(createdMovement.moved_at)}</small>
             </article>
@@ -623,46 +619,46 @@ export function ChemicalMixerLoadingPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Загрузка химического миксера" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Загрузка химического миксера')} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
-        title="Загрузка химического миксера"
-        description="Регистрация движения очищенного отработанного масла из сепаратора в химический миксер."
+        title={t('Загрузка химического миксера')}
+        description={t('Регистрация движения очищенного отработанного масла из сепаратора в химический миксер.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="boiler-loading-layout">
         <article className="access-card boiler-loading-form-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Новое движение</p>
-              <h3>Выберите сепаратор, миксер и объём</h3>
+              <p className="auth-eyebrow">{t('Новое движение')}</p>
+              <h3>{t('Выберите сепаратор, миксер и объём')}</h3>
             </div>
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
             <label>
-              <span>Сепаратор</span>
+              <span>{t('Сепаратор')}</span>
               <select required value={form.source_separator_id} onChange={(event) => setForm({ ...form, source_separator_id: event.target.value })}>
-                <option value="">Выберите сепаратор</option>
+                <option value="">{t('Выберите сепаратор')}</option>
                 {availableSeparators.map((separator) => (
-                  <option key={separator.id} value={separator.id}>{separator.name} · доступно {formatVolume(separator.current_volume_liters)}</option>
+                  <option key={separator.id} value={separator.id}>{t(separator.name)}{t(' · доступно ')}{formatVolume(separator.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span>Химический миксер</span>
+              <span>{t('Химический миксер')}</span>
               <select required value={form.destination_mixer_id} onChange={(event) => setForm({ ...form, destination_mixer_id: event.target.value })}>
-                <option value="">Выберите химический миксер</option>
+                <option value="">{t('Выберите химический миксер')}</option>
                 {availableMixers.map((mixer) => (
-                  <option key={mixer.id} value={mixer.id}>{mixer.name} · сейчас {formatVolume(mixer.current_volume_liters)}</option>
+                  <option key={mixer.id} value={mixer.id}>{t(mixer.name)}{t(' · сейчас ')}{formatVolume(mixer.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span>Объём движения, л</span>
+              <span>{t('Объём движения, л')}</span>
               <input
                 min="0.001"
                 placeholder="0.000"
@@ -674,13 +670,13 @@ export function ChemicalMixerLoadingPage({ onLogout, token, user }) {
               />
             </label>
 
-            {exceedsSource && <p className="access-error">Указанный объём превышает остаток выбранного сепаратора.</p>}
-            {exceedsDestination && <p className="access-error">Указанный объём превышает свободное место химического миксера.</p>}
-            {!availableSeparators.length && <p className="empty-state">Нет активных сепараторов с доступным маслом.</p>}
-            {!availableMixers.length && <p className="empty-state">Нет активных химических миксеров, доступных для загрузки.</p>}
+            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного сепаратора.')}</p>}
+            {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место химического миксера.')}</p>}
+            {!availableSeparators.length && <p className="empty-state">{t('Нет активных сепараторов с доступным маслом.')}</p>}
+            {!availableMixers.length && <p className="empty-state">{t('Нет активных химических миксеров, доступных для загрузки.')}</p>}
 
             <div className="form-actions">
-              <button disabled={!canSubmit} type="submit">{isSubmitting ? 'Выполняется...' : 'Подтвердить движение'}</button>
+              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить движение')}</button>
               <button
                 className="secondary-button"
                 type="button"
@@ -693,39 +689,37 @@ export function ChemicalMixerLoadingPage({ onLogout, token, user }) {
                     idempotency_key: createIdempotencyKey(),
                   })
                 }}
-              >
-                Очистить
-              </button>
+              >{t('Очистить')}</button>
             </div>
           </form>
         </article>
 
         <aside className="boiler-loading-summary">
           <article className="access-card movement-preview-card">
-            <p className="auth-eyebrow">Предварительный баланс</p>
-            <h3>После движения</h3>
+            <p className="auth-eyebrow">{t('Предварительный баланс')}</p>
+            <h3>{t('После движения')}</h3>
             <div className="movement-preview-grid">
               <div>
-                <span>Сепаратор</span>
-                <strong>{selectedSeparator?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedSeparator?.current_volume_liters)}</small>
-                <small>Останется: {selectedSeparator && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
+                <span>{t('Сепаратор')}</span>
+                <strong>{t(selectedSeparator?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedSeparator?.current_volume_liters)}</small>
+                <small>{t('Останется: ')}{selectedSeparator && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
               </div>
               <span aria-hidden="true" className="movement-preview-arrow">→</span>
               <div>
-                <span>Химический миксер</span>
-                <strong>{selectedMixer?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedMixer?.current_volume_liters)}</small>
-                <small>Будет: {selectedMixer && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
+                <span>{t('Химический миксер')}</span>
+                <strong>{t(selectedMixer?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedMixer?.current_volume_liters)}</small>
+                <small>{t('Будет: ')}{selectedMixer && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
               </div>
             </div>
           </article>
 
           {createdMovement && (
             <article className="access-card movement-success-card">
-              <p className="auth-eyebrow">Движение выполнено</p>
+              <p className="auth-eyebrow">{t('Движение выполнено')}</p>
               <h3>{createdMovement.movement_number}</h3>
-              <span>{createdMovement.source} → {createdMovement.destination}</span>
+              <span>{t(createdMovement.source)} → {t(createdMovement.destination)}</span>
               <strong>{formatVolume(createdMovement.volume_liters)}</strong>
               <small>{formatDateTime(createdMovement.moved_at)}</small>
             </article>
@@ -782,46 +776,46 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Загрузка в цех переработки" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Загрузка в цех переработки')} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
-        title="Загрузка в цех переработки"
-        description="Регистрация движения химически подготовленного масла из химического миксера в цех переработки."
+        title={t('Загрузка в цех переработки')}
+        description={t('Регистрация движения химически подготовленного масла из химического миксера в цех переработки.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="boiler-loading-layout">
         <article className="access-card boiler-loading-form-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Новое движение</p>
-              <h3>Выберите миксер, цех и объём</h3>
+              <p className="auth-eyebrow">{t('Новое движение')}</p>
+              <h3>{t('Выберите миксер, цех и объём')}</h3>
             </div>
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
             <label>
-              <span>Химический миксер</span>
+              <span>{t('Химический миксер')}</span>
               <select required value={form.source_mixer_id} onChange={(event) => setForm({ ...form, source_mixer_id: event.target.value })}>
-                <option value="">Выберите химический миксер</option>
+                <option value="">{t('Выберите химический миксер')}</option>
                 {availableMixers.map((mixer) => (
-                  <option key={mixer.id} value={mixer.id}>{mixer.name} · доступно {formatVolume(mixer.current_volume_liters)}</option>
+                  <option key={mixer.id} value={mixer.id}>{t(mixer.name)}{t(' · доступно ')}{formatVolume(mixer.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span>Цех переработки</span>
+              <span>{t('Цех переработки')}</span>
               <select required value={form.destination_workshop_id} onChange={(event) => setForm({ ...form, destination_workshop_id: event.target.value })}>
-                <option value="">Выберите цех переработки</option>
+                <option value="">{t('Выберите цех переработки')}</option>
                 {availableWorkshops.map((workshop) => (
-                  <option key={workshop.id} value={workshop.id}>{workshop.name} · сейчас {formatVolume(workshop.current_volume_liters)}</option>
+                  <option key={workshop.id} value={workshop.id}>{t(workshop.name)}{t(' · сейчас ')}{formatVolume(workshop.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span>Объём движения, л</span>
+              <span>{t('Объём движения, л')}</span>
               <input
                 min="0.001"
                 placeholder="0.000"
@@ -833,13 +827,13 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
               />
             </label>
 
-            {exceedsSource && <p className="access-error">Указанный объём превышает остаток выбранного химического миксера.</p>}
-            {exceedsDestination && <p className="access-error">Указанный объём превышает свободное место цеха переработки.</p>}
-            {!availableMixers.length && <p className="empty-state">Нет активных химических миксеров с доступным маслом.</p>}
-            {!availableWorkshops.length && <p className="empty-state">Нет активных цехов переработки, доступных для загрузки.</p>}
+            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного химического миксера.')}</p>}
+            {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место цеха переработки.')}</p>}
+            {!availableMixers.length && <p className="empty-state">{t('Нет активных химических миксеров с доступным маслом.')}</p>}
+            {!availableWorkshops.length && <p className="empty-state">{t('Нет активных цехов переработки, доступных для загрузки.')}</p>}
 
             <div className="form-actions">
-              <button disabled={!canSubmit} type="submit">{isSubmitting ? 'Выполняется...' : 'Подтвердить движение'}</button>
+              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить движение')}</button>
               <button
                 className="secondary-button"
                 type="button"
@@ -852,39 +846,37 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
                     idempotency_key: createIdempotencyKey(),
                   })
                 }}
-              >
-                Очистить
-              </button>
+              >{t('Очистить')}</button>
             </div>
           </form>
         </article>
 
         <aside className="boiler-loading-summary">
           <article className="access-card movement-preview-card">
-            <p className="auth-eyebrow">Предварительный баланс</p>
-            <h3>После движения</h3>
+            <p className="auth-eyebrow">{t('Предварительный баланс')}</p>
+            <h3>{t('После движения')}</h3>
             <div className="movement-preview-grid">
               <div>
-                <span>Химический миксер</span>
-                <strong>{selectedMixer?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedMixer?.current_volume_liters)}</small>
-                <small>Останется: {selectedMixer && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
+                <span>{t('Химический миксер')}</span>
+                <strong>{t(selectedMixer?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedMixer?.current_volume_liters)}</small>
+                <small>{t('Останется: ')}{selectedMixer && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
               </div>
               <span aria-hidden="true" className="movement-preview-arrow">→</span>
               <div>
-                <span>Цех переработки</span>
-                <strong>{selectedWorkshop?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedWorkshop?.current_volume_liters)}</small>
-                <small>Будет: {selectedWorkshop && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
+                <span>{t('Цех переработки')}</span>
+                <strong>{t(selectedWorkshop?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedWorkshop?.current_volume_liters)}</small>
+                <small>{t('Будет: ')}{selectedWorkshop && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
               </div>
             </div>
           </article>
 
           {createdMovement && (
             <article className="access-card movement-success-card">
-              <p className="auth-eyebrow">Движение выполнено</p>
+              <p className="auth-eyebrow">{t('Движение выполнено')}</p>
               <h3>{createdMovement.movement_number}</h3>
-              <span>{createdMovement.source} → {createdMovement.destination}</span>
+              <span>{t(createdMovement.source)} → {t(createdMovement.destination)}</span>
               <strong>{formatVolume(createdMovement.volume_liters)}</strong>
               <small>{formatDateTime(createdMovement.moved_at)}</small>
             </article>
@@ -909,8 +901,8 @@ function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
   const isDiesel = productType === 'diesel'
   const tanks = isDiesel ? rawDieselTanks : rawSpindleTanks
   const createMovement = isDiesel ? createRawDieselTankLoading : createRawSpindleTankLoading
-  const title = isDiesel ? 'Загрузка бака сырой солярки' : 'Загрузка бака сырой веретенки'
-  const productName = isDiesel ? 'Сырая солярка' : 'Сырая веретенка'
+  const title = isDiesel ? t('Загрузка бака сырой солярки') : t('Загрузка бака сырой веретенки')
+  const productName = isDiesel ? t('Сырая солярка') : t('Сырая веретенка')
   const [form, setForm] = useState(() => ({
     source_workshop_id: '',
     destination_tank_id: '',
@@ -958,43 +950,43 @@ function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
     <DashboardShell title={title} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
         title={title}
-        description={`Регистрация движения продукта «${productName}» из цеха переработки в отдельный бак.`}
+        description={t`Регистрация движения продукта «${productName}» из цеха переработки в отдельный бак.`}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="boiler-loading-layout">
         <article className="access-card boiler-loading-form-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Новое движение</p>
-              <h3>Выберите цех, бак и объём</h3>
+              <p className="auth-eyebrow">{t('Новое движение')}</p>
+              <h3>{t('Выберите цех, бак и объём')}</h3>
             </div>
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
             <label>
-              <span>Цех переработки</span>
+              <span>{t('Цех переработки')}</span>
               <select required value={form.source_workshop_id} onChange={(event) => setForm({ ...form, source_workshop_id: event.target.value })}>
-                <option value="">Выберите цех переработки</option>
+                <option value="">{t('Выберите цех переработки')}</option>
                 {availableWorkshops.map((workshop) => (
-                  <option key={workshop.id} value={workshop.id}>{workshop.name} · доступно {formatVolume(workshop.current_volume_liters)}</option>
+                  <option key={workshop.id} value={workshop.id}>{t(workshop.name)}{t(' · доступно ')}{formatVolume(workshop.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span>{isDiesel ? 'Бак сырой солярки' : 'Бак сырой веретенки'}</span>
+              <span>{isDiesel ? t('Бак сырой солярки') : t('Бак сырой веретенки')}</span>
               <select required value={form.destination_tank_id} onChange={(event) => setForm({ ...form, destination_tank_id: event.target.value })}>
-                <option value="">Выберите бак</option>
+                <option value="">{t('Выберите бак')}</option>
                 {availableTanks.map((tank) => (
-                  <option key={tank.id} value={tank.id}>{tank.name} · сейчас {formatVolume(tank.current_volume_liters)}</option>
+                  <option key={tank.id} value={tank.id}>{t(tank.name)}{t(' · сейчас ')}{formatVolume(tank.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span>Объём движения, л</span>
+              <span>{t('Объём движения, л')}</span>
               <input
                 min="0.001"
                 placeholder="0.000"
@@ -1006,13 +998,13 @@ function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
               />
             </label>
 
-            {exceedsSource && <p className="access-error">Указанный объём превышает остаток выбранного цеха.</p>}
-            {exceedsDestination && <p className="access-error">Указанный объём превышает свободное место выбранного бака.</p>}
-            {!availableWorkshops.length && <p className="empty-state">Нет активных цехов с доступным продуктом.</p>}
-            {!availableTanks.length && <p className="empty-state">Нет активных баков, доступных для загрузки.</p>}
+            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного цеха.')}</p>}
+            {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место выбранного бака.')}</p>}
+            {!availableWorkshops.length && <p className="empty-state">{t('Нет активных цехов с доступным продуктом.')}</p>}
+            {!availableTanks.length && <p className="empty-state">{t('Нет активных баков, доступных для загрузки.')}</p>}
 
             <div className="form-actions">
-              <button disabled={!canSubmit} type="submit">{isSubmitting ? 'Выполняется...' : 'Подтвердить движение'}</button>
+              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить движение')}</button>
               <button
                 className="secondary-button"
                 type="button"
@@ -1025,39 +1017,37 @@ function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
                     idempotency_key: createIdempotencyKey(),
                   })
                 }}
-              >
-                Очистить
-              </button>
+              >{t('Очистить')}</button>
             </div>
           </form>
         </article>
 
         <aside className="boiler-loading-summary">
           <article className="access-card movement-preview-card">
-            <p className="auth-eyebrow">Предварительный баланс</p>
-            <h3>После движения</h3>
+            <p className="auth-eyebrow">{t('Предварительный баланс')}</p>
+            <h3>{t('После движения')}</h3>
             <div className="movement-preview-grid">
               <div>
-                <span>Цех переработки</span>
-                <strong>{selectedWorkshop?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedWorkshop?.current_volume_liters)}</small>
-                <small>Останется: {selectedWorkshop && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
+                <span>{t('Цех переработки')}</span>
+                <strong>{t(selectedWorkshop?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedWorkshop?.current_volume_liters)}</small>
+                <small>{t('Останется: ')}{selectedWorkshop && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
               </div>
               <span aria-hidden="true" className="movement-preview-arrow">→</span>
               <div>
                 <span>{productName}</span>
-                <strong>{selectedTank?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedTank?.current_volume_liters)}</small>
-                <small>Будет: {selectedTank && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
+                <strong>{t(selectedTank?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedTank?.current_volume_liters)}</small>
+                <small>{t('Будет: ')}{selectedTank && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
               </div>
             </div>
           </article>
 
           {createdMovement && (
             <article className="access-card movement-success-card">
-              <p className="auth-eyebrow">Движение выполнено</p>
+              <p className="auth-eyebrow">{t('Движение выполнено')}</p>
               <h3>{createdMovement.movement_number}</h3>
-              <span>{createdMovement.source} → {createdMovement.destination}</span>
+              <span>{t(createdMovement.source)} → {t(createdMovement.destination)}</span>
               <strong>{formatVolume(createdMovement.volume_liters)}</strong>
               <small>{formatDateTime(createdMovement.moved_at)}</small>
             </article>
@@ -1115,40 +1105,40 @@ export function SeparatorOutputPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Отгрузка сепаратора" onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Отгрузка сепаратора')} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
-        title="Отгрузка сепаратора"
-        description="Регистрация отгрузки технической воды или технического мусора из сепаратора. Топливный выход здесь не учитывается."
+        title={t('Отгрузка сепаратора')}
+        description={t('Регистрация отгрузки технической воды или технического мусора из сепаратора. Топливный выход здесь не учитывается.')}
       />
 
-      {error && <p className="access-error">{error}</p>}
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="boiler-loading-layout">
         <article className="access-card boiler-loading-form-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">Новая отгрузка</p>
-              <h3>Выберите сепаратор, вид отхода и объём</h3>
+              <p className="auth-eyebrow">{t('Новая отгрузка')}</p>
+              <h3>{t('Выберите сепаратор, вид отхода и объём')}</h3>
             </div>
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
             <label>
-              <span>Сепаратор</span>
+              <span>{t('Сепаратор')}</span>
               <select required value={form.source_separator_id} onChange={(event) => setForm({ ...form, source_separator_id: event.target.value })}>
-                <option value="">Выберите сепаратор</option>
+                <option value="">{t('Выберите сепаратор')}</option>
                 {availableSeparators.map((separator) => (
-                  <option key={separator.id} value={separator.id}>{separator.name} · доступно {formatVolume(separator.current_volume_liters)}</option>
+                  <option key={separator.id} value={separator.id}>{t(separator.name)}{t(' · доступно ')}{formatVolume(separator.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
 
             <fieldset className="separator-output-options">
-              <legend>Что отгружается</legend>
-              <div className="unit-radio-group" role="radiogroup" aria-label="Вид отгрузки сепаратора">
+              <legend>{t('Что отгружается')}</legend>
+              <div className="unit-radio-group" role="radiogroup" aria-label={t('Вид отгрузки сепаратора')}>
                 {[
-                  ['water', 'Техническая вода'],
-                  ['technical_waste', 'Технический мусор'],
+                  ['water', t('Техническая вода')],
+                  ['technical_waste', t('Технический мусор')],
                 ].map(([value, label]) => (
                   <label className={form.output_type === value ? 'active' : ''} key={value}>
                     <input
@@ -1165,7 +1155,7 @@ export function SeparatorOutputPage({ onLogout, token, user }) {
             </fieldset>
 
             <label>
-              <span>Объём отгрузки, л</span>
+              <span>{t('Объём отгрузки, л')}</span>
               <input
                 min="0.001"
                 placeholder="0.000"
@@ -1177,11 +1167,11 @@ export function SeparatorOutputPage({ onLogout, token, user }) {
               />
             </label>
 
-            {exceedsSource && <p className="access-error">Указанный объём превышает остаток выбранного сепаратора.</p>}
-            {!availableSeparators.length && <p className="empty-state">Нет активных сепараторов с доступным объёмом.</p>}
+            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного сепаратора.')}</p>}
+            {!availableSeparators.length && <p className="empty-state">{t('Нет активных сепараторов с доступным объёмом.')}</p>}
 
             <div className="form-actions">
-              <button disabled={!canSubmit} type="submit">{isSubmitting ? 'Выполняется...' : 'Подтвердить отгрузку'}</button>
+              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить отгрузку')}</button>
               <button
                 className="secondary-button"
                 type="button"
@@ -1194,38 +1184,36 @@ export function SeparatorOutputPage({ onLogout, token, user }) {
                     idempotency_key: createIdempotencyKey(),
                   })
                 }}
-              >
-                Очистить
-              </button>
+              >{t('Очистить')}</button>
             </div>
           </form>
         </article>
 
         <aside className="boiler-loading-summary">
           <article className="access-card movement-preview-card">
-            <p className="auth-eyebrow">Предварительный баланс</p>
-            <h3>После отгрузки</h3>
+            <p className="auth-eyebrow">{t('Предварительный баланс')}</p>
+            <h3>{t('После отгрузки')}</h3>
             <div className="movement-preview-grid">
               <div>
-                <span>Сепаратор</span>
-                <strong>{selectedSeparator?.name || 'Не выбран'}</strong>
-                <small>Сейчас: {formatVolume(selectedSeparator?.current_volume_liters)}</small>
-                <small>Останется: {selectedSeparator && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
+                <span>{t('Сепаратор')}</span>
+                <strong>{t(selectedSeparator?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedSeparator?.current_volume_liters)}</small>
+                <small>{t('Останется: ')}{selectedSeparator && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
               </div>
               <span aria-hidden="true" className="movement-preview-arrow">→</span>
               <div>
-                <span>Отгрузка</span>
-                <strong>{form.output_type === 'water' ? 'Техническая вода' : 'Технический мусор'}</strong>
-                <small>Объём: {hasPositiveVolume ? formatVolume(volume) : '—'}</small>
+                <span>{t('Отгрузка')}</span>
+                <strong>{form.output_type === 'water' ? t('Техническая вода') : t('Технический мусор')}</strong>
+                <small>{t('Объём: ')}{hasPositiveVolume ? formatVolume(volume) : '—'}</small>
               </div>
             </div>
           </article>
 
           {createdMovement && (
             <article className="access-card movement-success-card">
-              <p className="auth-eyebrow">Отгрузка выполнена</p>
+              <p className="auth-eyebrow">{t('Отгрузка выполнена')}</p>
               <h3>{createdMovement.movement_number}</h3>
-              <span>{createdMovement.source} → {createdMovement.product_name}</span>
+              <span>{t(createdMovement.source)} → {t(createdMovement.product_name)}</span>
               <strong>{formatVolume(createdMovement.volume_liters)}</strong>
               <small>{formatDateTime(createdMovement.moved_at)}</small>
             </article>
@@ -1263,42 +1251,42 @@ export function ProcessingJournalPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title="Журнал" onLogout={onLogout} user={user}>
-      <ProcessingPageHeader title="Журнал операций" description="Движения масла и аудит изменяющих действий первого производственного этапа." />
-      {error && <p className="access-error">{error}</p>}
+    <DashboardShell title={t('Журнал')} onLogout={onLogout} user={user}>
+      <ProcessingPageHeader title={t('Журнал операций')} description={t('Движения масла и аудит изменяющих действий первого производственного этапа.')} />
+      {error && <p className="access-error">{t(error)}</p>}
 
       <section className="access-grid">
         <article className="access-card">
           <form className="journal-filters" onSubmit={applyFilters}>
-            <input placeholder="Поиск" value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
-            <input aria-label="Дата с" type="date" value={filters.date_from} onChange={(event) => setFilters({ ...filters, date_from: event.target.value })} />
-            <input aria-label="Дата по" type="date" value={filters.date_to} onChange={(event) => setFilters({ ...filters, date_to: event.target.value })} />
+            <input placeholder={t('Поиск')} value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
+            <input aria-label={t('Дата с')} type="date" value={filters.date_from} onChange={(event) => setFilters({ ...filters, date_from: event.target.value })} />
+            <input aria-label={t('Дата по')} type="date" value={filters.date_to} onChange={(event) => setFilters({ ...filters, date_to: event.target.value })} />
             <select value={filters.movement_type} onChange={(event) => setFilters({ ...filters, movement_type: event.target.value })}>
-              <option value="">Все типы</option>
-              <option value="receipt_to_tank">Поступление из приёмки</option>
-              <option value="tank_to_boiler">Загрузка котла</option>
-              <option value="boiler_to_separator">Загрузка сепаратора</option>
-              <option value="separator_output">Отгрузка сепаратора</option>
-              <option value="separator_to_chemical_mixer">Загрузка химического миксера</option>
-              <option value="chemical_mixer_to_workshop">Загрузка в цех переработки</option>
-              <option value="workshop_to_raw_diesel_tank">Загрузка бака сырой солярки</option>
-              <option value="workshop_to_raw_spindle_tank">Загрузка бака сырой веретенки</option>
-              <option value="compensation">Компенсация</option>
+              <option value="">{t('Все типы')}</option>
+              <option value="receipt_to_tank">{t('Поступление из приёмки')}</option>
+              <option value="tank_to_boiler">{t('Загрузка котла')}</option>
+              <option value="boiler_to_separator">{t('Загрузка сепаратора')}</option>
+              <option value="separator_output">{t('Отгрузка сепаратора')}</option>
+              <option value="separator_to_chemical_mixer">{t('Загрузка химического миксера')}</option>
+              <option value="chemical_mixer_to_workshop">{t('Загрузка в цех переработки')}</option>
+              <option value="workshop_to_raw_diesel_tank">{t('Загрузка бака сырой солярки')}</option>
+              <option value="workshop_to_raw_spindle_tank">{t('Загрузка бака сырой веретенки')}</option>
+              <option value="compensation">{t('Компенсация')}</option>
             </select>
             <select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
-              <option value="">Все состояния</option>
-              <option value="confirmed">Подтверждено</option>
-              <option value="success">Успешно</option>
-              <option value="rejected">Отклонено</option>
+              <option value="">{t('Все состояния')}</option>
+              <option value="confirmed">{t('Подтверждено')}</option>
+              <option value="success">{t('Успешно')}</option>
+              <option value="rejected">{t('Отклонено')}</option>
             </select>
-            <input placeholder="Источник" value={filters.source} onChange={(event) => setFilters({ ...filters, source: event.target.value })} />
-            <input placeholder="Получатель" value={filters.destination} onChange={(event) => setFilters({ ...filters, destination: event.target.value })} />
-            <input placeholder="Пользователь" value={filters.user} onChange={(event) => setFilters({ ...filters, user: event.target.value })} />
-            <input placeholder="Номер движения" value={filters.number} onChange={(event) => setFilters({ ...filters, number: event.target.value })} />
-            <input min="0.001" placeholder="Объём" step="0.001" type="number" value={filters.volume} onChange={(event) => setFilters({ ...filters, volume: event.target.value })} />
+            <input placeholder={t('Источник')} value={filters.source} onChange={(event) => setFilters({ ...filters, source: event.target.value })} />
+            <input placeholder={t('Получатель')} value={filters.destination} onChange={(event) => setFilters({ ...filters, destination: event.target.value })} />
+            <input placeholder={t('Пользователь')} value={filters.user} onChange={(event) => setFilters({ ...filters, user: event.target.value })} />
+            <input placeholder={t('Номер движения')} value={filters.number} onChange={(event) => setFilters({ ...filters, number: event.target.value })} />
+            <input min="0.001" placeholder={t('Объём')} step="0.001" type="number" value={filters.volume} onChange={(event) => setFilters({ ...filters, volume: event.target.value })} />
             <div className="form-actions">
-              <button type="submit">Применить</button>
-              <button className="secondary-button" type="button" onClick={() => { setFilters(emptyJournalFilters); fetchJournal({}, 1) }}>Сбросить</button>
+              <button type="submit">{t('Применить')}</button>
+              <button className="secondary-button" type="button" onClick={() => { setFilters(emptyJournalFilters); fetchJournal({}, 1) }}>{t('Сбросить')}</button>
             </div>
           </form>
 
@@ -1306,59 +1294,59 @@ export function ProcessingJournalPage({ onLogout, token, user }) {
             {journal.items.map((item) => (
               <div className="entity-row journal-row" key={`${item.entry_type}-${item.id}`}>
                 <div>
-                  <strong>{item.entry_type === 'movement' ? item.movement_number : item.action}</strong>
+                  <strong>{item.entry_type === 'movement' ? item.movement_number : t(item.action)}</strong>
                   {item.entry_type === 'movement' ? (
                     <>
-                      <span>{item.movement_type_label} · {formatVolume(item.volume_liters)}</span>
-                      <span>{item.source || '—'} → {item.destination || '—'}</span>
-                      <span>{formatDateTime(item.moved_at)} · {item.created_by || 'Система'}</span>
+                      <span>{t(item.movement_type_label)} · {formatVolume(item.volume_liters)}</span>
+                      <span>{t(item.source) || '—'} → {t(item.destination) || '—'}</span>
+                      <span>{formatDateTime(item.moved_at)} · {item.created_by || t('Система')}</span>
                     </>
                   ) : (
                     <>
-                      <span>{item.object_type} #{item.object_id || '—'} · {item.result}</span>
-                      <span>{formatDateTime(item.created_at)} · {item.user || 'Система'}</span>
+                      <span>{t(item.object_type)} #{item.object_id || '—'} · {t(item.result)}</span>
+                      <span>{formatDateTime(item.created_at)} · {item.user || t('Система')}</span>
                     </>
                   )}
                 </div>
                 <div className="row-actions">
-                  <button type="button" onClick={() => setSelectedEntry(item)}>Подробнее</button>
+                  <button type="button" onClick={() => setSelectedEntry(item)}>{t('Подробнее')}</button>
                   {item.entry_type === 'movement' && item.can_compensate && (
-                    <button className="danger-button" type="button" onClick={() => setCompensationTarget(item)}>Компенсировать</button>
+                    <button className="danger-button" type="button" onClick={() => setCompensationTarget(item)}>{t('Компенсировать')}</button>
                   )}
                 </div>
               </div>
             ))}
-            {!journal.items.length && <p className="empty-state">Записи не найдены.</p>}
+            {!journal.items.length && <p className="empty-state">{t('Записи не найдены.')}</p>}
           </div>
 
           <div className="list-pagination journal-pagination">
-            <span>{journal.total} записей</span>
+            <span>{journal.total}{t(' записей')}</span>
             <div className="pagination-actions">
-              <button className="secondary-button" disabled={journal.page <= 1} type="button" onClick={() => changePage(journal.page - 1)}>Назад</button>
+              <button className="secondary-button" disabled={journal.page <= 1} type="button" onClick={() => changePage(journal.page - 1)}>{t('Назад')}</button>
               <strong>{journal.page} / {journal.page_count}</strong>
-              <button className="secondary-button" disabled={journal.page >= journal.page_count} type="button" onClick={() => changePage(journal.page + 1)}>Вперёд</button>
+              <button className="secondary-button" disabled={journal.page >= journal.page_count} type="button" onClick={() => changePage(journal.page + 1)}>{t('Вперёд')}</button>
             </div>
           </div>
         </article>
       </section>
 
       {selectedEntry && (
-        <Modal title="Детали записи" onClose={() => setSelectedEntry(null)}>
-          <pre className="journal-details">{JSON.stringify(selectedEntry, null, 2)}</pre>
+        <Modal title={t('Детали записи')} onClose={() => setSelectedEntry(null)}>
+          <pre className="journal-details">{JSON.stringify(localizeAuditEntry(selectedEntry), null, 2)}</pre>
         </Modal>
       )}
 
       {compensationTarget && (
-        <Modal title="Компенсировать движение" onClose={() => setCompensationTarget(null)}>
+        <Modal title={t('Компенсировать движение')} onClose={() => setCompensationTarget(null)}>
           <form className="crud-form" onSubmit={handleCompensation}>
-            <p>Будет создано отдельное обратное движение для {compensationTarget.movement_number}.</p>
+            <p>{t('Будет создано отдельное обратное движение для ')}{compensationTarget.movement_number}.</p>
             <label>
-              <span>Причина</span>
+              <span>{t('Причина')}</span>
               <textarea required value={compensationReason} onChange={(event) => setCompensationReason(event.target.value)} />
             </label>
             <div className="form-actions">
-              <button className="danger-button" type="submit">Создать компенсацию</button>
-              <button className="secondary-button" type="button" onClick={() => setCompensationTarget(null)}>Отмена</button>
+              <button className="danger-button" type="submit">{t('Создать компенсацию')}</button>
+              <button className="secondary-button" type="button" onClick={() => setCompensationTarget(null)}>{t('Отмена')}</button>
             </div>
           </form>
         </Modal>

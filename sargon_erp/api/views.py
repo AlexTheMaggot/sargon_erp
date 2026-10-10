@@ -40,6 +40,8 @@ from .models import Supplier
 from .models import UserProfile
 from .models import InventoryCategory
 from .models import InventoryItem
+from .models import KnowledgeArticle
+from .models import KnowledgeCategory
 from .models import UnitOfMeasure
 from .models import Warehouse
 from .models import WarehouseBalance
@@ -64,6 +66,7 @@ MODULE_RAW_DIESEL_TANK_LOADING = 'raw-diesel-tank-loading'
 MODULE_RAW_SPINDLE_TANK_LOADING = 'raw-spindle-tank-loading'
 MODULE_WAREHOUSE_ACCOUNTING = 'warehouse-accounting'
 MODULE_WAREHOUSE_SETTINGS = 'warehouse-settings'
+MODULE_KNOWLEDGE_BASE = 'knowledge-base'
 
 PROCESSING_FORM_MODULE_CODES = {
     MODULE_BOILER_LOADING,
@@ -3693,3 +3696,181 @@ def warehouse_document_cancel_view(request, document_id):
         document.cancelled_at = timezone.now()
         document.save(update_fields=['status', 'cancelled_at'])
     return JsonResponse({'status': document.status})
+
+
+def _require_knowledge_permission(request):
+    user, error = _require_auth(request)
+    if error:
+        return None, error
+    permission_code = _method_permission(request)
+    if permission_code is None:
+        return None, _method_not_allowed()
+    if not (_is_admin(user) or _has_permission(user, MODULE_KNOWLEDGE_BASE, permission_code)):
+        return None, _permission_denied()
+    return user, None
+
+
+def _serialize_knowledge_category(category):
+    return {'id': category.pk, 'name': category.name, 'description': category.description}
+
+
+def _serialize_knowledge_article(article):
+    return {
+        'id': article.pk,
+        'category_id': article.category_id,
+        'category': _serialize_knowledge_category(article.category),
+        'title': article.title,
+        'summary': article.summary,
+        'content': article.content,
+        'created_at': article.created_at.isoformat(),
+        'updated_at': article.updated_at.isoformat(),
+        'created_by': article.created_by.get_username() if article.created_by else '',
+        'updated_by': article.updated_by.get_username() if article.updated_by else '',
+    }
+
+
+def _knowledge_text(body, field, label, max_length, default='', required=False):
+    value = body.get(field, default)
+    if not isinstance(value, str):
+        raise ValueError(f'Поле «{label}» должно содержать текст.')
+    value = value.strip()
+    if required and not value:
+        raise ValueError(f'Заполните поле «{label}».')
+    if len(value) > max_length:
+        raise ValueError(f'Поле «{label}» не должно превышать {max_length} символов.')
+    return value
+
+
+def _knowledge_category_values(body, instance=None):
+    return {
+        'name': _knowledge_text(body, 'name', 'Название раздела', 120, instance.name if instance else '', True),
+        'description': _knowledge_text(body, 'description', 'Описание раздела', 300, instance.description if instance else ''),
+    }
+
+
+def _knowledge_article_values(body, instance=None):
+    category_id = body.get('category_id', instance.category_id if instance else None)
+    if isinstance(category_id, bool) or len(str(category_id)) > 18 or not str(category_id).isdecimal():
+        raise ValueError('Выберите раздел базы знаний.')
+    category = KnowledgeCategory.objects.filter(pk=int(category_id)).first()
+    if category is None:
+        raise ValueError('Раздел базы знаний не найден.')
+    return {
+        'category': category,
+        'title': _knowledge_text(body, 'title', 'Заголовок', 200, instance.title if instance else '', True),
+        'summary': _knowledge_text(body, 'summary', 'Краткое описание', 500, instance.summary if instance else ''),
+        'content': _knowledge_text(body, 'content', 'Текст статьи', 100000, instance.content if instance else '', True),
+    }
+
+
+@csrf_exempt
+def knowledge_categories_view(request):
+    _, error = _require_knowledge_permission(request)
+    if error:
+        return error
+    if request.method == 'GET':
+        return JsonResponse({'items': [_serialize_knowledge_category(item) for item in KnowledgeCategory.objects.all()]})
+    if request.method != 'POST':
+        return _method_not_allowed()
+    body = _json_body(request)
+    if not isinstance(body, dict):
+        return _invalid_json_body()
+    try:
+        values = _knowledge_category_values(body)
+        with transaction.atomic():
+            category = KnowledgeCategory.objects.create(**values)
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
+    except IntegrityError:
+        return _json_error('Раздел с таким названием уже существует.', status=400)
+    return JsonResponse(_serialize_knowledge_category(category), status=201)
+
+
+@csrf_exempt
+def knowledge_category_detail_view(request, category_id):
+    _, error = _require_knowledge_permission(request)
+    if error:
+        return error
+    category = KnowledgeCategory.objects.filter(pk=category_id).first()
+    if category is None:
+        return _json_error('Раздел базы знаний не найден.', status=404)
+    if request.method == 'GET':
+        return JsonResponse(_serialize_knowledge_category(category))
+    if request.method in ('PUT', 'PATCH'):
+        body = _json_body(request)
+        if not isinstance(body, dict):
+            return _invalid_json_body()
+        try:
+            values = _knowledge_category_values(body, category)
+            with transaction.atomic():
+                for field, value in values.items():
+                    setattr(category, field, value)
+                category.save()
+        except ValueError as exc:
+            return _json_error(str(exc), status=400)
+        except IntegrityError:
+            return _json_error('Раздел с таким названием уже существует.', status=400)
+        return JsonResponse(_serialize_knowledge_category(category))
+    if request.method == 'DELETE':
+        try:
+            category.delete()
+        except ProtectedError:
+            return _json_error('Перенесите или удалите статьи раздела перед его удалением.', status=400)
+        return JsonResponse({'deleted': True})
+    return _method_not_allowed()
+
+
+def _knowledge_article_queryset():
+    return KnowledgeArticle.objects.select_related('category', 'created_by', 'updated_by')
+
+
+@csrf_exempt
+def knowledge_articles_view(request):
+    user, error = _require_knowledge_permission(request)
+    if error:
+        return error
+    if request.method == 'GET':
+        articles = _knowledge_article_queryset()
+        return JsonResponse({'items': [_serialize_knowledge_article(item) for item in articles]})
+    if request.method != 'POST':
+        return _method_not_allowed()
+    body = _json_body(request)
+    if not isinstance(body, dict):
+        return _invalid_json_body()
+    try:
+        values = _knowledge_article_values(body)
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
+    with transaction.atomic():
+        article = KnowledgeArticle.objects.create(**values, created_by=user, updated_by=user)
+    return JsonResponse(_serialize_knowledge_article(article), status=201)
+
+
+@csrf_exempt
+def knowledge_article_detail_view(request, article_id):
+    user, error = _require_knowledge_permission(request)
+    if error:
+        return error
+    article = _knowledge_article_queryset().filter(pk=article_id).first()
+    if article is None:
+        return _json_error('Статья базы знаний не найдена.', status=404)
+    if request.method == 'GET':
+        return JsonResponse(_serialize_knowledge_article(article))
+    if request.method in ('PUT', 'PATCH'):
+        body = _json_body(request)
+        if not isinstance(body, dict):
+            return _invalid_json_body()
+        try:
+            values = _knowledge_article_values(body, article)
+        except ValueError as exc:
+            return _json_error(str(exc), status=400)
+        with transaction.atomic():
+            for field, value in values.items():
+                setattr(article, field, value)
+            article.updated_by = user
+            article.save()
+        return JsonResponse(_serialize_knowledge_article(article))
+    if request.method == 'DELETE':
+        article.delete()
+        return JsonResponse({'deleted': True})
+    return _method_not_allowed()

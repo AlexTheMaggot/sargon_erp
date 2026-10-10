@@ -1,0 +1,53 @@
+.language-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted, #5b746a);
+  font-size: 0.8rem;
+}
+
+.language-switcher select {
+  width: auto;
+  min-width: 105px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #cde0d7;
+  border-radius: 9px;
+  background: #fff;
+  color: #103c2c;
+  font: inherit;
+}
+
+.language-switcher select:focus-visible {
+  outline: 2px solid #176748;
+  outline-offset: 2px;
+}
+
+.auth-card > .language-switcher {
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 600px) {
+  .app-topbar .language-switcher > span {
+    display: none;
+  }
+
+  .app-topbar .app-nav-brand {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .app-topbar .app-nav-brand > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .app-topbar .app-nav-brand > span {
+    display: none;
+  }
+}
