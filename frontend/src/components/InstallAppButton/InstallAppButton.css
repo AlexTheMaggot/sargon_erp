@@ -1,0 +1,28 @@
+.pwa-install-button {
+  width: 100%;
+  white-space: normal;
+}
+
+.auth-card > .pwa-install-button {
+  margin-top: 18px;
+}
+
+.side-nav-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.pwa-install-help {
+  display: grid;
+  gap: 14px;
+  overflow-wrap: anywhere;
+}
+
+.pwa-install-help h4,
+.pwa-install-help p {
+  margin: 0;
+}
+
+.pwa-install-help p {
+  line-height: 1.55;
+}

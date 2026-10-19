@@ -4,6 +4,19 @@ import { auditFields, systemMessages } from './systemMessages.js'
 export const uzMonths = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr']
 
 export const uzMessages = {
+  'Установить приложение': 'Ilovani o‘rnatish',
+  'Открываем установку…': 'O‘rnatish oynasi ochilmoqda…',
+  'Установка SHENOLL': 'SHENOLL ilovasini o‘rnatish',
+  'Не удалось открыть окно установки. Используйте меню браузера.': 'O‘rnatish oynasini ochib bo‘lmadi. Brauzer menyusidan foydalaning.',
+  'Для установки на устройствах нужен HTTPS с доверенным сертификатом. HTTP подходит только для localhost на самом устройстве.': 'Qurilmalarga o‘rnatish uchun ishonchli sertifikatli HTTPS kerak. HTTP faqat qurilmaning o‘zidagi localhost uchun mos keladi.',
+  'После установки запускайте SHENOLL через значок приложения: система откроется в отдельном окне без адресной строки браузера.': 'O‘rnatilgach, SHENOLL ilovasini uning belgisi orqali ishga tushiring: tizim brauzer manzil satrisiz alohida oynada ochiladi.',
+  'Android и компьютер': 'Android va kompyuter',
+  'В Safari на Mac выберите «Файл» → «Добавить в Dock», если этот пункт доступен.': 'Mac qurilmasidagi Safari brauzerida «Fayl» → «Dock paneliga qo‘shish» bandi mavjud bo‘lsa, uni tanlang.',
+  'В Chrome или Edge откройте меню браузера и выберите установку приложения. Название пункта зависит от браузера. При наличии значка установки в адресной строке можно нажать на него.': 'Chrome yoki Edge brauzer menyusini oching va ilovani o‘rnatishni tanlang. Menyu bandining nomi brauzerga bog‘liq. Manzil satrida o‘rnatish belgisi bo‘lsa, uni bosishingiz mumkin.',
+  'iPhone и iPad': 'iPhone va iPad',
+  'В Safari нажмите «Поделиться», затем «На экран Домой». Если предлагается настройка «Открывать как веб-приложение», оставьте её включённой.': 'Safari brauzerida «Ulashish», so‘ng «Bosh ekranga qo‘shish»ni bosing. «Veb-ilova sifatida ochish» sozlamasi ko‘rsatilsa, uni yoqilgan holda qoldiring.',
+  'SHENOLL работает онлайн. Установка не сохраняет документы для работы без связи с сервером.': 'SHENOLL onlayn ishlaydi. O‘rnatish hujjatlarni server bilan aloqasiz ishlash uchun saqlamaydi.',
+  'Понятно': 'Tushunarli',
   'Да': 'Ha',
   'Нет': 'Yo‘q',
   'Загрузка…': 'Yuklanmoqda…',

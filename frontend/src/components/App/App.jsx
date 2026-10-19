@@ -1,9 +1,11 @@
 import { t } from '../../i18n/core'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router'
-import shenollLogo from '../../assets/SHENOLL.svg'
+import shenollLogo from '../../assets/SHENOLL.svg?no-inline'
 import { LanguageSwitcher } from '../LanguageSwitcher/LanguageSwitcher'
+import { InstallAppButton } from '../InstallAppButton/InstallAppButton'
 import { useLanguage } from '../../i18n/useLanguage'
+import { readLoginHistory, rememberLogin } from './loginHistory'
 import { AccessGroupsPage, AccessModulesPage, AccessPermissionsPage, AccessUsersPage } from '../../pages/access/AccessPages'
 import { OverviewPage } from '../../pages/dashboard/OverviewPage'
 import { CitiesPage, SuppliersPage } from '../../pages/directories/DirectoryPages'
@@ -29,6 +31,7 @@ function hasModuleAccess(user, moduleCode) {
 function LoginPage({ onLogin }) {
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
+  const [savedLogins] = useState(readLoginHistory)
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -53,6 +56,7 @@ function LoginPage({ onLogin }) {
       }
 
       const startPath = onLogin(data.access, data.user)
+      rememberLogin(data.user.username)
       navigate(startPath, { replace: true })
     } catch (loginError) {
       setError(loginError.message)
@@ -73,12 +77,16 @@ function LoginPage({ onLogin }) {
         <form className="auth-form" onSubmit={handleSubmit}>
           <label>{t('Логин')}<input
               autoComplete="username"
+              list="saved-logins"
               name="username"
               onChange={(event) => setUsername(event.target.value)}
               type="text"
               value={username}
             />
           </label>
+          <datalist id="saved-logins">
+            {savedLogins.map((login) => <option key={login} value={login} />)}
+          </datalist>
 
           <label>{t('Пароль')}<input
               autoComplete="current-password"
@@ -95,6 +103,7 @@ function LoginPage({ onLogin }) {
             {isLoading ? t('Входим...') : t('Войти')}
           </button>
         </form>
+        <InstallAppButton />
       </section>
     </main>
   )

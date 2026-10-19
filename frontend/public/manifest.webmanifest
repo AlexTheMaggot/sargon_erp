@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "SHENOLL ERP",
+  "short_name": "SHENOLL",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f7f4",
+  "theme_color": "#0b4a32",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icons/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

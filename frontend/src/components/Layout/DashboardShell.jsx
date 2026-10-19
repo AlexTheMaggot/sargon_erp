@@ -1,9 +1,10 @@
 import { t } from '../../i18n/core'
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router'
-import shenollLogo from '../../assets/SHENOLL.svg'
+import shenollLogo from '../../assets/SHENOLL.svg?no-inline'
 import { navItems } from '../../constants/navigation'
 import { LanguageSwitcher } from '../LanguageSwitcher/LanguageSwitcher'
+import { InstallAppButton } from '../InstallAppButton/InstallAppButton'
 
 function canViewModule(user, moduleCode) {
   if (!moduleCode) {
@@ -128,7 +129,10 @@ export function DashboardShell({ children, title, onLogout, user }) {
             )
           ))}
         </div>
-        <button className="secondary-button" type="button" onClick={handleLogoutClick}>{t('Выйти')}</button>
+        <div className="side-nav-actions">
+          <InstallAppButton />
+          <button className="secondary-button" type="button" onClick={handleLogoutClick}>{t('Выйти')}</button>
+        </div>
       </nav>
 
       {children}
