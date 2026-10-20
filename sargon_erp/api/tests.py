@@ -34,6 +34,53 @@ from .models import (
 )
 
 
+class LoginOptionsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        user_model = get_user_model()
+        cls.active_user = user_model.objects.create_user('login-alpha', email='private@example.invalid', first_name='Private')
+        user_model.objects.create_user('login-zeta', is_staff=True, is_superuser=True)
+        user_model.objects.create_user('login-disabled', is_active=False)
+
+    def test_anonymous_request_returns_only_sorted_active_usernames(self):
+        response = self.client.get('/api/auth/login-options/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'items': ['login-alpha', 'login-zeta']})
+        self.assertIn('no-store', response.headers['Cache-Control'])
+
+    def test_returns_all_active_usernames_without_history_limit(self):
+        user_model = get_user_model()
+        user_model.objects.bulk_create([user_model(username=f'login-{index:02d}') for index in range(12)])
+
+        response = self.client.get('/api/auth/login-options/')
+
+        self.assertEqual(len(response.json()['items']), 14)
+        self.assertEqual(response.json()['items'], sorted(response.json()['items']))
+
+    def test_options_reflect_current_user_data(self):
+        self.client.get('/api/auth/login-options/')
+        self.active_user.is_active = False
+        self.active_user.save(update_fields=['is_active'])
+        get_user_model().objects.create_user('login-new')
+
+        response = self.client.get('/api/auth/login-options/')
+
+        self.assertEqual(response.json(), {'items': ['login-new', 'login-zeta']})
+
+    def test_options_do_not_grant_access_to_user_management(self):
+        self.assertEqual(self.client.get('/api/access/users/').status_code, 401)
+        self.client.get('/api/auth/login-options/')
+        self.assertEqual(self.client.get('/api/access/users/').status_code, 401)
+
+    def test_unsupported_methods_are_rejected(self):
+        for method in ('post', 'put', 'patch', 'delete'):
+            with self.subTest(method=method):
+                response = getattr(self.client, method)('/api/auth/login-options/')
+                self.assertEqual(response.status_code, 405)
+                self.assertEqual(response.headers['Allow'], 'GET')
+
+
 class ProductionAccountingTests(TestCase):
     def setUp(self):
         self.admin = get_user_model().objects.create_superuser('admin', password='password')

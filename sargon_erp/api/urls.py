@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import login_view
+from .views import login_options_view
 from .views import me_view
 from .views import access_group_detail_view
 from .views import access_groups_view
@@ -65,6 +66,7 @@ urlpatterns = [
     path('knowledge/articles/', knowledge_articles_view, name='knowledge-articles'),
     path('knowledge/articles/<int:article_id>/', knowledge_article_detail_view, name='knowledge-article-detail'),
     path('auth/login/', login_view, name='auth-login'),
+    path('auth/login-options/', login_options_view, name='auth-login-options'),
     path('auth/me/', me_view, name='auth-me'),
     path('access/users/', access_users_view, name='access-users'),
     path('access/users/<int:user_id>/', access_user_detail_view, name='access-user-detail'),

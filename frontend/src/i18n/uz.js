@@ -4,6 +4,7 @@ import { auditFields, systemMessages } from './systemMessages.js'
 export const uzMonths = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr']
 
 export const uzMessages = {
+  'Не удалось загрузить список логинов. Введите логин вручную.': 'Loginlar ro‘yxatini yuklab bo‘lmadi. Loginni qo‘lda kiriting.',
   'Установить приложение': 'Ilovani o‘rnatish',
   'Открываем установку…': 'O‘rnatish oynasi ochilmoqda…',
   'Установка SHENOLL': 'SHENOLL ilovasini o‘rnatish',

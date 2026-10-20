@@ -19,6 +19,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_POST
 
@@ -1090,6 +1091,14 @@ def _compensate_receipt_movements_before_delete(movements, user, reason):
         if error:
             return error
     return None
+
+
+@never_cache
+@require_GET
+def login_options_view(request):
+    user_model = get_user_model()
+    usernames = user_model.objects.filter(is_active=True).order_by(user_model.USERNAME_FIELD).values_list(user_model.USERNAME_FIELD, flat=True)
+    return JsonResponse({'items': list(usernames)})
 
 
 @csrf_exempt
