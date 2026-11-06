@@ -4,10 +4,13 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { apiRequest } from '../../api/client'
 import { DashboardShell } from '../../components/Layout/DashboardShell'
 import { Modal } from '../../components/Modal/Modal'
+import { CANISTER_FLOW_NODES, CANISTER_PRODUCTION_LINES } from '../../constants/canisterProduction'
+import { CanisterProduction } from './CanisterProduction'
 
 const OVERVIEW_REFRESH_INTERVAL = 15000
 
 const FLOW_NODES = {
+  ...CANISTER_FLOW_NODES,
   reception: {
     name: 'Прием отработки',
     shortName: 'ПР',
@@ -582,7 +585,9 @@ function CompactNodeGroup({ nodeIds, selectedNodeId, onSelect }) {
   )
 }
 
-function OilRoutingMatrix() {
+function OilRoutingMatrix({ mixerCount = 3, tankCount = 4 }) {
+  const inputs = Array.from({ length: mixerCount }, (_, index) => (index + 0.5) * 300 / mixerCount)
+  const outputs = Array.from({ length: tankCount }, (_, index) => (index + 0.5) * 300 / tankCount)
   return (
     <div className="oil-routing-matrix" aria-label={t('Любой смеситель может подавать масло в любой продуктовый бак')}>
       <svg viewBox="0 0 100 300" preserveAspectRatio="none" aria-hidden="true">
@@ -591,23 +596,17 @@ function OilRoutingMatrix() {
             <path d="M0 0 L6 3 L0 6 Z" />
           </marker>
         </defs>
-        <path d="M3 55 C32 55 36 150 52 150" />
-        <path d="M3 150 H52" />
-        <path d="M3 245 C32 245 36 150 52 150" />
-        <path d="M52 150 C68 150 72 45 97 45" markerEnd="url(#oil-route-arrow)" />
-        <path d="M52 150 C68 150 72 115 97 115" markerEnd="url(#oil-route-arrow)" />
-        <path d="M52 150 C68 150 72 185 97 185" markerEnd="url(#oil-route-arrow)" />
-        <path d="M52 150 C68 150 72 255 97 255" markerEnd="url(#oil-route-arrow)" />
-        <circle cx="3" cy="55" r="3" />
-        <circle cx="3" cy="150" r="3" />
-        <circle cx="3" cy="245" r="3" />
+        {inputs.map((position) => <path key={`input-${position}`} d={`M3 ${position} C32 ${position} 36 150 52 150`} />)}
+        {outputs.map((position) => <path key={`output-${position}`} d={`M52 150 C68 150 72 ${position} 97 ${position}`} markerEnd="url(#oil-route-arrow)" />)}
+        {inputs.map((position) => <circle key={position} cx="3" cy={position} r="3" />)}
         <circle cx="52" cy="150" r="4" />
       </svg>
     </div>
   )
 }
 
-function OilTankMerge() {
+function OilTankMerge({ tankCount = 4 }) {
+  const inputs = Array.from({ length: tankCount }, (_, index) => (index + 0.5) * 300 / tankCount)
   return (
     <div className="oil-tank-merge" aria-hidden="true">
       <svg viewBox="0 0 70 300" preserveAspectRatio="none">
@@ -616,15 +615,9 @@ function OilTankMerge() {
             <path d="M0 0 L6 3 L0 6 Z" />
           </marker>
         </defs>
-        <path d="M3 55 C28 55 26 150 45 150" />
-        <path d="M3 115 C28 115 26 150 45 150" />
-        <path d="M3 185 C28 185 26 150 45 150" />
-        <path d="M3 245 C28 245 26 150 45 150" />
+        {inputs.map((position) => <path key={`input-${position}`} d={`M3 ${position} C28 ${position} 26 150 45 150`} />)}
         <path d="M45 150 H67" markerEnd="url(#oil-merge-arrow)" />
-        <circle cx="3" cy="55" r="3" />
-        <circle cx="3" cy="115" r="3" />
-        <circle cx="3" cy="185" r="3" />
-        <circle cx="3" cy="245" r="3" />
+        {inputs.map((position) => <circle key={position} cx="3" cy={position} r="3" />)}
       </svg>
     </div>
   )
@@ -632,6 +625,7 @@ function OilTankMerge() {
 
 function ProcessDetails({ nodeId }) {
   const node = useContext(FlowNodesContext)[nodeId]
+  if (!node) return <p className="empty-state">{t('Этап больше недоступен. Обновите список оборудования.')}</p>
 
   return (
     <aside className="process-details" aria-live="polite">
@@ -656,9 +650,163 @@ function ProcessDetails({ nodeId }) {
           </div>
         ))}
       </dl>
-      <p className="process-data-note">{node.isLive ? t('Актуальные данные производственного учёта') : t('Демонстрационные данные · узел подготовлен для подключения к API')}</p>
+      <p className="process-data-note">{node.dataNote || (node.isLive ? t('Актуальные данные производственного учёта') : t('Демонстрационные данные · узел подготовлен для подключения к API'))}</p>
     </aside>
   )
+}
+
+function buildPackagingOverviewNodes(nodes, summary) {
+  if (!summary) return {}
+  const result = {}
+  const kilograms = (value) => `${Number(value).toLocaleString(getLocale(), { maximumFractionDigits: 2 })} ${t('кг')}`
+  const pieces = (value) => `${Number(value).toLocaleString(getLocale())} ${t('шт.')}`
+  for (const line of CANISTER_PRODUCTION_LINES) {
+    const state = summary[line.id]
+    if (!state) continue
+    for (const [nodeId, role] of [[line.granulesId, 'granules'], [line.dyeId, 'dye']]) {
+      const material = state.materials[role]
+      result[nodeId] = {
+        ...nodes[nodeId], isLive: true, stage: t('Остаток в производстве'), status: t('Учёт сырья'),
+        currentFlow: kilograms(material.available_quantity),
+        metrics: [[t('Загружено'), kilograms(material.loaded_quantity)], [t('Использовано'), kilograms(material.used_quantity)], [t('Доступно'), kilograms(material.available_quantity)]],
+        dataNote: t('Материалы на производственном участке, не остаток склада.'),
+      }
+    }
+    const counts = state.output_totals
+    result[line.productionId] = {
+      ...nodes[line.productionId], isLive: true, status: t('Учёт выпуска'),
+      currentFlow: pieces(counts.good + counts.deviation + counts.reject),
+      metrics: [[t('Годные'), pieces(counts.good)], ...(line.id === 'canisters' ? [[t('С отклонениями'), pieces(counts.deviation)]] : []), [t('Брак'), pieces(counts.reject)]],
+      dataNote: t('Зарегистрированный выпуск. Это не складской остаток готовой продукции.'),
+    }
+    const dispositions = line.id === 'canisters' ? ['good', 'deviation', 'reject'] : ['good', 'reject']
+    line.outputIds.forEach((nodeId, index) => {
+      result[nodeId] = {
+        ...nodes[nodeId], isLive: true, stage: t('Результат выпуска'), status: t('Учёт выпуска'),
+        currentFlow: pieces(counts[dispositions[index]]), metrics: [[t('Всего зарегистрировано'), pieces(counts[dispositions[index]])]],
+        dataNote: t('Зарегистрированный выпуск. Оприходование на склад и измельчение пока не подключены.'),
+      }
+    })
+  }
+  return result
+}
+
+function buildOilFinishingNodes(nodes, summary, sorbentCycle) {
+  if (!summary) return {}
+  const result = {}
+  for (const [nodeId, kind, singular, plural] of [
+    ['sorbentSystem', 'sorption_system', 'Сорбент-система', 'Сорбент-системы'],
+    ['finishingMixer', 'finishing_mixer', 'Финишный миксер', 'Финишные миксеры'],
+    ['filter', 'finishing_filter', 'Финишный фильтр', 'Финишные фильтры'],
+    ['finishedDieselTank', 'finished_diesel_tank', 'Бак готовой солярки', 'Баки готовой солярки'],
+    ['finishedSpindleTank', 'finished_spindle_tank', 'Бак готовой веретенки', 'Баки готовой веретенки'],
+  ]) {
+    const state = summary[kind]
+    const items = state?.items || []
+    const lastLoading = items.map((item) => item.last_loading_at).filter(Boolean).sort().at(-1)
+    const node = buildOverviewTankSummaryNode(nodes[nodeId], { ...state, last_loading_at: lastLoading }, t(singular), t(plural))
+    const products = [...new Set(items.map((item) => item.oil_product).filter(Boolean))]
+    node.metrics = node.metrics.map(([label, value]) => [label === t('Активных баков') ? t('Активных ёмкостей') : label, value])
+    if (products.length) node.metrics.push([t('Продукт'), products.map((product) => t(product === 'diesel' ? 'Солярка' : 'Веретенка')).join(', ')])
+    node.metrics.push(...items.map((item) => [t(item.name), formatLiveVolume(item.current_volume_liters)]))
+    result[nodeId] = node
+  }
+  for (const nodeId of ['water', 'waste']) {
+    const state = summary.separator_outputs?.[nodeId]
+    result[nodeId] = {
+      ...nodes[nodeId], isLive: true, status: t('Учёт отгрузок'),
+      currentFlow: formatLiveVolume(state?.today_liters),
+      throughput: formatLiveVolume(state?.total_liters), capacityCaption: t('всего отгружено'),
+      throughputLabel: t('Всего отгружено'),
+      metrics: [[t('Отгружено сегодня'), formatLiveVolume(state?.today_liters)]],
+      dataNote: t('Отгрузки сепаратора за вычетом компенсированных движений. Это не остаток в накопителе.'),
+    }
+  }
+  const kilograms = (value) => value == null ? '—' : `${Number(value).toLocaleString(getLocale(), { maximumFractionDigits: 2 })} ${t('кг')}`
+  result.sorbentTank = {
+    ...nodes.sorbentTank, isLive: true, status: t('Замкнутый контур'),
+    currentFlow: kilograms(sorbentCycle?.tank_kg), throughput: kilograms(sorbentCycle?.total_kg),
+    capacityCaption: t('всего в контуре'), throughputLabel: t('Всего в контуре'),
+    metrics: [[t('В баке сорбента'), kilograms(sorbentCycle?.tank_kg)], [t('В сорбент-системах'), kilograms(sorbentCycle?.in_system_kg)], [t('На прогреве и очистке'), kilograms(sorbentCycle?.regeneration_kg)]],
+    dataNote: t('Очищенный сорбент возвращается в бак. Склад списывается только при пополнении новым сорбентом.'),
+  }
+  result.sorbentSystem.metrics.push([t('В сорбент-системах'), kilograms(sorbentCycle?.in_system_kg)])
+  return result
+}
+
+function buildManufacturingNodes(nodes, summary) {
+  if (!summary) return {}
+  const result = {}
+  const makeVessel = (base, equipment, name) => ({
+    ...base, name: equipment ? t(equipment.name) : t(name), isLive: true,
+    status: equipment?.active_batch ? t('Открыта партия') : equipment ? t('Ожидает загрузки') : t('Не настроен'),
+    statusTone: equipment?.active_batch ? 'running' : 'ready',
+    currentFlow: formatLiveVolume(equipment?.active_batch?.input_liters),
+    throughput: formatLiveVolume(equipment?.capacity_liters), capacityCaption: t('вместимость'), throughputLabel: t('Вместимость'),
+    metrics: [
+      [t('Загружено жидких компонентов'), formatLiveVolume(equipment?.active_batch?.input_liters)],
+      [t('Перелито по замеру'), formatLiveVolume(equipment?.active_batch?.output_liters)],
+      [t('Марка масла'), equipment?.active_batch?.grade_name || '—'],
+    ],
+    dataNote: t('Показана загрузка открытой партии, не расчётный остаток готовой смеси. Фактический выход учитывается при переливе.'),
+  })
+  const reactors = summary.concentrate_reactor || []
+  result.concentrateReactor = makeVessel(nodes.concentrateReactor, reactors[0], 'Реактор концентрата')
+  if (reactors.length > 1) {
+    result.concentrateReactor.name = t('Реакторы концентрата')
+    result.concentrateReactor.currentFlow = formatLiveVolume(reactors.reduce((total, item) => total + Number(item.active_batch?.input_liters || 0), 0))
+    result.concentrateReactor.throughput = formatLiveVolume(reactors.reduce((total, item) => total + Number(item.capacity_liters), 0))
+    result.concentrateReactor.status = reactors.some((item) => item.active_batch) ? t('Открыта партия') : t('Ожидает загрузки')
+    result.concentrateReactor.statusTone = reactors.some((item) => item.active_batch) ? 'running' : 'ready'
+    result.concentrateReactor.metrics = reactors.map((item) => [t(item.name), item.active_batch ? `${item.active_batch.number} · ${formatLiveVolume(item.active_batch.input_liters)}` : t('Нет открытой партии')])
+  }
+  for (const [index, equipment] of (summary.oil_blender || []).entries()) {
+    result[`liveBlender${equipment.id}`] = {
+      ...makeVessel(nodes[`blender${Math.min(index + 1, 3)}`], equipment, 'Блендинговый смеситель'),
+      shortName: String(index + 1),
+      description: t('Смешивание веретенки и концентрата для выбранной марки масла. Присадки пока не учитываются.'),
+    }
+  }
+  for (const nodeId of ['blender1', 'blender2', 'blender3']) {
+    result[nodeId] = {
+      ...makeVessel(nodes[nodeId], null, 'Блендинговый смеситель'),
+      description: t('Смешивание веретенки и концентрата для выбранной марки масла. Присадки пока не учитываются.'),
+    }
+  }
+  const tankTemplates = ['transmissionOilTank', 'hydraulicOilTank', 'industrialOilTank', 'motorOilTank']
+  for (const [index, tank] of (summary.tanks || []).entries()) {
+    result[`liveOilTank${tank.id}`] = {
+      ...buildOverviewContainerNode(nodes[tankTemplates[index % 4]], tank, 'Бак товарного масла'),
+      shortName: String(index + 1),
+      description: t('Хранение готового масла выбранной марки. Смешивание разных марок запрещено.'),
+      metrics: [[t('Марка масла'), tank.grade_name], [t('Текущий объём'), formatLiveVolume(tank.current_volume_liters)], [t('Свободно'), formatLiveVolume(tank.free_volume_liters)]],
+    }
+  }
+  for (const [index, nodeId] of tankTemplates.entries()) {
+    result[nodeId] = {
+      ...buildOverviewContainerNode(nodes[nodeId], null, t('Бак товарного масла')),
+      shortName: String(index + 1),
+      description: t('Хранение готового масла выбранной марки. Смешивание разных марок запрещено.'),
+    }
+  }
+  result.polypropyleneFeed = {
+    ...nodes.polypropyleneFeed, isLive: true, status: t('Складской остаток'),
+    currentFlow: `${Number(summary.polypropylene_kg).toLocaleString(getLocale())} ${t('кг')}`,
+    throughput: '—', capacityCaption: t('склад'), throughputLabel: t('Дозирование'),
+    metrics: [], dataNote: t('Полипропилен списывается со склада одновременно с загрузкой веретенки в реактор.'),
+  }
+  result.additiveStation = {
+    ...nodes.additiveStation, status: t('Учёт не ведётся'), currentFlow: '—', throughput: '—', metrics: [],
+    dataNote: t('Присадки пока не учитываются и не списываются со склада.'),
+  }
+  result.fillingLine = {
+    ...nodes.fillingLine, isLive: true, status: t('Учёт розлива'),
+    currentFlow: formatLiveVolume(summary.filled_today_liters),
+    throughput: formatLiveVolume(summary.filled_total_liters), capacityCaption: t('всего'), throughputLabel: t('Всего розлито'),
+    metrics: [[t('Розлито сегодня'), formatLiveVolume(summary.filled_today_liters)]],
+    dataNote: t('Масло списывается из бака. Тара и складской приход фасованной продукции не учитываются.'),
+  }
+  return result
 }
 
 export function OverviewPage({ onLogout, token, user }) {
@@ -697,7 +845,15 @@ export function OverviewPage({ onLogout, token, user }) {
   const flowNodes = useMemo(() => {
     const nodes = localizeStaticData(FLOW_NODES, language)
     if (!overviewData) {
-      return nodes
+      const liveNodeIds = ['reception', 'storageTank', 'preheater', 'separator', 'water', 'waste',
+        'chemicalMixer1', 'chemicalMixer2', 'workshop1', 'workshop2', 'rawDieselTank', 'rawSpindleTank',
+        'sorbentSystem', 'sorbentTank', 'finishingMixer', 'filter', 'finishedDieselTank', 'finishedSpindleTank',
+        'polypropyleneFeed', 'concentrateReactor', 'additiveStation', 'blender1', 'blender2', 'blender3',
+        'transmissionOilTank', 'hydraulicOilTank', 'industrialOilTank', 'motorOilTank', 'fillingLine']
+      return { ...nodes, ...Object.fromEntries(liveNodeIds.map((nodeId) => [nodeId, {
+        ...nodes[nodeId], status: overviewError ? t('Нет данных') : t('Загрузка...'),
+        currentFlow: '—', throughput: '—', metrics: [], dataNote: t('Актуальные показатели ещё не получены.'),
+      }])) }
     }
 
     const reception = overviewData.reception
@@ -710,6 +866,9 @@ export function OverviewPage({ onLogout, token, user }) {
     const rawSpindleTanks = overviewData.raw_spindle_tanks
     return {
       ...nodes,
+      ...buildPackagingOverviewNodes(nodes, overviewData.packaging_production),
+      ...buildOilFinishingNodes(nodes, overviewData.oil_finishing, overviewData.sorbent_cycle),
+      ...buildManufacturingNodes(nodes, overviewData.oil_manufacturing),
       reception: {
         ...nodes.reception,
         status: reception.open_receipt_count > 0 ? t('Прием идет') : t('Нет активных приемов'),
@@ -786,11 +945,11 @@ export function OverviewPage({ onLogout, token, user }) {
       rawDieselTank: buildOverviewTankSummaryNode(nodes.rawDieselTank, rawDieselTanks, t('Бак сырой солярки'), t('Баки сырой солярки')),
       rawSpindleTank: buildOverviewTankSummaryNode(nodes.rawSpindleTank, rawSpindleTanks, t('Бак сырой веретенки'), t('Баки сырой веретенки')),
     }
-  }, [overviewData, language])
+  }, [overviewData, overviewError, language])
 
   const selectTab = (tabId) => {
     setActiveTab(tabId)
-    setSelectedNodeIdState(tabId === 'recycling' ? 'reception' : 'finishedSpindleTank')
+    setSelectedNodeIdState({ recycling: 'reception', 'oil-production': 'finishedSpindleTank', 'canister-production': 'canisterGranules' }[tabId])
     setDetailsNodeId(null)
   }
 
@@ -820,6 +979,15 @@ export function OverviewPage({ onLogout, token, user }) {
             className={activeTab === 'oil-production' ? 'process-tab process-tab--active' : 'process-tab'}
             onClick={() => selectTab('oil-production')}
           >{t('Производство масла')}</button>
+          <button
+            id="canister-production-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'canister-production'}
+            aria-controls="canister-production-panel"
+            className={activeTab === 'canister-production' ? 'process-tab process-tab--active' : 'process-tab'}
+            onClick={() => selectTab('canister-production')}
+          >{t('Производство канистр')}</button>
         </div>
 
         {activeTab === 'recycling' && (
@@ -828,7 +996,7 @@ export function OverviewPage({ onLogout, token, user }) {
               <div>
                 <p className="auth-eyebrow">{t('Технологическая линия')}</p>
                 <h1>{t('Переработка отработанного масла')}</h1>
-                <p>{t('Реальный учёт подключён к этапам от приёма до баков сырой продукции; последующие узлы пока остаются демонстрационными.')}</p>
+                <p>{t('Реальный учёт движений от приёма до готовых баков и замкнутого контура сорбента. Технологические параметры пока не учитываются.')}</p>
               </div>
               <div className="process-summary">
                 <span><i className="summary-indicator" />{t('Учёт подключён')}</span>
@@ -846,7 +1014,7 @@ export function OverviewPage({ onLogout, token, user }) {
               <span><i className="legend-line legend-line--sorbent" />{t('Сорбент')}</span>
               <span><i className="legend-status legend-status--running" />{t('В работе')}</span>
               <span><i className="legend-status legend-status--ready" />{t('Готов / ожидает')}</span>
-              <small>{t('Все объемы указаны в литрах')}</small>
+              <small>{t('Жидкие продукты — литры, твердые компоненты — килограммы')}</small>
             </div>
 
             <div className="process-scroll-hint">
@@ -906,6 +1074,7 @@ export function OverviewPage({ onLogout, token, user }) {
 
         {activeTab === 'oil-production' && (
         <section id="oil-production-panel" className="oil-production-section" role="tabpanel">
+          {overviewError && <p className="process-live-error" role="alert">{t('Не удалось обновить реальные показатели: ')}{t(overviewError)}</p>}
           <header className="oil-production-header">
             <div>
               <p className="auth-eyebrow">{t('Дополнительная производственная линия')}</p>
@@ -913,9 +1082,9 @@ export function OverviewPage({ onLogout, token, user }) {
               <p>{t('Изготовление товарных масел из готовой веретенки, концентрата и пакетов присадок.')}</p>
             </div>
             <div className="oil-production-summary">
-              <span><i />{t('Блендинг выполняется')}</span>
-              <strong>{t('7 850 л')}</strong>
-              <small>{t('в работе на трех смесителях')}</small>
+              <span><i />{t('Учёт подключён')}</span>
+              <strong>{formatLiveVolume((overviewData?.oil_manufacturing?.oil_blender || []).reduce((total, equipment) => total + Number(equipment.active_batch?.input_liters || 0), 0))}</strong>
+              <small>{t('загружено в открытые партии')}</small>
             </div>
           </header>
 
@@ -946,24 +1115,24 @@ export function OverviewPage({ onLogout, token, user }) {
                 <ProcessOutlet nodeId="additiveStation" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
               </div>
               <div className="oil-blenders">
-                {['blender1', 'blender2', 'blender3'].map((nodeId) => (
+                {(overviewData?.oil_manufacturing?.oil_blender?.length ? overviewData.oil_manufacturing.oil_blender.map((item) => `liveBlender${item.id}`) : ['blender1', 'blender2', 'blender3']).map((nodeId) => (
                   <ProcessNode compact key={nodeId} nodeId={nodeId} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
                 ))}
               </div>
             </div>
 
-            <OilRoutingMatrix />
+            <OilRoutingMatrix mixerCount={overviewData?.oil_manufacturing?.oil_blender?.length || 3} tankCount={overviewData?.oil_manufacturing?.tanks?.length || 4} />
 
             <div className="oil-stage oil-product-tanks">
               <span className="oil-stage-title">{t('Баки готовых масел')}</span>
               <div>
-                {['transmissionOilTank', 'hydraulicOilTank', 'industrialOilTank', 'motorOilTank'].map((nodeId) => (
+                {(overviewData?.oil_manufacturing?.tanks?.length ? overviewData.oil_manufacturing.tanks.map((item) => `liveOilTank${item.id}`) : ['transmissionOilTank', 'hydraulicOilTank', 'industrialOilTank', 'motorOilTank']).map((nodeId) => (
                   <ProcessNode compact key={nodeId} nodeId={nodeId} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
                 ))}
               </div>
             </div>
 
-            <OilTankMerge />
+            <OilTankMerge tankCount={overviewData?.oil_manufacturing?.tanks?.length || 4} />
 
             <div className="oil-stage oil-filling-stage">
               <span className="oil-stage-title">{t('Общий розлив')}</span>
@@ -971,6 +1140,12 @@ export function OverviewPage({ onLogout, token, user }) {
             </div>
           </div>
         </section>
+        )}
+
+        {activeTab === 'canister-production' && (
+          <CanisterProduction
+            renderNode={(nodeId) => <ProcessNode compact nodeId={nodeId} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />}
+          />
         )}
 
         {detailsNodeId && (

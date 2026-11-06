@@ -50,6 +50,12 @@ from .models import WarehouseDocument
 from .models import WarehouseDocumentLine
 from .models import WarehouseDocumentSequence
 from .models import WarehouseMovement
+from .models import ProductionOutput
+from .models import ProductionOutputLine
+from .models import ProductionMaterialUsage
+from .models import OilGrade, OilManufacturingBatch
+from .oil_processing import OIL_FINISHING_STEPS, OIL_CONTAINER_PATHS
+from .oil_processing import apply_oil_transfer, container_oil_product, lock_oil_line, oil_transfer_error
 
 
 MODULE_ACCESS = 'access'
@@ -68,6 +74,11 @@ MODULE_RAW_SPINDLE_TANK_LOADING = 'raw-spindle-tank-loading'
 MODULE_WAREHOUSE_ACCOUNTING = 'warehouse-accounting'
 MODULE_WAREHOUSE_SETTINGS = 'warehouse-settings'
 MODULE_KNOWLEDGE_BASE = 'knowledge-base'
+MODULE_CANISTER_LOADING = 'canister-loading'
+MODULE_CAP_LOADING = 'cap-loading'
+MODULE_SORBENT_LOADING = 'sorbent-loading'
+MODULE_CANISTER_OUTPUT = 'canister-output'
+MODULE_CAP_OUTPUT = 'cap-output'
 
 PROCESSING_FORM_MODULE_CODES = {
     MODULE_BOILER_LOADING,
@@ -78,6 +89,8 @@ PROCESSING_FORM_MODULE_CODES = {
     MODULE_RAW_DIESEL_TANK_LOADING,
     MODULE_RAW_SPINDLE_TANK_LOADING,
 }
+PROCESSING_FORM_MODULE_CODES.update(OIL_FINISHING_STEPS)
+PROCESSING_FORM_MODULE_CODES.update(('concentrate-loading', 'oil-blending', 'oil-tank-loading', 'oil-filling', 'sorbent-cycle'))
 
 PERMISSION_APPROVE = 'approve'
 PERMISSION_CREATE = 'create'
@@ -203,7 +216,7 @@ def _user_start_path(user):
 
     profile, _ = UserProfile.objects.select_related('group__start_module').get_or_create(user=user)
     if profile.group is None:
-        return '/welcome'
+        return '/welcome' if _is_admin(user) else '/no-access'
 
     access_map = _user_access_map(user)
     start_module = profile.group.start_module
@@ -215,17 +228,17 @@ def _user_start_path(user):
     ):
         return start_module.default_path
 
-    if PERMISSION_VIEW in access_map.get(MODULE_DASHBOARD, []):
+    if _is_admin(user) or PERMISSION_VIEW in access_map.get(MODULE_DASHBOARD, []):
         return '/welcome'
 
     module = (
         Module.objects
-        .filter(group_access__group=profile.group, group_access__permissions__code=PERMISSION_VIEW, is_active=True)
+        .filter(code__in=[code for code, permissions in access_map.items() if PERMISSION_VIEW in permissions], is_active=True)
         .exclude(default_path='')
         .order_by('name')
         .first()
     )
-    return module.default_path if module else '/welcome'
+    return module.default_path if module else '/no-access'
 
 
 def _has_permission(user, module_code, permission_code):
@@ -566,6 +579,16 @@ def _can_view_processing_container(user, kind):
         ProductionContainer.KIND_RAW_DIESEL_TANK: [MODULE_RAW_DIESEL_TANK_LOADING],
         ProductionContainer.KIND_RAW_SPINDLE_TANK: [MODULE_RAW_SPINDLE_TANK_LOADING],
     }
+    for code, config in OIL_FINISHING_STEPS.items():
+        if kind in config['sources'] + config['destinations']:
+            module_codes_by_kind.setdefault(kind, []).append(code)
+    manufacturing_access = {
+        ProductionContainer.KIND_FINISHED_SPINDLE_TANK: ['concentrate-loading', 'oil-blending'],
+        ProductionContainer.KIND_CONCENTRATE_REACTOR: ['concentrate-loading', 'oil-blending'],
+        ProductionContainer.KIND_OIL_BLENDER: ['oil-blending', 'oil-tank-loading'],
+        ProductionContainer.KIND_FINISHED_OIL_TANK: ['oil-tank-loading', 'oil-filling'],
+    }
+    module_codes_by_kind.setdefault(kind, []).extend(manufacturing_access.get(kind, []))
     return any(
         _has_permission(user, module_code, PERMISSION_VIEW)
         for module_code in module_codes_by_kind.get(kind, [])
@@ -574,7 +597,7 @@ def _can_view_processing_container(user, kind):
 
 def _volume_value(value, allow_zero=False):
     decimal_value = _decimal_value(value)
-    if decimal_value is None:
+    if decimal_value is None or not decimal_value.is_finite() or not Decimal('-99999999999.999') <= decimal_value <= Decimal('99999999999.999'):
         return None
     if decimal_value != decimal_value.quantize(VOLUME_QUANTUM):
         return None
@@ -585,7 +608,7 @@ def _volume_value(value, allow_zero=False):
 
 def _capacity_value(value):
     decimal_value = _decimal_value(value)
-    if decimal_value is None or decimal_value <= 0 or decimal_value != decimal_value.to_integral_value():
+    if decimal_value is None or not decimal_value.is_finite() or not 0 < decimal_value <= Decimal('99999999999') or decimal_value != decimal_value.to_integral_value():
         return None
     return decimal_value.quantize(VOLUME_QUANTUM)
 
@@ -615,12 +638,12 @@ def _container_code(kind, number):
         ProductionContainer.KIND_RAW_DIESEL_TANK: 'raw-diesel-tank',
         ProductionContainer.KIND_RAW_SPINDLE_TANK: 'raw-spindle-tank',
     }
-    prefix = prefixes[kind]
+    prefix = prefixes.get(kind, kind.replace('_', '-'))
     return f'{prefix}-{number}'
 
 
 def _container_has_movements(container):
-    return container.incoming_movements.exists() or container.outgoing_movements.exists()
+    return container.incoming_movements.exists() or container.outgoing_movements.exists() or container.oil_batches.exists() or container.sorbent_movements.exists()
 
 
 def _serialize_container(container, user, raw_material_options=False):
@@ -641,6 +664,24 @@ def _serialize_container(container, user, raw_material_options=False):
 
     base['current_volume_liters'] = str(container.current_volume_liters)
     base['can_receive'] = container.is_active and free_volume > 0
+    base['oil_grade_id'] = container.oil_grade_id
+    base['grade_name'] = container.oil_grade.name if container.oil_grade_id else ''
+    if container.kind in ProductionContainer.OIL_BATCH_KINDS:
+        from .oil_manufacturing import _serialize_batch
+        batch = container.oil_batches.filter(status=OilManufacturingBatch.STATUS_OPEN).select_related('equipment', 'created_by').first()
+        base.update({
+            'volume_known': False, 'current_volume_liters': None,
+            'capacity_liters': str(container.capacity_liters),
+            'active_batch': _serialize_batch(batch) if batch else None,
+            'can_receive': container.is_active and batch is None,
+        })
+    if container.kind == ProductionContainer.KIND_FINISHED_OIL_TANK:
+        base.update({'capacity_liters': str(container.capacity_liters), 'free_volume_liters': str(free_volume)})
+    base['oil_product'] = container_oil_product(container)
+    if container.kind in OIL_CONTAINER_PATHS.values():
+        base['capacity_liters'] = str(container.capacity_liters)
+        base['free_volume_liters'] = str(free_volume)
+        base['product_name'] = dict(ProductionContainer.OIL_PRODUCTS).get(base['oil_product'], '')
     if _is_admin(user):
         last_movement = (
             MaterialMovement.objects
@@ -668,6 +709,9 @@ def _serialize_container(container, user, raw_material_options=False):
             ProductionContainer.KIND_RAW_DIESEL_TANK: MaterialMovement.TYPE_WORKSHOP_TO_RAW_DIESEL_TANK,
             ProductionContainer.KIND_RAW_SPINDLE_TANK: MaterialMovement.TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK,
         }
+        for config in OIL_FINISHING_STEPS.values():
+            for kind in config['destinations']:
+                loading_types[kind] = config['movement_type']
         if container.kind in loading_types:
             base['recent_loadings'] = [
                 _serialize_movement(movement)
@@ -690,6 +734,8 @@ def _serialize_movement(movement):
         'source': movement.source_snapshot,
         'destination': movement.destination_snapshot,
         'product_name': movement.product_name,
+        'oil_product': movement.oil_product,
+        'oil_grade_id': movement.oil_grade_id,
         'volume_liters': str(movement.volume_liters),
         'moved_at': movement.moved_at.isoformat(),
         'created_at': movement.created_at.isoformat(),
@@ -973,6 +1019,7 @@ def _complete_receipt(receipt_id, user, distributions):
 
 def _compensate_movement(movement_id, user, reason):
     with transaction.atomic():
+        lock_oil_line()
         movement = (
             MaterialMovement.objects
             .select_for_update()
@@ -982,6 +1029,9 @@ def _compensate_movement(movement_id, user, reason):
             return None, 'Movement has already been compensated or is itself a compensation.'
         if not reason.strip():
             return None, 'Compensation reason is required.'
+        if movement.movement_type in MaterialMovement.OIL_MANUFACTURING_TYPES:
+            from .oil_manufacturing import compensate_manufacturing_movement
+            return compensate_manufacturing_movement(movement, user, reason)
 
         container_ids = sorted(filter(None, [movement.source_container_id, movement.destination_container_id]))
         containers = {
@@ -995,7 +1045,20 @@ def _compensate_movement(movement_id, user, reason):
         compensation_destination_before = None
         compensation_destination_after = None
 
-        if movement.movement_type == MaterialMovement.TYPE_RECEIPT_TO_TANK:
+        if movement.movement_type in MaterialMovement.OIL_FINISHING_TYPES:
+            if source is None or destination is None:
+                return None, 'Production container not found.'
+            error = oil_transfer_error(destination, source, movement.volume_liters, movement.oil_product)
+            if error:
+                return None, error
+            compensation_source_before = destination.current_volume_liters
+            compensation_source_after = compensation_source_before - movement.volume_liters
+            compensation_destination_before = source.current_volume_liters
+            compensation_destination_after = compensation_destination_before + movement.volume_liters
+            apply_oil_transfer(destination, source, movement.volume_liters, movement.oil_product)
+            compensation_source = destination
+            compensation_destination = source
+        elif movement.movement_type == MaterialMovement.TYPE_RECEIPT_TO_TANK:
             if destination is None or destination.current_volume_liters < movement.volume_liters:
                 return None, 'Compensation would create a negative receiving tank balance.'
             compensation_source_before = destination.current_volume_liters
@@ -1044,6 +1107,7 @@ def _compensate_movement(movement_id, user, reason):
             source_container=compensation_source,
             destination_container=compensation_destination,
             product_name=movement.product_name,
+            oil_product=movement.oil_product,
             volume_liters=movement.volume_liters,
             created_by=user,
             compensates=movement,
@@ -1956,6 +2020,7 @@ def laboratory_analysis_detail_view(request, analysis_id):
     return _method_not_allowed()
 
 
+@transaction.atomic
 def _production_containers_view(request, kind):
     user, error = _require_auth(request)
     if error:
@@ -1971,7 +2036,7 @@ def _production_containers_view(request, kind):
         if not can_process and not can_receive:
             return _permission_denied()
 
-        containers = ProductionContainer.objects.filter(kind=kind)
+        containers = ProductionContainer.objects.filter(kind=kind).select_related('oil_grade')
         if not _is_admin(user):
             containers = containers.filter(is_active=True)
         raw_options = request.GET.get('purpose') == 'receipt' and can_receive
@@ -1982,8 +2047,9 @@ def _production_containers_view(request, kind):
     if request.method != 'POST':
         return _method_not_allowed()
 
+    lock_oil_line()
     body = _json_body(request)
-    if body is None:
+    if not isinstance(body, dict):
         return _invalid_json_body()
     try:
         number = int(body.get('number'))
@@ -1993,12 +2059,19 @@ def _production_containers_view(request, kind):
     if number <= 0 or capacity is None:
         return JsonResponse({'detail': 'Number and positive integer capacity are required.'}, status=400)
 
+    oil_grade = None
+    if kind == ProductionContainer.KIND_FINISHED_OIL_TANK:
+        oil_grade = OilGrade.objects.filter(pk=body.get('oil_grade_id'), is_active=True).first() if type(body.get('oil_grade_id')) is int else None
+        if oil_grade is None:
+            return JsonResponse({'detail': 'Выберите активную марку масла.'}, status=400)
+
     try:
         container = ProductionContainer.objects.create(
             kind=kind,
             number=number,
             system_code=_container_code(kind, number),
             capacity_liters=capacity,
+            oil_grade=oil_grade,
             is_active=_boolean_value(body.get('is_active', True)),
         )
     except IntegrityError:
@@ -2050,12 +2123,14 @@ def raw_spindle_tanks_view(request):
 
 
 @csrf_exempt
+@transaction.atomic
 def production_container_detail_view(request, container_id):
     user, error = _require_admin(request)
     if error:
         return error
 
-    container = ProductionContainer.objects.filter(pk=container_id).first()
+    lock_oil_line()
+    container = ProductionContainer.objects.select_for_update().filter(pk=container_id).first()
     if container is None:
         return JsonResponse({'detail': 'Production container not found.'}, status=404)
     if request.method == 'GET':
@@ -2063,7 +2138,7 @@ def production_container_detail_view(request, container_id):
 
     if request.method in ('PUT', 'PATCH'):
         body = _json_body(request)
-        if body is None:
+        if not isinstance(body, dict):
             return _invalid_json_body()
 
         number = container.number
@@ -2085,6 +2160,20 @@ def production_container_detail_view(request, container_id):
             return JsonResponse({'detail': 'Вместимость не может быть меньше текущего объёма.'}, status=400)
         if not is_active and container.current_volume_liters > 0:
             return JsonResponse({'detail': 'Filled container cannot be deactivated.'}, status=400)
+        if not is_active and container.kind == ProductionContainer.KIND_SORPTION_SYSTEM:
+            from .sorbent import system_has_sorbent
+            if system_has_sorbent(container.pk):
+                return JsonResponse({'detail': 'Сначала верните весь сорбент системы и участка очистки в бак.'}, status=400)
+        batch = container.oil_batches.filter(status=OilManufacturingBatch.STATUS_OPEN).first()
+        if batch and (not is_active or capacity < max(batch.input_liters, batch.output_liters)):
+            return JsonResponse({'detail': 'Нельзя отключить оборудование с открытой партией или уменьшить его вместимость ниже загрузки и выхода.'}, status=400)
+        if container.kind == ProductionContainer.KIND_FINISHED_OIL_TANK and 'oil_grade_id' in body:
+            grade = OilGrade.objects.filter(pk=body.get('oil_grade_id'), is_active=True).first() if type(body.get('oil_grade_id')) is int else None
+            if grade is None:
+                return JsonResponse({'detail': 'Выберите активную марку масла.'}, status=400)
+            if grade.pk != container.oil_grade_id and container.current_volume_liters > 0:
+                return JsonResponse({'detail': 'Нельзя изменить марку непустого бака.'}, status=400)
+            container.oil_grade = grade
 
         old_values = {
             'number': container.number,
@@ -2117,6 +2206,8 @@ def production_container_detail_view(request, container_id):
         return JsonResponse(_serialize_container(container, user))
 
     if request.method == 'DELETE':
+        if container.oil_batches.filter(status=OilManufacturingBatch.STATUS_OPEN).exists():
+            return JsonResponse({'detail': 'Оборудование занято открытой партией.'}, status=400)
         if container.current_volume_liters > 0:
             return JsonResponse({'detail': 'Non-empty container cannot be deleted.'}, status=400)
         if _container_has_movements(container):
@@ -2914,7 +3005,10 @@ def processing_journal_view(request):
 
 @require_GET
 def production_overview_view(request):
-    _, error = _require_auth(request)
+    from .oil_processing import oil_overview
+    from .oil_manufacturing import manufacturing_overview
+    from .sorbent import sorbent_overview
+    _, error = _require_processing_permission(request, MODULE_DASHBOARD, PERMISSION_VIEW)
     if error:
         return error
 
@@ -2995,6 +3089,10 @@ def production_overview_view(request):
             **raw_spindle_tanks,
             'last_loading_at': last_raw_spindle_loading.moved_at.isoformat() if last_raw_spindle_loading else '',
         },
+        'packaging_production': _packaging_production_overview(),
+        'oil_finishing': oil_overview(),
+        'oil_manufacturing': manufacturing_overview(),
+        'sorbent_cycle': sorbent_overview(),
         'updated_at': timezone.now().isoformat(),
     })
 
@@ -3007,6 +3105,7 @@ WAREHOUSE_DOCUMENT_PERMISSIONS = {
 }
 
 WAREHOUSE_DOCUMENT_PREFIXES = {
+    'production-output': 'ВЫП',
     WarehouseDocument.TYPE_RECEIPT: 'ПРХ',
     WarehouseDocument.TYPE_ISSUE: 'РСХ',
     WarehouseDocument.TYPE_TRANSFER: 'ПРМ',
@@ -3037,6 +3136,10 @@ def _serialize_inventory_item(item):
         'unit_id': item.unit_id,
         'unit': _serialize_unit(item.unit),
         'last_purchase_price': str(item.last_purchase_price),
+        'production_material': item.production_material,
+        'production_material_label': item.get_production_material_display(),
+        'production_product': item.production_product,
+        'production_product_label': item.get_production_product_display(),
         'is_active': item.is_active,
     }
 
@@ -3047,6 +3150,15 @@ def _serialize_warehouse(warehouse):
         'name': warehouse.name,
         'description': warehouse.description,
         'is_active': warehouse.is_active,
+    }
+
+
+def _serialize_production_item(item):
+    return {
+        'id': item.pk, 'name': item.name, 'unit_id': item.unit_id, 'unit': _serialize_unit(item.unit),
+        'category_id': item.category_id, 'category': _serialize_inventory_category(item.category),
+        'production_material': item.production_material, 'production_product': item.production_product,
+        'is_active': item.is_active,
     }
 
 
@@ -3090,6 +3202,8 @@ def _serialize_warehouse_document(document):
         'supplier_id': document.supplier_id,
         'supplier': _serialize_supplier(document.supplier) if document.supplier else None,
         'purpose': document.purpose,
+        'production_target': document.production_target,
+        'production_target_label': document.get_production_target_display(),
         'created_by': document.created_by.get_username() if document.created_by else '',
         'posted_by': document.posted_by.get_username() if document.posted_by else '',
         'confirmed_by': document.confirmed_by.get_username() if document.confirmed_by else '',
@@ -3303,6 +3417,8 @@ def _warehouse_settings_detail_view(request, item_id, model, serializer, fields)
         return JsonResponse(serializer(instance))
     if request.method == 'DELETE':
         try:
+            if model is Warehouse and instance.permanent_items.exists():
+                return JsonResponse({'detail': 'Склад используется для постоянного хранения производственных материалов.'}, status=400)
             instance.delete()
         except ProtectedError:
             return JsonResponse({'detail': 'Запись используется и не может быть удалена.'}, status=400)
@@ -3326,6 +3442,14 @@ def _unit_fields(body, instance):
         decimal_places = -1
     if not name or not symbol or decimal_places not in (0, 1, 2):
         raise ValueError('Укажите название, обозначение и точность единицы измерения.')
+    if instance and instance.items.exclude(production_material='').exists():
+        if symbol.lower() not in ('кг', 'kg') or not _boolean_value(body.get('is_active', instance.is_active)):
+            raise ValueError('Для производственных материалов необходимо сохранить активную единицу кг.')
+        if decimal_places != instance.decimal_places and instance.items.filter(warehouse_movements__document__production_target__gt='').exists():
+            raise ValueError('Нельзя изменить точность единицы после производственных загрузок.')
+    if instance and instance.items.exclude(production_product='').exists():
+        if decimal_places != 0 or symbol.lower() not in ('шт', 'шт.', 'pcs', 'dona') or not _boolean_value(body.get('is_active', instance.is_active)):
+            raise ValueError('Для выпуска упаковки выберите целую единицу измерения в штуках.')
     return {
         'name': name,
         'symbol': symbol,
@@ -3354,6 +3478,8 @@ def _warehouse_fields(body, instance):
     name = str(body.get('name', instance.name if instance else '')).strip()
     if not name:
         raise ValueError('Название склада обязательно.')
+    if instance and instance.permanent_items.exists() and not _boolean_value(body.get('is_active', instance.is_active)):
+        raise ValueError('Склад используется для постоянного хранения производственных материалов.')
     return {
         'name': name,
         'description': str(body.get('description', instance.description if instance else '')).strip(),
@@ -3385,12 +3511,102 @@ def unit_of_measure_detail_view(request, unit_id):
 
 @csrf_exempt
 def inventory_items_view(request):
-    return _warehouse_settings_view(request, InventoryItem, _serialize_inventory_item, _inventory_item_fields)
+    return _inventory_items_endpoint(request)
 
 
 @csrf_exempt
 def inventory_item_detail_view(request, item_id):
-    return _warehouse_settings_detail_view(request, item_id, InventoryItem, _serialize_inventory_item, _inventory_item_fields)
+    return _inventory_items_endpoint(request, item_id)
+
+
+def _serialize_inventory_settings_item(item):
+    return {
+        **_serialize_inventory_item(item),
+        'permanent_warehouse_ids': [warehouse.pk for warehouse in item.permanent_warehouses.all()],
+    }
+
+
+def _inventory_items_endpoint(request, item_id=None):
+    user, error = _require_auth(request)
+    if error:
+        return error
+    permission_code = _method_permission(request)
+    if permission_code is None:
+        return _method_not_allowed()
+    if not (_is_admin(user) or _has_permission(user, MODULE_WAREHOUSE_SETTINGS, permission_code)):
+        return _permission_denied()
+    queryset = InventoryItem.objects.select_related('category', 'unit').prefetch_related('permanent_warehouses')
+    if request.method == 'GET':
+        if item_id is None:
+            return JsonResponse({'items': [_serialize_inventory_settings_item(item) for item in queryset]})
+        item = queryset.filter(pk=item_id).first()
+        return JsonResponse(_serialize_inventory_settings_item(item)) if item else JsonResponse(
+            {'detail': 'Запись не найдена.'}, status=404,
+        )
+    if (item_id is None and request.method != 'POST') or (item_id is not None and request.method == 'POST'):
+        return _method_not_allowed()
+    body = _json_body(request) if request.method != 'DELETE' else {}
+    if not isinstance(body, dict):
+        return _invalid_json_body()
+    try:
+        with transaction.atomic():
+            item = InventoryItem.objects.select_for_update().filter(pk=item_id).first() if item_id else None
+            if item_id and item is None:
+                return JsonResponse({'detail': 'Запись не найдена.'}, status=404)
+            if request.method == 'DELETE':
+                if item.production_material:
+                    raise ValueError('Постоянную производственную позицию нельзя удалить. Сначала измените её назначение.')
+                item.delete()
+                return JsonResponse({'deleted': True})
+            values = _inventory_item_fields(body, item)
+            material = body.get('production_material', item.production_material if item else '')
+            product = body.get('production_product', item.production_product if item else '')
+            if material not in dict(InventoryItem.MATERIAL_CHOICES):
+                raise ValueError('Выберите корректное назначение материала.')
+            if product not in dict(InventoryItem.PRODUCT_CHOICES) or (product and material):
+                raise ValueError('Выберите только одно назначение: сырьё или выпускаемая упаковка.')
+            if product and (values['unit'].decimal_places != 0 or values['unit'].symbol.lower() not in ('шт', 'шт.', 'pcs', 'dona')):
+                raise ValueError('Для выпуска упаковки выберите целую единицу измерения в штуках.')
+            warehouse_ids = body.get('permanent_warehouse_ids', list(item.permanent_warehouses.values_list('pk', flat=True)) if item else [])
+            if not isinstance(warehouse_ids, list) or any(type(value) is not int or value <= 0 for value in warehouse_ids):
+                raise ValueError('Выберите склады постоянного хранения.')
+            warehouse_ids = set(warehouse_ids)
+            if Warehouse.objects.filter(pk__in=warehouse_ids, is_active=True).count() != len(warehouse_ids):
+                raise ValueError('Один из выбранных складов не найден или неактивен.')
+            if material:
+                if not warehouse_ids:
+                    raise ValueError('Для производственного материала выберите хотя бы один постоянный склад.')
+                if values['unit'].symbol.lower() not in ('кг', 'kg'):
+                    raise ValueError('Для производственных материалов выберите единицу кг.')
+                if not values['is_active']:
+                    raise ValueError('Постоянная производственная позиция должна оставаться активной.')
+            elif warehouse_ids:
+                raise ValueError('Постоянные склады задаются только для производственных материалов.')
+            if len(values['name']) > 180:
+                raise ValueError('Название номенклатуры не должно превышать 180 символов.')
+            if item and (item.document_lines.exists() or item.production_output_lines.exists()) and values['unit'].pk != item.unit_id:
+                raise ValueError('Нельзя изменить единицу измерения позиции с историей движений.')
+            if item and material != item.production_material and item.warehouse_movements.exclude(document__production_target='').exists():
+                raise ValueError('Нельзя изменить назначение сырья с историей производственных загрузок.')
+            if item and product != item.production_product and item.production_output_lines.exists():
+                raise ValueError('Нельзя изменить вид упаковки с историей выпуска.')
+            values['production_material'] = material
+            values['production_product'] = product
+            if item:
+                for field, value in values.items():
+                    setattr(item, field, value)
+                item.save()
+            else:
+                item = InventoryItem.objects.create(**values)
+            item.permanent_warehouses.set(warehouse_ids)
+        saved = queryset.get(pk=item.pk)
+        return JsonResponse(_serialize_inventory_settings_item(saved), status=200 if item_id else 201)
+    except ProtectedError:
+        return JsonResponse({'detail': 'Запись используется и не может быть удалена.'}, status=400)
+    except (ValueError, TypeError) as exc:
+        return JsonResponse({'detail': str(exc)}, status=400)
+    except IntegrityError:
+        return JsonResponse({'detail': 'Номенклатура с таким названием уже существует.'}, status=400)
 
 
 @csrf_exempt
@@ -3427,13 +3643,29 @@ def warehouse_overview_view(request):
         return error
     if not (_is_admin(user) or _has_permission(user, MODULE_WAREHOUSE_ACCOUNTING, PERMISSION_VIEW)):
         return _permission_denied()
-    balances = WarehouseBalance.objects.select_related('warehouse', 'item__category', 'item__unit').filter(quantity__gt=0)
+    balances = list(WarehouseBalance.objects.select_related('warehouse', 'item__category', 'item__unit').filter(quantity__gt=0))
     total_value = sum(
         (balance.quantity * balance.average_unit_cost for balance in balances),
         Decimal('0.00'),
     ).quantize(Decimal('0.01'))
+    rows = {(balance.warehouse_id, balance.item_id): _serialize_warehouse_balance(balance) for balance in balances}
+    permanent_items = InventoryItem.objects.exclude(production_material='').filter(is_active=True).select_related(
+        'category', 'unit',
+    ).prefetch_related('permanent_warehouses')
+    for item in permanent_items:
+        for warehouse in item.permanent_warehouses.all():
+            if not warehouse.is_active:
+                continue
+            key = (warehouse.pk, item.pk)
+            if key not in rows:
+                rows[key] = {
+                    'id': f'permanent-{warehouse.pk}-{item.pk}',
+                    'warehouse': _serialize_warehouse(warehouse), 'item': _serialize_inventory_item(item),
+                    'quantity': '0.00', 'average_unit_cost': '0.00', 'total_value': '0.00', 'updated_at': None,
+                }
+            rows[key]['is_permanent'] = True
     return JsonResponse({
-        'balances': [_serialize_warehouse_balance(balance) for balance in balances],
+        'balances': sorted(rows.values(), key=lambda row: (row['warehouse']['name'], row['item']['name'])),
         'total_value': str(total_value),
         'warehouse_count': Warehouse.objects.filter(is_active=True).count(),
         'item_count': InventoryItem.objects.filter(is_active=True).count(),
@@ -3674,6 +3906,7 @@ def warehouse_document_cancel_view(request, document_id):
     if error:
         return error
     with transaction.atomic():
+        lock_oil_line()
         document = WarehouseDocument.objects.select_for_update().filter(pk=document_id).first()
         if document is None:
             return JsonResponse({'detail': 'Складской документ не найден.'}, status=404)
@@ -3683,6 +3916,16 @@ def warehouse_document_cancel_view(request, document_id):
             WarehouseDocument.STATUS_COMPLETED,
         ):
             return JsonResponse({'detail': 'Этот документ нельзя отменить.'}, status=423)
+        if document.production_target == WarehouseDocument.TARGET_SORPTION:
+            from .sorbent import loading_is_in_use
+            if loading_is_in_use(document.pk):
+                return JsonResponse({'detail': 'Нельзя отменить пополнение бака: сначала компенсируйте связанные движения сорбента.'}, status=423)
+        if document.production_target and ProductionMaterialUsage.objects.filter(
+            source_movement__document=document, output__is_cancelled=False,
+        ).exists():
+            return JsonResponse({'detail': 'Нельзя отменить загрузку: сырьё уже использовано в выпуске. Сначала отмените связанный выпуск.'}, status=423)
+        if OilManufacturingBatch.objects.filter(material_document=document).exclude(status=OilManufacturingBatch.STATUS_CANCELLED).exists():
+            return JsonResponse({'detail': 'Отменяйте расход полипропилена через связанную производственную партию.'}, status=423)
         original_movements = list(
             document.movements.exclude(movement_type=WarehouseMovement.TYPE_REVERSAL).select_related('warehouse', 'item')
         )
@@ -3705,6 +3948,418 @@ def warehouse_document_cancel_view(request, document_id):
         document.cancelled_at = timezone.now()
         document.save(update_fields=['status', 'cancelled_at'])
     return JsonResponse({'status': document.status})
+
+
+PRODUCTION_LOADING_CONFIG = {
+    WarehouseDocument.TARGET_CANISTERS: (MODULE_CANISTER_LOADING, (InventoryItem.MATERIAL_GRANULES, InventoryItem.MATERIAL_DYE)),
+    WarehouseDocument.TARGET_CAPS: (MODULE_CAP_LOADING, (InventoryItem.MATERIAL_GRANULES, InventoryItem.MATERIAL_DYE)),
+    WarehouseDocument.TARGET_SORPTION: (MODULE_SORBENT_LOADING, (InventoryItem.MATERIAL_SORBENT,)),
+}
+
+
+def _production_loading_user(request, target):
+    user, error = _require_auth(request)
+    if error:
+        return None, error
+    config = PRODUCTION_LOADING_CONFIG.get(target)
+    if config is None:
+        return None, JsonResponse({'detail': 'Неизвестное направление производственной загрузки.'}, status=404)
+    permission = _method_permission(request)
+    if request.method not in ('GET', 'POST'):
+        return None, _method_not_allowed()
+    if not (_is_admin(user) or _has_permission(user, config[0], permission)):
+        return None, _permission_denied()
+    return user, None
+
+
+def _production_loading_queryset():
+    return WarehouseDocument.objects.exclude(production_target='').select_related(
+        'source_warehouse', 'destination_warehouse', 'supplier__city', 'created_by', 'posted_by', 'confirmed_by',
+    ).prefetch_related('lines__item__category', 'lines__item__unit', 'movements')
+
+
+def _serialize_production_loading(document):
+    result = _serialize_warehouse_document(document)
+    items = {line.item_id: line.item for line in document.lines.all()}
+    movements = {movement.item_id: movement for movement in document.movements.all() if movement.movement_type == WarehouseMovement.TYPE_ISSUE}
+    for line in result['lines']:
+        line['item'] = _serialize_production_item(items[line['item_id']])
+        movement = movements.get(line['item_id'])
+        line['unit_cost'] = str(movement.unit_cost) if movement else '0.00'
+        line['material_cost'] = str(-movement.total_value_delta) if movement else '0.00'
+    result['material_cost'] = str(sum((Decimal(line['material_cost']) for line in result['lines']), Decimal('0.00')))
+    return result
+
+
+@require_GET
+def production_loading_reference_view(request, target):
+    user, error = _production_loading_user(request, target)
+    if error:
+        return error
+    items = InventoryItem.objects.filter(
+        production_material__in=PRODUCTION_LOADING_CONFIG[target][1],
+        is_active=True, category__is_active=True, unit__is_active=True,
+    ).select_related('category', 'unit').prefetch_related('permanent_warehouses')
+    balances = {
+        (balance.warehouse_id, balance.item_id): balance.quantity
+        for balance in WarehouseBalance.objects.filter(item__in=items)
+    }
+    rows = []
+    warehouses = {}
+    for item in items:
+        for warehouse in item.permanent_warehouses.all():
+            if warehouse.is_active:
+                warehouses[warehouse.pk] = _serialize_warehouse(warehouse)
+                rows.append({
+                    'warehouse_id': warehouse.pk, 'item': _serialize_production_item(item),
+                    'quantity': str(balances.get((warehouse.pk, item.pk), Decimal('0.00'))),
+                })
+    return JsonResponse({'warehouses': list(warehouses.values()), 'materials': rows, **_production_material_state(target)})
+
+
+def _production_loading_replay(document, target, warehouse_id, lines, purpose, user):
+    original = {line.item_id: line.quantity for line in document.lines.all()}
+    requested = {line['item_id']: line['quantity'] for line in lines}
+    if document.created_by_id != user.pk or document.production_target != target or document.source_warehouse_id != warehouse_id or original != requested or document.purpose != purpose:
+        return JsonResponse({'detail': 'Этот ключ запроса уже использован для другой загрузки.'}, status=409)
+    return JsonResponse(_serialize_production_loading(document))
+
+
+@csrf_exempt
+def production_loadings_view(request, target):
+    user, error = _production_loading_user(request, target)
+    if error:
+        return error
+    queryset = _production_loading_queryset()
+    if request.method == 'GET':
+        return JsonResponse({'items': [_serialize_production_loading(document) for document in queryset.filter(production_target=target)]})
+    body = _json_body(request)
+    if not isinstance(body, dict):
+        return _invalid_json_body()
+    key = body.get('idempotency_key')
+    warehouse_id = body.get('source_warehouse_id')
+    purpose = body.get('purpose', '')
+    if not isinstance(key, str) or not key.strip() or len(key) > 80:
+        return JsonResponse({'detail': 'Необходим корректный ключ запроса загрузки.'}, status=400)
+    if type(warehouse_id) is not int or warehouse_id <= 0:
+        return JsonResponse({'detail': 'Необходимо выбрать склад.'}, status=400)
+    if not isinstance(purpose, str) or len(purpose) > 1000:
+        return JsonResponse({'detail': 'Комментарий должен содержать не более 1000 символов.'}, status=400)
+    purpose = purpose.strip() or dict(WarehouseDocument.PRODUCTION_TARGET_CHOICES)[target]
+    raw_lines = body.get('lines')
+    if not isinstance(raw_lines, list) or not 1 <= len(raw_lines) <= 100:
+        return JsonResponse({'detail': 'Добавьте от 1 до 100 строк загрузки.'}, status=400)
+    lines = []
+    for raw_line in raw_lines:
+        if not isinstance(raw_line, dict) or type(raw_line.get('item_id')) is not int:
+            return JsonResponse({'detail': 'В каждой строке должна быть выбрана номенклатура.'}, status=400)
+        quantity = _decimal_value(raw_line.get('quantity'))
+        if quantity is None or not quantity.is_finite() or not Decimal('0') < quantity < Decimal('10000000000000000'):
+            return JsonResponse({'detail': 'Укажите корректное положительное количество материала.'}, status=400)
+        lines.append({'item_id': raw_line['item_id'], 'quantity': quantity})
+    if len({line['item_id'] for line in lines}) != len(lines):
+        return JsonResponse({'detail': 'Номенклатура не должна повторяться в одном документе.'}, status=400)
+    key = key.strip()
+    existing = queryset.filter(idempotency_key=key).first()
+    if existing:
+        return _production_loading_replay(existing, target, warehouse_id, lines, purpose, user)
+    try:
+        with transaction.atomic():
+            warehouse = Warehouse.objects.filter(pk=warehouse_id, is_active=True).first()
+            if warehouse is None:
+                raise ValueError('Выбранный склад не найден или неактивен.')
+            items = {
+                item.pk: item for item in InventoryItem.objects.select_for_update(of=('self',)).select_related('unit', 'category').filter(
+                    pk__in=[line['item_id'] for line in lines], is_active=True,
+                ).order_by('pk')
+            }
+            for line in lines:
+                item = items.get(line['item_id'])
+                if item is None or not item.unit.is_active or not item.category.is_active or item.unit.symbol.lower() not in ('кг', 'kg'):
+                    raise ValueError('Материал не найден, неактивен или имеет неподходящую единицу измерения.')
+                if item.production_material not in PRODUCTION_LOADING_CONFIG[target][1] or not item.permanent_warehouses.filter(pk=warehouse.pk).exists():
+                    raise ValueError('Материал не разрешён для этого направления или не закреплён за выбранным складом.')
+                quantity = _warehouse_quantity(line['quantity'], item.unit)
+                if quantity is None:
+                    raise ValueError(f'Количество для «{item.name}» не соответствует точности единицы измерения.')
+                line['quantity'] = quantity
+            now = timezone.now()
+            document = WarehouseDocument.objects.create(
+                number=_next_warehouse_document_number(WarehouseDocument.TYPE_ISSUE, now),
+                document_type=WarehouseDocument.TYPE_ISSUE, status=WarehouseDocument.STATUS_POSTED,
+                document_date=now, source_warehouse=warehouse, purpose=purpose,
+                production_target=target, idempotency_key=key,
+                created_by=user, posted_by=user, posted_at=now,
+            )
+            for line in sorted(lines, key=lambda value: value['item_id']):
+                item = items[line['item_id']]
+                balance = _locked_warehouse_balance(warehouse, item)
+                unit_cost = _remove_from_warehouse_balance(balance, line['quantity'])
+                if line['quantity'] * unit_cost >= Decimal('1000000000000000000'):
+                    raise ValueError('Стоимость загрузки превышает допустимый размер складского движения.')
+                WarehouseDocumentLine.objects.create(document=document, item=item, quantity=line['quantity'])
+                _create_warehouse_movement(document, warehouse, item, WarehouseMovement.TYPE_ISSUE, -line['quantity'], unit_cost, user)
+        return JsonResponse(_serialize_production_loading(queryset.get(pk=document.pk)), status=201)
+    except ValueError as exc:
+        return JsonResponse({'detail': str(exc)}, status=400)
+    except IntegrityError:
+        existing = queryset.filter(idempotency_key=key).first()
+        if existing:
+            return _production_loading_replay(existing, target, warehouse_id, lines, purpose, user)
+        return JsonResponse({'detail': 'Не удалось провести загрузку. Обновите данные и повторите попытку.'}, status=409)
+
+
+PRODUCTION_OUTPUT_MODULES = {'canisters': MODULE_CANISTER_OUTPUT, 'caps': MODULE_CAP_OUTPUT}
+
+
+def _packaging_production_overview():
+    targets = tuple(PRODUCTION_OUTPUT_MODULES)
+    result = {target: {
+        'materials': {role: {'loaded_quantity': Decimal('0.00'), 'used_quantity': Decimal('0.00')} for role in ('granules', 'dye')},
+        'output_totals': {'good': 0, 'deviation': 0, 'reject': 0},
+    } for target in targets}
+    loaded = WarehouseMovement.objects.filter(
+        movement_type=WarehouseMovement.TYPE_ISSUE, document__status=WarehouseDocument.STATUS_POSTED,
+        document__production_target__in=targets,
+    ).values('document__production_target', 'item__production_material').annotate(total=Sum('quantity_delta'))
+    used = ProductionMaterialUsage.objects.filter(output__is_cancelled=False).values(
+        'output__target', 'source_movement__item__production_material',
+    ).annotate(total=Sum('quantity'))
+    for row in loaded:
+        role = row['item__production_material']
+        if role in result[row['document__production_target']]['materials']:
+            result[row['document__production_target']]['materials'][role]['loaded_quantity'] = -row['total']
+    for row in used:
+        role = row['source_movement__item__production_material']
+        if row['output__target'] in result and role in result[row['output__target']]['materials']:
+            result[row['output__target']]['materials'][role]['used_quantity'] = row['total']
+    counts = ProductionOutputLine.objects.filter(output__is_cancelled=False).values('output__target', 'disposition').annotate(total=Sum('quantity'))
+    for row in counts:
+        result[row['output__target']]['output_totals'][row['disposition']] = row['total']
+    for target in result.values():
+        for material in target['materials'].values():
+            material['available_quantity'] = material['loaded_quantity'] - material['used_quantity']
+            for key, quantity in material.items():
+                material[key] = str(quantity)
+    return result
+
+
+def _production_sources(target):
+    return WarehouseMovement.objects.filter(
+        movement_type=WarehouseMovement.TYPE_ISSUE, document__production_target=target,
+        document__status=WarehouseDocument.STATUS_POSTED,
+    ).select_related('item__unit', 'item__category', 'warehouse', 'document').annotate(
+        used_quantity=Sum('production_usages__quantity', filter=Q(production_usages__output__is_cancelled=False)),
+        used_cost=Sum('production_usages__material_cost', filter=Q(production_usages__output__is_cancelled=False)),
+    ).order_by('created_at', 'pk')
+
+
+def _production_source_remainder(source):
+    return (
+        -source.quantity_delta - (source.used_quantity or Decimal('0.00')),
+        -source.total_value_delta - (source.used_cost or Decimal('0.00')),
+    )
+
+
+def _production_material_state(target):
+    balances = {}
+    sources = []
+    for source in _production_sources(target):
+        quantity, cost = _production_source_remainder(source)
+        balance = balances.setdefault(source.item_id, {
+            'item': _serialize_production_item(source.item), 'loaded_quantity': Decimal('0.00'),
+            'used_quantity': Decimal('0.00'), 'available_quantity': Decimal('0.00'), 'available_cost': Decimal('0.00'),
+        })
+        balance['loaded_quantity'] -= source.quantity_delta
+        balance['used_quantity'] += source.used_quantity or Decimal('0.00')
+        balance['available_quantity'] += quantity
+        balance['available_cost'] += cost
+        if quantity > 0:
+            sources.append({
+                'id': source.pk, 'item': _serialize_production_item(source.item),
+                'loading_id': source.document_id, 'loading_number': source.document.number,
+                'warehouse': _serialize_warehouse(source.warehouse), 'loaded_at': source.created_at.isoformat(),
+                'available_quantity': str(quantity), 'unit_cost': str(source.unit_cost), 'available_cost': str(cost),
+            })
+    return {
+        'production_balances': [{key: value if key == 'item' else str(value) for key, value in balance.items()} for balance in balances.values()],
+        'production_sources': sources,
+    }
+
+
+def _production_output_user(request, target):
+    user, error = _require_auth(request)
+    if error:
+        return None, error
+    if target not in PRODUCTION_OUTPUT_MODULES:
+        return None, JsonResponse({'detail': 'Неизвестное направление выпуска.'}, status=404)
+    if request.method not in ('GET', 'POST'):
+        return None, _method_not_allowed()
+    if not (_is_admin(user) or _has_permission(user, PRODUCTION_OUTPUT_MODULES[target], _method_permission(request))):
+        return None, _permission_denied()
+    return user, None
+
+
+def _production_output_queryset():
+    return ProductionOutput.objects.select_related('created_by', 'cancelled_by').prefetch_related(
+        'lines__item__category', 'lines__item__unit', 'material_usages__source_movement__item__category',
+        'material_usages__source_movement__item__unit', 'material_usages__source_movement__document',
+    )
+
+
+def _serialize_production_output(output):
+    usages = list(output.material_usages.all())
+    return {
+        'id': output.pk, 'number': output.number, 'target': output.target, 'note': output.note,
+        'created_at': output.created_at.isoformat(), 'created_by': output.created_by.get_username() if output.created_by else '',
+        'is_cancelled': output.is_cancelled, 'cancelled_at': output.cancelled_at.isoformat() if output.cancelled_at else None,
+        'cancelled_by': output.cancelled_by.get_username() if output.cancelled_by else '',
+        'material_cost': str(sum((usage.material_cost for usage in usages), Decimal('0.00'))),
+        'lines': [{
+            'id': line.pk, 'item': _serialize_production_item(line.item), 'item_id': line.item_id,
+            'disposition': line.disposition, 'disposition_label': line.get_disposition_display(), 'quantity': line.quantity,
+        } for line in output.lines.all()],
+        'material_usages': [{
+            'id': usage.pk, 'source_movement_id': usage.source_movement_id,
+            'loading_number': usage.source_movement.document.number,
+            'item': _serialize_production_item(usage.source_movement.item), 'quantity': str(usage.quantity),
+            'unit_cost': str(usage.unit_cost), 'material_cost': str(usage.material_cost),
+        } for usage in usages],
+    }
+
+
+@require_GET
+def production_output_reference_view(request, target):
+    _, error = _production_output_user(request, target)
+    if error:
+        return error
+    products = InventoryItem.objects.filter(
+        production_product=target, is_active=True, category__is_active=True, unit__is_active=True,
+    ).select_related('category', 'unit')
+    return JsonResponse({'products': [_serialize_production_item(item) for item in products], **_production_material_state(target)})
+
+
+def _production_output_payload(body, target):
+    if not isinstance(body, dict):
+        raise ValueError('Ожидается объект с данными выпуска.')
+    key = body.get('idempotency_key')
+    note = body.get('note', '')
+    if not isinstance(key, str) or not key.strip() or len(key) > 80:
+        raise ValueError('Необходим корректный ключ запроса выпуска.')
+    if not isinstance(note, str) or len(note) > 1000:
+        raise ValueError('Комментарий должен содержать не более 1000 символов.')
+    raw_lines, raw_usages = body.get('lines'), body.get('material_usages')
+    if not isinstance(raw_lines, list) or not 1 <= len(raw_lines) <= 100 or not isinstance(raw_usages, list) or not 1 <= len(raw_usages) <= 100:
+        raise ValueError('Укажите от 1 до 100 строк выпуска и фактического расхода сырья.')
+    lines, usages = [], []
+    dispositions = {'good', 'reject'} | ({'deviation'} if target == 'canisters' else set())
+    for line in raw_lines:
+        if not isinstance(line, dict) or type(line.get('item_id')) is not int or type(line.get('quantity')) is not int or not 0 < line['quantity'] <= 2147483647:
+            raise ValueError('Выпуск указывается положительным целым количеством штук с выбранной номенклатурой.')
+        if line.get('disposition') not in dispositions:
+            raise ValueError('Для крышек допустимы только годные и брак; отклонения доступны только для канистр.')
+        lines.append({'item_id': line['item_id'], 'disposition': line['disposition'], 'quantity': line['quantity']})
+    for usage in raw_usages:
+        if not isinstance(usage, dict) or type(usage.get('source_movement_id')) is not int:
+            raise ValueError('Выберите загрузку для каждой строки расхода сырья.')
+        quantity = _decimal_value(usage.get('quantity'))
+        if quantity is None or not quantity.is_finite() or not Decimal('0') < quantity < Decimal('10000000000000000') or quantity != quantity.quantize(Decimal('0.01')):
+            raise ValueError('Укажите корректный фактический расход сырья в килограммах.')
+        usages.append({'source_movement_id': usage['source_movement_id'], 'quantity': quantity})
+    if len({(line['item_id'], line['disposition']) for line in lines}) != len(lines) or len({usage['source_movement_id'] for usage in usages}) != len(usages):
+        raise ValueError('Строки выпуска или источники расхода не должны повторяться.')
+    return key.strip(), note.strip(), lines, usages
+
+
+def _production_output_replay(output, target, user, note, lines, usages):
+    original_lines = {(line.item_id, line.disposition): line.quantity for line in output.lines.all()}
+    original_usages = {usage.source_movement_id: usage.quantity for usage in output.material_usages.all()}
+    if output.target != target or output.created_by_id != user.pk or output.note != note or original_lines != {(line['item_id'], line['disposition']): line['quantity'] for line in lines} or original_usages != {usage['source_movement_id']: usage['quantity'] for usage in usages}:
+        return JsonResponse({'detail': 'Этот ключ запроса уже использован для другого выпуска.'}, status=409)
+    return JsonResponse(_serialize_production_output(output))
+
+
+@csrf_exempt
+def production_outputs_view(request, target):
+    user, error = _production_output_user(request, target)
+    if error:
+        return error
+    queryset = _production_output_queryset()
+    if request.method == 'GET':
+        return JsonResponse({'items': [_serialize_production_output(output) for output in queryset.filter(target=target)]})
+    try:
+        key, note, lines, usages = _production_output_payload(_json_body(request), target)
+    except (ValueError, TypeError, InvalidOperation) as exc:
+        return JsonResponse({'detail': str(exc)}, status=400)
+    existing = queryset.filter(idempotency_key=key).first()
+    if existing:
+        return _production_output_replay(existing, target, user, note, lines, usages)
+    try:
+        with transaction.atomic():
+            source_ids = [usage['source_movement_id'] for usage in usages]
+            document_ids = list(WarehouseMovement.objects.filter(
+                pk__in=source_ids, movement_type=WarehouseMovement.TYPE_ISSUE,
+                document__production_target=target, document__status=WarehouseDocument.STATUS_POSTED,
+            ).values_list('document_id', flat=True))
+            documents = list(WarehouseDocument.objects.select_for_update().filter(pk__in=document_ids).order_by('pk'))
+            existing = queryset.filter(idempotency_key=key).first()
+            if existing:
+                return _production_output_replay(existing, target, user, note, lines, usages)
+            if any(document.status != WarehouseDocument.STATUS_POSTED for document in documents):
+                raise ValueError('Одна из загрузок отменена или недоступна.')
+            sources = {source.pk: source for source in _production_sources(target).filter(pk__in=source_ids)}
+            if len(sources) != len(source_ids):
+                raise ValueError('Источник сырья не найден, отменён или относится к другой линии.')
+            items = {item.pk: item for item in InventoryItem.objects.select_for_update(of=('self',)).select_related('unit', 'category').filter(
+                pk__in=[line['item_id'] for line in lines], production_product=target, is_active=True,
+            ).order_by('pk')}
+            for line in lines:
+                item = items.get(line['item_id'])
+                if item is None or not item.unit.is_active or not item.category.is_active or item.unit.decimal_places != 0 or item.unit.symbol.lower() not in ('шт', 'шт.', 'pcs', 'dona'):
+                    raise ValueError('Выберите активную номенклатуру упаковки соответствующей линии в штуках.')
+            for usage in usages:
+                source = sources[usage['source_movement_id']]
+                quantity, cost = _production_source_remainder(source)
+                if _warehouse_quantity(usage['quantity'], source.item.unit) is None or usage['quantity'] > quantity:
+                    raise ValueError('Расход превышает доступное сырьё в производстве или точность единицы измерения.')
+                usage['unit_cost'] = source.unit_cost
+                usage['material_cost'] = cost if usage['quantity'] == quantity else (cost * usage['quantity'] / quantity).quantize(Decimal('0.01'))
+            now = timezone.now()
+            output = ProductionOutput.objects.create(
+                number=_next_warehouse_document_number('production-output', now), target=target,
+                idempotency_key=key, note=note, created_by=user, created_at=now,
+            )
+            ProductionOutputLine.objects.bulk_create([ProductionOutputLine(output=output, **line) for line in lines])
+            ProductionMaterialUsage.objects.bulk_create([ProductionMaterialUsage(output=output, **usage) for usage in usages])
+        return JsonResponse(_serialize_production_output(queryset.get(pk=output.pk)), status=201)
+    except (ValueError, InvalidOperation) as exc:
+        return JsonResponse({'detail': str(exc)}, status=400)
+    except IntegrityError:
+        existing = queryset.filter(idempotency_key=key).first()
+        if existing:
+            return _production_output_replay(existing, target, user, note, lines, usages)
+        return JsonResponse({'detail': 'Не удалось зарегистрировать выпуск. Обновите данные и повторите попытку.'}, status=409)
+
+
+@csrf_exempt
+@require_POST
+def production_output_cancel_view(request, target, output_id):
+    user, error = _require_admin(request)
+    if error:
+        return error
+    with transaction.atomic():
+        output = ProductionOutput.objects.select_for_update().filter(pk=output_id, target=target).first()
+        if output is None:
+            return JsonResponse({'detail': 'Выпуск не найден.'}, status=404)
+        if output.is_cancelled:
+            return JsonResponse({'detail': 'Выпуск уже отменён.'}, status=423)
+        document_ids = output.material_usages.values_list('source_movement__document_id', flat=True)
+        list(WarehouseDocument.objects.select_for_update().filter(pk__in=document_ids).order_by('pk'))
+        output.is_cancelled = True
+        output.cancelled_at = timezone.now()
+        output.cancelled_by = user
+        output.save(update_fields=['is_cancelled', 'cancelled_at', 'cancelled_by'])
+    return JsonResponse({'cancelled': True})
 
 
 def _require_knowledge_permission(request):

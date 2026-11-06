@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 30">
+  <path fill="#1eb53a" d="M0 0h60v30H0z"/>
+  <path fill="#0099b5" d="M0 0h60v9.6H0z"/>
+  <path fill="#ce1126" d="M0 9.6h60v10.8H0z"/>
+  <path fill="#fff" d="M0 10.2h60v9.6H0z"/>
+  <circle cx="5.8" cy="4.8" r="3.6" fill="#fff"/>
+  <circle cx="7" cy="4.8" r="3.1" fill="#0099b5"/>
+  <defs>
+    <path id="star" d="M0-1 .224-.309 .951-.309 .363.118 .588.809 0 .382-.588.809-.363.118-.951-.309-.224-.309Z" fill="#fff"/>
+  </defs>
+  <use href="#star" x="14.4" y="2"/>
+  <use href="#star" x="17" y="2"/>
+  <use href="#star" x="19.6" y="2"/>
+  <use href="#star" x="11.8" y="4.8"/>
+  <use href="#star" x="14.4" y="4.8"/>
+  <use href="#star" x="17" y="4.8"/>
+  <use href="#star" x="19.6" y="4.8"/>
+  <use href="#star" x="9.2" y="7.6"/>
+  <use href="#star" x="11.8" y="7.6"/>
+  <use href="#star" x="14.4" y="7.6"/>
+  <use href="#star" x="17" y="7.6"/>
+  <use href="#star" x="19.6" y="7.6"/>
+</svg>

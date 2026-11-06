@@ -1,11 +1,13 @@
 import { getLocale, localizeStaticData, t } from '../../i18n/core'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { apiRequest } from '../../api/client'
 import { DashboardShell } from '../../components/Layout/DashboardShell'
 import { ListControls } from '../../components/ListControls/ListControls'
 import { DeleteConfirmModal, Modal } from '../../components/Modal/Modal'
 import { useListControls } from '../../hooks/useListControls'
 import { useWarehouseDocuments, useWarehouseOverview, useWarehouseReferenceData, useWarehouseSettings } from '../../hooks/useWarehouse'
+import { emptyInventoryItemForm } from '../../constants/forms'
+import { productionMaterialOptions, productionProductOptions } from '../../constants/productionLoading'
 
 const DOCUMENT_CONFIG = {
   receipt: { title: 'Поступления', eyebrow: 'Приход', permission: 'receipt', action: 'Создать поступление' },
@@ -76,7 +78,7 @@ export function WarehouseOverviewPage({ onLogout, token, user }) {
           <div className="entity-list">
             {controls.paginatedItems.map((balance) => (
               <div className="entity-row warehouse-balance-row" key={balance.id}>
-                <div><strong>{balance.item.name}</strong><span>{balance.warehouse.name} · {t(balance.item.category.name)}</span></div>
+                <div><strong>{balance.item.name}</strong><span>{balance.warehouse.name} · {t(balance.item.category.name)}</span>{balance.is_permanent && <span>{t('Постоянная производственная позиция')}</span>}</div>
                 <div className="warehouse-balance-values">
                   <strong>{balance.quantity} {t(balance.item.unit.symbol)}</strong>
                   <span>{formatMoney(balance.average_unit_cost)} / {t(balance.item.unit.symbol)}</span>
@@ -166,7 +168,7 @@ function WarehouseDocumentPage({ documentType, onLogout, token, user }) {
                   <strong>{document.number}</strong>
                   <span>{formatDate(document.document_date)} · {document.source_warehouse?.name || document.supplier?.company_name || t('Инвентаризация')}{document.destination_warehouse ? ` → ${document.destination_warehouse.name}` : ''}</span>
                   <span>{document.lines.map((line) => `${line.item.name}: ${line.quantity} ${t(line.item.unit.symbol)}`).join('; ')}</span>
-                  {document.purpose && <span>{t('Назначение: ')}{document.purpose}</span>}
+                  {document.purpose && <span>{t('Назначение: ')}{document.production_target && document.purpose === document.production_target_label ? t(document.production_target_label) : document.purpose}</span>}
                 </div>
                 <div className="warehouse-document-actions">
                   <span className={`status-pill ${STATUS_CLASS[document.status] || 'neutral'}`}>{t(document.status_label)}</span>
@@ -261,7 +263,9 @@ export function WarehouseItemsPage({ onLogout, token, user }) {
   const { items, error, save, remove } = useWarehouseSettings(token, 'items')
   const [categories, setCategories] = useState([])
   const [units, setUnits] = useState([])
-  const empty = useMemo(() => ({ id: null, name: '', category_id: '', unit_id: '', is_active: true }), [])
+  const [warehouses, setWarehouses] = useState([])
+  const [referenceError, setReferenceError] = useState('')
+  const empty = emptyInventoryItemForm
   const [form, setForm] = useState(empty)
   const [isOpen, setIsOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -271,24 +275,57 @@ export function WarehouseItemsPage({ onLogout, token, user }) {
     Promise.all([
       apiRequest('/api/warehouse/settings/categories/', token),
       apiRequest('/api/warehouse/settings/units/', token),
-    ]).then(([categoryData, unitData]) => { setCategories(categoryData.items); setUnits(unitData.items) })
+      apiRequest('/api/warehouse/settings/warehouses/', token),
+    ]).then(([categoryData, unitData, warehouseData]) => { setCategories(categoryData.items); setUnits(unitData.items); setWarehouses(warehouseData.items); setReferenceError('') })
+      .catch((loadError) => setReferenceError(loadError.message))
   }, [token])
 
   function edit(item = empty) {
-    setForm(item.id ? { id: item.id, name: item.name, category_id: item.category_id, unit_id: item.unit_id, is_active: item.is_active } : empty)
+    setForm(item.id ? {
+      id: item.id, name: item.name, category_id: item.category_id, unit_id: item.unit_id,
+      is_active: item.is_active, production_material: item.production_material, production_product: item.production_product,
+      permanent_warehouse_ids: item.permanent_warehouse_ids,
+    } : empty)
     setIsOpen(true)
   }
 
   return (
     <Shell title={t('Номенклатура')} onLogout={onLogout} user={user}>
       <PageHeader eyebrow={t('Настройки склада')} title={t('Номенклатура')} description={t('Карточки учитываемых материалов, запчастей и готовой продукции.')} />
+      {referenceError && <p className="access-error">{t(referenceError)}</p>}
       {error && <p className="access-error">{t(error)}</p>}
       <section className="access-grid"><article className="access-card">
         <div className="panel-heading"><div><h3>{t('Товары и материалы')}</h3></div><button type="button" onClick={() => edit()}>{t('Создать')}</button></div>
         <ListControls {...controls} onPageChange={controls.setCurrentPage} onSearchChange={controls.setSearchQuery} />
         <div className="entity-list">{controls.paginatedItems.map((item) => <div className="entity-row" key={item.id}><div><strong>{item.name}</strong><span>{t(item.category.name)} · {t(item.unit.name)} ({t(item.unit.symbol)}{t(') · последняя цена ')}{formatMoney(item.last_purchase_price)}</span></div><div className="row-actions"><button type="button" onClick={() => edit(item)}>{t('Изменить')}</button><button className="danger-button" type="button" onClick={() => setDeleteTarget(item)}>{t('Удалить')}</button></div></div>)}</div>
       </article></section>
-      {isOpen && <Modal title={form.id ? t('Изменить номенклатуру') : t('Новая номенклатура')} onClose={() => setIsOpen(false)}><form className="crud-form" onSubmit={async (event) => { event.preventDefault(); if (await save(form)) setIsOpen(false) }}><label><span>{t('Название')}</span><input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label><span>{t('Категория')}</span><select required value={form.category_id} onChange={(event) => setForm({ ...form, category_id: Number(event.target.value) })}><option value="">{t('Выберите категорию')}</option>{categories.map((category) => <option key={category.id} value={category.id}>{t(category.name)}</option>)}</select></label><label><span>{t('Единица измерения')}</span><select required value={form.unit_id} onChange={(event) => setForm({ ...form, unit_id: Number(event.target.value) })}><option value="">{t('Выберите единицу')}</option>{units.map((unit) => <option key={unit.id} value={unit.id}>{t(unit.name)} ({t(unit.symbol)})</option>)}</select></label><label className="checkbox-row"><input checked={form.is_active} type="checkbox" onChange={(event) => setForm({ ...form, is_active: event.target.checked })} /><span>{t('Активно')}</span></label><div className="form-actions"><button type="submit">{t('Сохранить')}</button><button className="secondary-button" type="button" onClick={() => setIsOpen(false)}>{t('Отмена')}</button></div></form></Modal>}
+      {isOpen && <Modal title={form.id ? t('Изменить номенклатуру') : t('Новая номенклатура')} onClose={() => setIsOpen(false)}>
+        <form className="crud-form" onSubmit={async (event) => { event.preventDefault(); if (await save(form)) setIsOpen(false) }}>
+          {error && <p className="access-error" role="alert">{t(error)}</p>}
+          <label><span>{t('Название')}</span><input required maxLength={180} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+          <label><span>{t('Категория')}</span><select required value={form.category_id} onChange={(event) => setForm({ ...form, category_id: Number(event.target.value) })}><option value="">{t('Выберите категорию')}</option>{categories.map((category) => <option key={category.id} value={category.id}>{t(category.name)}</option>)}</select></label>
+          <label><span>{t('Единица измерения')}</span><select required value={form.unit_id} onChange={(event) => setForm({ ...form, unit_id: Number(event.target.value) })}><option value="">{t('Выберите единицу')}</option>{units.map((unit) => <option key={unit.id} value={unit.id}>{t(unit.name)} ({t(unit.symbol)})</option>)}</select></label>
+          <label><span>{t('Производственное назначение')}</span><select value={form.production_material} onChange={(event) => setForm({
+            ...form, production_material: event.target.value,
+            production_product: event.target.value ? '' : form.production_product,
+            permanent_warehouse_ids: event.target.value ? form.permanent_warehouse_ids : [],
+            is_active: event.target.value ? true : form.is_active,
+          })}>{productionMaterialOptions.map((option) => <option key={option.code} value={option.code}>{t(option.label)}</option>)}</select></label>
+          <label><span>{t('Выпускаемая упаковка')}</span><select value={form.production_product} onChange={(event) => setForm({
+            ...form, production_product: event.target.value,
+            production_material: event.target.value ? '' : form.production_material,
+            permanent_warehouse_ids: event.target.value ? [] : form.permanent_warehouse_ids,
+          })}>{productionProductOptions.map((option) => <option key={option.code} value={option.code}>{t(option.label)}</option>)}</select></label>
+          {form.production_material && <fieldset className="production-warehouse-options">
+            <legend>{t('Постоянные склады')}</legend>
+            <p>{t('Позиция видна на выбранных складах даже при нулевом остатке. Единица измерения — кг.')}</p>
+            {warehouses.filter((warehouse) => warehouse.is_active).map((warehouse) => <label className="checkbox-row" key={warehouse.id}><input type="checkbox" checked={form.permanent_warehouse_ids.includes(warehouse.id)} onChange={(event) => setForm({ ...form, permanent_warehouse_ids: event.target.checked ? [...form.permanent_warehouse_ids, warehouse.id] : form.permanent_warehouse_ids.filter((id) => id !== warehouse.id) })} /><span>{warehouse.name}</span></label>)}
+            {!warehouses.some((warehouse) => warehouse.is_active) && <p>{t('Сначала создайте активный склад.')}</p>}
+          </fieldset>}
+          <label className="checkbox-row"><input checked={form.is_active} disabled={Boolean(form.production_material)} type="checkbox" onChange={(event) => setForm({ ...form, is_active: event.target.checked })} /><span>{t('Активно')}</span></label>
+          <div className="form-actions"><button type="submit">{t('Сохранить')}</button><button className="secondary-button" type="button" onClick={() => setIsOpen(false)}>{t('Отмена')}</button></div>
+        </form>
+      </Modal>}
       {deleteTarget && <DeleteConfirmModal entityName={t('номенклатуру')} itemName={deleteTarget.name} onCancel={() => setDeleteTarget(null)} onConfirm={async () => { if (await remove(deleteTarget.id)) setDeleteTarget(null) }} />}
     </Shell>
   )

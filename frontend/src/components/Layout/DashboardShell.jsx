@@ -4,7 +4,8 @@ import { NavLink, useLocation } from 'react-router'
 import shenollLogo from '../../assets/SHENOLL.svg?no-inline'
 import { navItems } from '../../constants/navigation'
 import { LanguageSwitcher } from '../LanguageSwitcher/LanguageSwitcher'
-import { InstallAppButton } from '../InstallAppButton/InstallAppButton'
+import { productionSections, productionSectionForPath, usesProductionWorkspace } from '../../constants/productionWorkspace'
+import { ProductionBreadcrumbs } from '../Production/ProductionBreadcrumbs'
 
 function canViewModule(user, moduleCode) {
   if (!moduleCode) {
@@ -14,8 +15,10 @@ function canViewModule(user, moduleCode) {
 }
 
 function filterNavItems(items, user) {
+  const workspaceMode = usesProductionWorkspace(user)
   function canViewItem(item) {
     return (!item.adminOnly || user?.is_admin) && canViewModule(user, item.moduleCode)
+      && !(workspaceMode && productionSectionForPath(item.path))
   }
 
   return items
@@ -42,6 +45,9 @@ export function DashboardShell({ children, title, onLogout, user }) {
       .map((item) => [item.label, item.children.some((child) => child.path === location.pathname)]),
   ))
   const visibleNavItems = filterNavItems(navItems, user)
+  const workspaceMode = usesProductionWorkspace(user)
+  const operationSection = productionSectionForPath(location.pathname)
+  const isWorkspacePage = location.pathname === '/production' || productionSections.some((section) => location.pathname === `/production/${section.id}`)
 
   function handleLogoutClick() {
     setIsMenuOpen(false)
@@ -129,12 +135,10 @@ export function DashboardShell({ children, title, onLogout, user }) {
             )
           ))}
         </div>
-        <div className="side-nav-actions">
-          <InstallAppButton />
-          <button className="secondary-button" type="button" onClick={handleLogoutClick}>{t('Выйти')}</button>
-        </div>
+        <button className="secondary-button" type="button" onClick={handleLogoutClick}>{t('Выйти')}</button>
       </nav>
 
+      {workspaceMode && !isWorkspacePage && <ProductionBreadcrumbs section={operationSection} title={title} />}
       {children}
     </main>
   )

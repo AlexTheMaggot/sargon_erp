@@ -29,6 +29,50 @@
   margin-bottom: 1rem;
 }
 
+.language-switcher--flags {
+  gap: 8px;
+}
+
+.language-switcher--flags .language-flag-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 6px;
+  border: 1px solid #cde0d7;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.language-switcher--flags .language-flag-button[aria-pressed="true"] {
+  border-color: #047857;
+  background: #e6f2ea;
+  box-shadow: 0 0 0 1px #047857;
+}
+
+.language-switcher--flags .language-flag-button:hover {
+  border-color: #047857;
+  background: #f0f7f3;
+  box-shadow: none;
+  transform: none;
+}
+
+.language-switcher--flags .language-flag-button[aria-pressed="true"]:hover {
+  background: #e6f2ea;
+  box-shadow: 0 0 0 1px #047857;
+}
+
+.language-flag-button:focus-visible {
+  outline: 2px solid #176748;
+  outline-offset: 3px;
+}
+
+.language-flag-button img {
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 0 1px rgba(19, 37, 29, 0.2));
+}
+
 @media (max-width: 600px) {
   .app-topbar .language-switcher > span {
     display: none;

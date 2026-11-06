@@ -25,6 +25,9 @@ from .views import receiving_tanks_view
 from .views import preheating_boilers_view
 from .views import production_container_detail_view
 from .views import tank_to_boiler_movements_view
+from .oil_processing import oil_containers_view, oil_movements_view
+from .oil_manufacturing import manufacturing_view, manufacturing_containers_view, batch_action_view, grades_view
+from .sorbent import sorbent_cycle_view, sorbent_reverse_view
 from .views import compensate_movement_view
 from .views import processing_journal_view
 from .views import production_overview_view
@@ -54,6 +57,11 @@ from .views import warehouse_document_detail_view
 from .views import warehouse_document_post_view
 from .views import warehouse_transfer_decision_view
 from .views import warehouse_document_cancel_view
+from .views import production_loading_reference_view
+from .views import production_loadings_view
+from .views import production_outputs_view
+from .views import production_output_reference_view
+from .views import production_output_cancel_view
 from .views import knowledge_categories_view
 from .views import knowledge_category_detail_view
 from .views import knowledge_articles_view
@@ -61,6 +69,8 @@ from .views import knowledge_article_detail_view
 
 
 urlpatterns = [
+    path('processing/sorbent-cycle/', sorbent_cycle_view, name='sorbent-cycle'),
+    path('processing/sorbent-cycle/<int:movement_id>/reverse/', sorbent_reverse_view, name='sorbent-reverse'),
     path('knowledge/categories/', knowledge_categories_view, name='knowledge-categories'),
     path('knowledge/categories/<int:category_id>/', knowledge_category_detail_view, name='knowledge-category-detail'),
     path('knowledge/articles/', knowledge_articles_view, name='knowledge-articles'),
@@ -103,6 +113,13 @@ urlpatterns = [
     path('processing/movements/workshop-to-raw-spindle-tank/', workshop_to_raw_spindle_tank_movements_view, name='processing-workshop-to-raw-spindle-tank'),
     path('processing/movements/<int:movement_id>/compensate/', compensate_movement_view, name='processing-movement-compensate'),
     path('processing/journal/', processing_journal_view, name='processing-journal'),
+    path('processing/oil-containers/<slug:container_path>/', oil_containers_view, name='processing-oil-containers'),
+    path('processing/oil-movements/<slug:step>/', oil_movements_view, name='processing-oil-movements'),
+    path('oil-production/grades/', grades_view, name='oil-grades'),
+    path('oil-production/grades/<int:grade_id>/', grades_view, name='oil-grade-detail'),
+    path('oil-production/containers/<slug:path>/', manufacturing_containers_view, name='oil-manufacturing-containers'),
+    path('oil-production/batches/<int:batch_id>/<slug:action>/', batch_action_view, name='oil-batch-action'),
+    path('oil-production/operations/<slug:step>/', manufacturing_view, name='oil-manufacturing-operation'),
     path('dashboard/overview/', production_overview_view, name='production-overview'),
     path('warehouse/settings/categories/', inventory_categories_view, name='warehouse-categories'),
     path('warehouse/settings/categories/<int:category_id>/', inventory_category_detail_view, name='warehouse-category-detail'),
@@ -114,6 +131,11 @@ urlpatterns = [
     path('warehouse/settings/warehouses/<int:warehouse_id>/', warehouse_detail_view, name='warehouse-detail'),
     path('warehouse/reference-data/', warehouse_reference_data_view, name='warehouse-reference-data'),
     path('warehouse/overview/', warehouse_overview_view, name='warehouse-overview'),
+    path('warehouse/production-loadings/<str:target>/reference-data/', production_loading_reference_view, name='production-loading-reference'),
+    path('warehouse/production-loadings/<str:target>/', production_loadings_view, name='production-loadings'),
+    path('warehouse/production-outputs/<str:target>/', production_outputs_view, name='production-outputs'),
+    path('warehouse/production-outputs/<str:target>/reference-data/', production_output_reference_view, name='production-output-reference'),
+    path('warehouse/production-outputs/<str:target>/<int:output_id>/cancel/', production_output_cancel_view, name='production-output-cancel'),
     path('warehouse/documents/', warehouse_documents_view, name='warehouse-documents'),
     path('warehouse/documents/<int:document_id>/', warehouse_document_detail_view, name='warehouse-document-detail'),
     path('warehouse/documents/<int:document_id>/post/', warehouse_document_post_view, name='warehouse-document-post'),

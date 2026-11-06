@@ -168,6 +168,17 @@ class LaboratoryAnalysis(models.Model):
         return f'Анализ #{self.pk} · {self.receipt}'
 
 
+class OilGrade(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class ProductionContainer(models.Model):
     KIND_RECEIVING_TANK = 'receiving_tank'
     KIND_PREHEATING_BOILER = 'preheating_boiler'
@@ -176,6 +187,17 @@ class ProductionContainer(models.Model):
     KIND_PROCESSING_WORKSHOP = 'processing_workshop'
     KIND_RAW_DIESEL_TANK = 'raw_diesel_tank'
     KIND_RAW_SPINDLE_TANK = 'raw_spindle_tank'
+    KIND_SORPTION_SYSTEM = 'sorption_system'
+    KIND_FINISHING_MIXER = 'finishing_mixer'
+    KIND_FINISHING_FILTER = 'finishing_filter'
+    KIND_FINISHED_DIESEL_TANK = 'finished_diesel_tank'
+    KIND_FINISHED_SPINDLE_TANK = 'finished_spindle_tank'
+    KIND_CONCENTRATE_REACTOR = 'concentrate_reactor'
+    KIND_OIL_BLENDER = 'oil_blender'
+    KIND_FINISHED_OIL_TANK = 'finished_oil_tank'
+    OIL_BATCH_KINDS = (KIND_CONCENTRATE_REACTOR, KIND_OIL_BLENDER)
+    SHARED_OIL_KINDS = (KIND_SORPTION_SYSTEM, KIND_FINISHING_MIXER, KIND_FINISHING_FILTER)
+    OIL_PRODUCTS = [('diesel', 'Солярка'), ('spindle', 'Веретенка')]
     KIND_CHOICES = [
         (KIND_RECEIVING_TANK, 'Приёмный бак'),
         (KIND_PREHEATING_BOILER, 'Котёл первичного прогрева'),
@@ -184,6 +206,14 @@ class ProductionContainer(models.Model):
         (KIND_PROCESSING_WORKSHOP, 'Цех переработки'),
         (KIND_RAW_DIESEL_TANK, 'Бак сырой солярки'),
         (KIND_RAW_SPINDLE_TANK, 'Бак сырой веретенки'),
+        (KIND_SORPTION_SYSTEM, 'Сорбент-система'),
+        (KIND_FINISHING_MIXER, 'Финишный миксер'),
+        (KIND_FINISHING_FILTER, 'Финишный фильтр'),
+        (KIND_FINISHED_DIESEL_TANK, 'Бак готовой солярки'),
+        (KIND_FINISHED_SPINDLE_TANK, 'Бак готовой веретенки'),
+        (KIND_CONCENTRATE_REACTOR, 'Реактор концентрата'),
+        (KIND_OIL_BLENDER, 'Блендинговый смеситель'),
+        (KIND_FINISHED_OIL_TANK, 'Бак товарного масла'),
     ]
 
     kind = models.CharField(max_length=32, choices=KIND_CHOICES)
@@ -191,6 +221,8 @@ class ProductionContainer(models.Model):
     system_code = models.SlugField(max_length=80, unique=True)
     capacity_liters = models.DecimalField(max_digits=14, decimal_places=3)
     current_volume_liters = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    oil_product = models.CharField(max_length=10, choices=OIL_PRODUCTS, blank=True, default='')
+    oil_grade = models.ForeignKey(OilGrade, on_delete=models.PROTECT, null=True, blank=True, related_name='containers')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -201,6 +233,22 @@ class ProductionContainer(models.Model):
             models.CheckConstraint(condition=models.Q(number__gt=0), name='production_container_number_positive'),
             models.CheckConstraint(condition=models.Q(capacity_liters__gt=0), name='production_container_capacity_positive'),
             models.CheckConstraint(condition=models.Q(current_volume_liters__gte=0), name='production_container_volume_nonnegative'),
+            models.CheckConstraint(
+                condition=~models.Q(kind__in=['concentrate_reactor', 'oil_blender']) | models.Q(current_volume_liters=0),
+                name='oil_process_vessel_no_inferred_volume',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(kind='finished_oil_tank', oil_grade__isnull=False) | (~models.Q(kind='finished_oil_tank') & models.Q(oil_grade__isnull=True)),
+                name='oil_tank_grade_required',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(kind__in=['sorption_system', 'finishing_mixer', 'finishing_filter'], current_volume_liters__gt=0, oil_product__in=['diesel', 'spindle'])
+                    | models.Q(kind__in=['sorption_system', 'finishing_mixer', 'finishing_filter'], current_volume_liters=0, oil_product='')
+                    | (~models.Q(kind__in=['sorption_system', 'finishing_mixer', 'finishing_filter']) & models.Q(oil_product=''))
+                ),
+                name='production_container_oil_product_valid',
+            ),
             models.CheckConstraint(
                 condition=models.Q(current_volume_liters__lte=models.F('capacity_liters')),
                 name='production_container_volume_within_capacity',
@@ -226,6 +274,17 @@ class MaterialMovement(models.Model):
     TYPE_CHEMICAL_MIXER_TO_WORKSHOP = 'chemical_mixer_to_workshop'
     TYPE_WORKSHOP_TO_RAW_DIESEL_TANK = 'workshop_to_raw_diesel_tank'
     TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK = 'workshop_to_raw_spindle_tank'
+    TYPE_RAW_TO_SORPTION = 'raw_to_sorption'
+    TYPE_SORPTION_TO_MIXER = 'sorption_to_mixer'
+    TYPE_MIXER_TO_FILTER = 'mixer_to_filter'
+    TYPE_FILTER_TO_FINISHED_TANK = 'filter_to_finished_tank'
+    TYPE_SPINDLE_TO_CONCENTRATE = 'spindle_to_concentrate'
+    TYPE_SPINDLE_TO_BLENDER = 'spindle_to_blender'
+    TYPE_CONCENTRATE_TO_BLENDER = 'concentrate_to_blender'
+    TYPE_BLENDER_TO_OIL_TANK = 'blender_to_oil_tank'
+    TYPE_OIL_FILLING = 'oil_filling'
+    OIL_MANUFACTURING_TYPES = (TYPE_SPINDLE_TO_CONCENTRATE, TYPE_SPINDLE_TO_BLENDER, TYPE_CONCENTRATE_TO_BLENDER, TYPE_BLENDER_TO_OIL_TANK, TYPE_OIL_FILLING)
+    OIL_FINISHING_TYPES = (TYPE_RAW_TO_SORPTION, TYPE_SORPTION_TO_MIXER, TYPE_MIXER_TO_FILTER, TYPE_FILTER_TO_FINISHED_TANK)
     TYPE_COMPENSATION = 'compensation'
     TYPE_CHOICES = [
         (TYPE_RECEIPT_TO_TANK, 'Поступление из приёмки'),
@@ -236,6 +295,15 @@ class MaterialMovement(models.Model):
         (TYPE_CHEMICAL_MIXER_TO_WORKSHOP, 'Загрузка в цех переработки'),
         (TYPE_WORKSHOP_TO_RAW_DIESEL_TANK, 'Загрузка бака сырой солярки'),
         (TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK, 'Загрузка бака сырой веретенки'),
+        (TYPE_RAW_TO_SORPTION, 'Загрузка масла в сорбент-систему'),
+        (TYPE_SORPTION_TO_MIXER, 'Загрузка финишного миксера'),
+        (TYPE_MIXER_TO_FILTER, 'Загрузка финишного фильтра'),
+        (TYPE_FILTER_TO_FINISHED_TANK, 'Загрузка бака готовой продукции'),
+        (TYPE_SPINDLE_TO_CONCENTRATE, 'Загрузка реактора концентрата'),
+        (TYPE_SPINDLE_TO_BLENDER, 'Загрузка основы в смеситель'),
+        (TYPE_CONCENTRATE_TO_BLENDER, 'Передача концентрата в смеситель'),
+        (TYPE_BLENDER_TO_OIL_TANK, 'Перелив товарного масла в бак'),
+        (TYPE_OIL_FILLING, 'Розлив товарного масла'),
         (TYPE_COMPENSATION, 'Компенсирующее движение'),
     ]
 
@@ -265,6 +333,10 @@ class MaterialMovement(models.Model):
         blank=True,
     )
     product_name = models.CharField(max_length=120, default='Отработанное масло')
+    oil_product = models.CharField(max_length=10, choices=ProductionContainer.OIL_PRODUCTS, blank=True, default='')
+    source_oil_batch = models.ForeignKey('OilManufacturingBatch', on_delete=models.PROTECT, null=True, blank=True, related_name='outgoing_movements')
+    destination_oil_batch = models.ForeignKey('OilManufacturingBatch', on_delete=models.PROTECT, null=True, blank=True, related_name='incoming_movements')
+    oil_grade = models.ForeignKey(OilGrade, on_delete=models.PROTECT, null=True, blank=True, related_name='movements')
     volume_liters = models.DecimalField(max_digits=14, decimal_places=3)
     moved_at = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -318,6 +390,35 @@ class MaterialMovement(models.Model):
 
     def __str__(self):
         return self.movement_number
+
+
+class OilManufacturingBatch(models.Model):
+    STATUS_OPEN = 'open'
+    STATUS_COMPLETED = 'completed'
+    STATUS_CANCELLED = 'cancelled'
+    number = models.CharField(max_length=80, unique=True)
+    equipment = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, related_name='oil_batches')
+    oil_grade = models.ForeignKey(OilGrade, on_delete=models.PROTECT, null=True, blank=True, related_name='batches')
+    grade_snapshot = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=12, choices=[('open', 'Открыта'), ('completed', 'Завершена'), ('cancelled', 'Отменена')], default='open')
+    input_liters = models.DecimalField(max_digits=14, decimal_places=3)
+    output_liters = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    polypropylene_quantity = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    material_document = models.OneToOneField('WarehouseDocument', on_delete=models.PROTECT, null=True, blank=True, related_name='oil_batch')
+    idempotency_key = models.CharField(max_length=80, unique=True)
+    request_snapshot = models.JSONField(default=dict)
+    created_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, related_name='oil_batches')
+    created_at = models.DateTimeField(default=timezone.now)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(fields=['equipment'], condition=models.Q(status='open'), name='one_open_oil_batch_per_equipment'),
+            models.CheckConstraint(condition=models.Q(input_liters__gt=0), name='oil_batch_input_positive'),
+            models.CheckConstraint(condition=models.Q(output_liters__gte=0), name='oil_batch_output_nonnegative'),
+            models.CheckConstraint(condition=models.Q(polypropylene_quantity__gte=0), name='oil_batch_polypropylene_nonnegative'),
+        ]
 
 
 class OperationAuditLog(models.Model):
@@ -376,10 +477,26 @@ class UnitOfMeasure(models.Model):
 
 
 class InventoryItem(models.Model):
+    MATERIAL_GRANULES = 'granules'
+    MATERIAL_DYE = 'dye'
+    MATERIAL_SORBENT = 'sorbent'
+    MATERIAL_POLYPROPYLENE = 'polypropylene'
+    MATERIAL_CHOICES = [
+        ('', 'Не используется в производственной загрузке'),
+        (MATERIAL_GRANULES, 'Гранулы'),
+        (MATERIAL_DYE, 'Краситель'),
+        (MATERIAL_SORBENT, 'Сорбент'),
+        (MATERIAL_POLYPROPYLENE, 'Полипропилен'),
+    ]
+    PRODUCT_CHOICES = [('', 'Не является выпускаемой упаковкой'), ('canisters', 'Канистры'), ('caps', 'Крышки')]
+
     name = models.CharField(max_length=180, unique=True)
     category = models.ForeignKey(InventoryCategory, on_delete=models.PROTECT, related_name='items')
     unit = models.ForeignKey(UnitOfMeasure, on_delete=models.PROTECT, related_name='items')
     last_purchase_price = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    production_material = models.CharField(max_length=20, choices=MATERIAL_CHOICES, blank=True, default='')
+    production_product = models.CharField(max_length=20, choices=PRODUCT_CHOICES, blank=True, default='')
+    permanent_warehouses = models.ManyToManyField('Warehouse', related_name='permanent_items', blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -390,6 +507,10 @@ class InventoryItem(models.Model):
             models.CheckConstraint(
                 condition=models.Q(last_purchase_price__gte=0),
                 name='inventory_item_purchase_price_nonnegative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(production_material='') | models.Q(production_product=''),
+                name='inventory_item_single_production_role',
             ),
         ]
 
@@ -444,6 +565,17 @@ class WarehouseDocumentSequence(models.Model):
 
 
 class WarehouseDocument(models.Model):
+    TARGET_CANISTERS = 'canisters'
+    TARGET_CAPS = 'caps'
+    TARGET_SORPTION = 'sorption'
+    TARGET_OIL_CONCENTRATE = 'oil_concentrate'
+    PRODUCTION_TARGET_CHOICES = [
+        (TARGET_CANISTERS, 'Производство канистр'),
+        (TARGET_CAPS, 'Производство крышек'),
+        (TARGET_SORPTION, 'Участок сорбции'),
+        (TARGET_OIL_CONCENTRATE, 'Приготовление концентрата'),
+    ]
+
     TYPE_RECEIPT = 'receipt'
     TYPE_ISSUE = 'issue'
     TYPE_TRANSFER = 'transfer'
@@ -496,6 +628,8 @@ class WarehouseDocument(models.Model):
         blank=True,
     )
     purpose = models.TextField(blank=True)
+    production_target = models.CharField(max_length=20, choices=PRODUCTION_TARGET_CHOICES, blank=True, default='')
+    idempotency_key = models.CharField(max_length=80, unique=True, null=True, blank=True)
     created_by = models.ForeignKey(
         get_user_model(),
         on_delete=models.SET_NULL,
@@ -523,6 +657,15 @@ class WarehouseDocument(models.Model):
 
     class Meta:
         ordering = ['-document_date', '-id']
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(production_target='') | models.Q(
+                    document_type='issue', source_warehouse__isnull=False,
+                    destination_warehouse__isnull=True, idempotency_key__isnull=False,
+                ),
+                name='production_loading_is_warehouse_issue',
+            ),
+        ]
 
     def __str__(self):
         return self.number
@@ -591,6 +734,99 @@ class WarehouseMovement(models.Model):
 
     def __str__(self):
         return f'{self.document} · {self.item}'
+
+
+class SorbentMovement(models.Model):
+    TYPE_TO_SYSTEM = 'tank_to_system'
+    TYPE_TO_REGENERATION = 'system_to_regeneration'
+    TYPE_TO_TANK = 'regeneration_to_tank'
+    TYPE_REVERSAL = 'reversal'
+    TYPE_CHOICES = [
+        (TYPE_TO_SYSTEM, 'Подача сорбента из бака'),
+        (TYPE_TO_REGENERATION, 'Передача сорбента на прогрев и очистку'),
+        (TYPE_TO_TANK, 'Возврат очищенного сорбента в бак'),
+        (TYPE_REVERSAL, 'Компенсация движения сорбента'),
+    ]
+
+    number = models.CharField(max_length=40, unique=True)
+    movement_type = models.CharField(max_length=24, choices=TYPE_CHOICES)
+    source_movement = models.ForeignKey(WarehouseMovement, on_delete=models.PROTECT, related_name='sorbent_movements')
+    system = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, related_name='sorbent_movements')
+    system_snapshot = models.CharField(max_length=180)
+    item_snapshot = models.CharField(max_length=180)
+    quantity = models.DecimalField(max_digits=18, decimal_places=2)
+    note = models.CharField(max_length=1000, blank=True)
+    reversal_of = models.OneToOneField('self', on_delete=models.PROTECT, related_name='reversed_by', null=True, blank=True)
+    idempotency_key = models.CharField(max_length=80, unique=True)
+    created_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, related_name='sorbent_movements', null=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='sorbent_movement_quantity_positive'),
+            models.CheckConstraint(
+                condition=models.Q(movement_type='reversal', reversal_of__isnull=False) | models.Q(
+                    movement_type__in=['tank_to_system', 'system_to_regeneration', 'regeneration_to_tank'], reversal_of__isnull=True,
+                ), name='sorbent_movement_reversal_link',
+            ),
+        ]
+
+
+class ProductionOutput(models.Model):
+    TARGET_CHOICES = [('canisters', 'Производство канистр'), ('caps', 'Производство крышек')]
+
+    number = models.CharField(max_length=40, unique=True)
+    target = models.CharField(max_length=20, choices=TARGET_CHOICES)
+    note = models.CharField(max_length=1000, blank=True)
+    idempotency_key = models.CharField(max_length=80, unique=True)
+    created_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, related_name='production_outputs', null=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    is_cancelled = models.BooleanField(default=False)
+    cancelled_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, related_name='cancelled_production_outputs', null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        constraints = [models.CheckConstraint(
+            condition=models.Q(is_cancelled=False, cancelled_at__isnull=True) | models.Q(is_cancelled=True, cancelled_at__isnull=False),
+            name='production_output_cancellation_timestamp',
+        )]
+
+
+class ProductionOutputLine(models.Model):
+    DISPOSITION_GOOD = 'good'
+    DISPOSITION_DEVIATION = 'deviation'
+    DISPOSITION_REJECT = 'reject'
+    DISPOSITION_CHOICES = [('good', 'Годные'), ('deviation', 'С отклонениями'), ('reject', 'Брак')]
+
+    output = models.ForeignKey(ProductionOutput, on_delete=models.PROTECT, related_name='lines')
+    item = models.ForeignKey(InventoryItem, on_delete=models.PROTECT, related_name='production_output_lines')
+    disposition = models.CharField(max_length=20, choices=DISPOSITION_CHOICES)
+    quantity = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ['id']
+        constraints = [
+            models.UniqueConstraint(fields=['output', 'item', 'disposition'], name='unique_production_output_item_disposition'),
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='production_output_quantity_positive'),
+        ]
+
+
+class ProductionMaterialUsage(models.Model):
+    output = models.ForeignKey(ProductionOutput, on_delete=models.PROTECT, related_name='material_usages')
+    source_movement = models.ForeignKey(WarehouseMovement, on_delete=models.PROTECT, related_name='production_usages')
+    quantity = models.DecimalField(max_digits=18, decimal_places=2)
+    unit_cost = models.DecimalField(max_digits=18, decimal_places=2)
+    material_cost = models.DecimalField(max_digits=20, decimal_places=2)
+
+    class Meta:
+        ordering = ['id']
+        constraints = [
+            models.UniqueConstraint(fields=['output', 'source_movement'], name='unique_output_material_source'),
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='production_usage_quantity_positive'),
+            models.CheckConstraint(condition=models.Q(unit_cost__gte=0, material_cost__gte=0), name='production_usage_cost_nonnegative'),
+        ]
 
 
 class KnowledgeCategory(models.Model):

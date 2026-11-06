@@ -6,6 +6,8 @@ import { ListControls } from '../../components/ListControls/ListControls'
 import { DeleteConfirmModal, Modal } from '../../components/Modal/Modal'
 import { useListControls } from '../../hooks/useListControls'
 import { useProcessingCrud } from '../../hooks/useProcessingCrud'
+import { oilContainerConfig, oilFinishingForms } from '../../constants/oilFinishing'
+import { oilManufacturingMovements } from '../../constants/oilManufacturing'
 
 const emptyContainerForm = {
   id: null,
@@ -13,6 +15,7 @@ const emptyContainerForm = {
   number: '',
   capacity_liters: '',
   is_active: true,
+  oil_grade_id: '',
 }
 
 const emptyJournalFilters = {
@@ -64,7 +67,7 @@ function createIdempotencyKey() {
 
 function ContainerPage({ kind, onLogout, token, user }) {
   const isAdmin = Boolean(user?.is_admin)
-  const { boilers, chemicalMixers, deleteContainer, error, processingWorkshops, rawDieselTanks, rawSpindleTanks, receivingTanks, saveContainer, separators } = useProcessingCrud(token, { containerKinds: [kind] })
+  const { boilers, chemicalMixers, deleteContainer, error, oilContainers, oilGrades, processingWorkshops, rawDieselTanks, rawSpindleTanks, receivingTanks, saveContainer, separators } = useProcessingCrud(token, { containerKinds: [kind], loadOilGrades: kind === 'finished_oil_tank' })
   const pageConfig = {
     receiving_tank: {
       containers: receivingTanks,
@@ -101,7 +104,11 @@ function ContainerPage({ kind, onLogout, token, user }) {
       description: t('Учёт вместимости, текущего объёма и доступности баков сырой веретенки.'),
       title: t('Баки сырой веретенки'),
     },
-  }[kind]
+  }[kind] || {
+    containers: oilContainers[kind] || [],
+    title: t(oilContainerConfig[kind].title),
+    description: t(oilContainerConfig[kind]?.manufacturing ? 'Оборудование производства товарных масел. Марка непустого продуктового бака неизменна.' : 'Учёт вместимости и остатков на линии финишной очистки.'),
+  }
   const containers = pageConfig.containers
   const controls = useListControls(containers, (item) => [item.number, t(item.name), item.current_volume_liters].join(' '))
   const [containerForm, setContainerForm] = useState({ ...emptyContainerForm, kind })
@@ -122,6 +129,7 @@ function ContainerPage({ kind, onLogout, token, user }) {
       number: item.number,
       capacity_liters: item.capacity_liters,
       is_active: item.is_active,
+      oil_grade_id: item.oil_grade_id || '',
     })
     setIsContainerFormOpen(true)
   }
@@ -174,11 +182,16 @@ function ContainerPage({ kind, onLogout, token, user }) {
               <div className={`entity-row processing-container-row ${!item.is_active ? 'disabled-row' : ''}`} key={item.id}>
                 <div>
                   <strong>{t(item.name)}</strong>
-                  <span>{t('Текущий объём: ')}{formatVolume(item.current_volume_liters)}</span>
+                  {item.volume_known === false ? <>
+                    <span>{item.active_batch ? item.active_batch.number : t('Нет открытой партии')}</span>
+                    {item.active_batch && <span>{t('Загружено жидких компонентов')}: {formatVolume(item.active_batch.input_liters)} · {t('Перелито по замеру')}: {formatVolume(item.active_batch.output_liters)}</span>}
+                  </> : <span>{t('Текущий объём: ')}{formatVolume(item.current_volume_liters)}</span>}
+                  {item.grade_name && <span>{t('Марка масла')}: {item.grade_name}</span>}
+                  {item.oil_product && <span>{t(item.oil_product === 'diesel' ? 'Солярка' : 'Веретенка')}</span>}
                   {isAdmin && (
                     <>
-                      <span>{t('Вместимость: ')}{formatVolume(item.capacity_liters)}{t(' · Свободно: ')}{formatVolume(item.free_volume_liters)}</span>
-                      <span>{t('Заполнение: ')}{item.fill_percentage}{t('% · Последнее движение: ')}{formatDateTime(item.last_movement_at)}</span>
+                      <span>{t('Вместимость: ')}{formatVolume(item.capacity_liters)}{item.volume_known !== false && <>{t(' · Свободно: ')}{formatVolume(item.free_volume_liters)}</>}</span>
+                      <span>{item.volume_known !== false && <>{t('Заполнение: ')}{item.fill_percentage}{t('% · Последнее движение: ')}</>}{item.volume_known === false && <>{t('Последнее движение')}: </>}{formatDateTime(item.last_movement_at)}</span>
                       <span>{item.is_active ? t('Активна') : t('Деактивирована')}</span>
                       {!isTankPage && Boolean(item.recent_loadings?.length) && (
                         <span>{t('Последние загрузки: ')}{item.recent_loadings.map((movement) => `${formatDateTime(movement.moved_at)} — ${formatVolume(movement.volume_liters)}`).join('; ')}</span>
@@ -211,6 +224,10 @@ function ContainerPage({ kind, onLogout, token, user }) {
             </label>
             <label className="checkbox-row">
               <input checked={containerForm.is_active} type="checkbox" onChange={(event) => setContainerForm({ ...containerForm, is_active: event.target.checked })} />{t('Активна')}</label>
+            {kind === 'finished_oil_tank' && <label><span>{t('Марка масла')}</span><select required value={containerForm.oil_grade_id} onChange={(event) => setContainerForm({ ...containerForm, oil_grade_id: event.target.value })}>
+              <option value="">{t('Выберите активную марку масла.')}</option>
+              {oilGrades.filter((grade) => grade.is_active || grade.id === Number(containerForm.oil_grade_id)).map((grade) => <option key={grade.id} value={grade.id}>{grade.name}</option>)}
+            </select></label>}
             <div className="form-actions">
               <button type="submit">{containerForm.id ? t('Сохранить') : t('Создать')}</button>
               <button className="secondary-button" type="button" onClick={() => setIsContainerFormOpen(false)}>{t('Отмена')}</button>
@@ -229,6 +246,10 @@ function ContainerPage({ kind, onLogout, token, user }) {
       )}
     </DashboardShell>
   )
+}
+
+export function OilContainersPage({ kind, ...props }) {
+  return <ContainerPage kind={kind} {...props} />
 }
 
 export function ReceivingTanksPage(props) {
@@ -1271,6 +1292,8 @@ export function ProcessingJournalPage({ onLogout, token, user }) {
               <option value="chemical_mixer_to_workshop">{t('Загрузка в цех переработки')}</option>
               <option value="workshop_to_raw_diesel_tank">{t('Загрузка бака сырой солярки')}</option>
               <option value="workshop_to_raw_spindle_tank">{t('Загрузка бака сырой веретенки')}</option>
+              {Object.values(oilFinishingForms).map((config) => <option key={config.movementType} value={config.movementType}>{t(config.title)}</option>)}
+              {Object.entries(oilManufacturingMovements).map(([code, name]) => <option key={code} value={code}>{t(name)}</option>)}
               <option value="compensation">{t('Компенсация')}</option>
             </select>
             <select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>

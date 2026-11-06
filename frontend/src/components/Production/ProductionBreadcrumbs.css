@@ -1,0 +1,41 @@
+.production-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: 1180px;
+  margin: 0 auto 20px;
+  color: #657d70;
+  font-size: 14px;
+}
+
+.production-breadcrumbs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #c9ded4;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #075f46;
+  font-weight: 750;
+}
+
+.production-breadcrumbs a:hover {
+  background: #e6f3eb;
+}
+
+.production-breadcrumbs a:focus-visible {
+  outline: 3px solid #3b9276;
+  outline-offset: 3px;
+}
+
+.production-breadcrumbs svg {
+  width: 18px;
+  height: 18px;
+}
+
+.production-breadcrumbs [aria-current] {
+  overflow-wrap: anywhere;
+}

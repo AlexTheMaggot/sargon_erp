@@ -1,9 +1,9 @@
 import { t } from '../../i18n/core'
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import shenollLogo from '../../assets/SHENOLL.svg?no-inline'
 import { LanguageSwitcher } from '../LanguageSwitcher/LanguageSwitcher'
-import { InstallAppButton } from '../InstallAppButton/InstallAppButton'
+import { DashboardShell } from '../Layout/DashboardShell'
 import { useLanguage } from '../../i18n/useLanguage'
 import { useLoginOptions } from '../../hooks/useLoginOptions'
 import { AccessGroupsPage, AccessModulesPage, AccessPermissionsPage, AccessUsersPage } from '../../pages/access/AccessPages'
@@ -12,13 +12,24 @@ import { CitiesPage, SuppliersPage } from '../../pages/directories/DirectoryPage
 import { LaboratoryAnalysesPage, RawMaterialReceiptsPage } from '../../pages/operations/OperationsPages'
 import { BoilerLoadingPage, ChemicalMixerLoadingPage, ChemicalMixersPage, PreheatingBoilersPage, ProcessingJournalPage, ProcessingWorkshopsPage, RawDieselTankLoadingPage, RawDieselTanksPage, RawSpindleTankLoadingPage, RawSpindleTanksPage, ReceivingTanksPage, SeparatorLoadingPage, SeparatorOutputPage, SeparatorsPage, WorkshopLoadingPage } from '../../pages/processing/ProcessingPages'
 import { WarehouseCategoriesPage, WarehouseInventoryPage, WarehouseIssuesPage, WarehouseItemsPage, WarehouseOverviewPage, WarehouseReceiptsPage, WarehousesPage, WarehouseTransfersPage, WarehouseUnitsPage } from '../../pages/warehouse/WarehousePages'
+import { ProductionLoadingPage } from '../../pages/warehouse/ProductionLoadingPage'
+import { ProductionOutputPage } from '../../pages/warehouse/ProductionOutputPage'
+import { OilFinishingPage } from '../../pages/processing/OilFinishingPage'
+import { OilContainersPage } from '../../pages/processing/ProcessingPages'
+import { oilContainerConfig, oilFinishingForms } from '../../constants/oilFinishing'
+import { oilManufacturingConfig } from '../../constants/oilManufacturing'
+import { OilManufacturingPage } from '../../pages/processing/OilManufacturingPage'
+import { OilGradesPage } from '../../pages/processing/OilGradesPage'
+import { SorbentCyclePage } from '../../pages/processing/SorbentCyclePage'
+import { ProductionWorkspacePage } from '../../pages/production/ProductionWorkspacePage'
+import { productionSections } from '../../constants/productionWorkspace'
 import './App.css'
 
 const TOKEN_STORAGE_KEY = 'sargon_access_token'
 const KnowledgePage = lazy(() => import('../../pages/knowledge/KnowledgePage').then((module) => ({ default: module.KnowledgePage })))
 
 function getUserStartPath(user) {
-  return user?.start_path || '/welcome'
+  return user?.start_path || '/no-access'
 }
 
 function hasModuleAccess(user, moduleCode) {
@@ -67,7 +78,7 @@ function LoginPage({ onLogin }) {
   return (
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="login-title">
-        <LanguageSwitcher />
+        <LanguageSwitcher variant="flags" />
         <div className="brand-block">
           <img className="brand-logo" src={shenollLogo} alt="Shenoll ERP" />
           <h1 id="login-title">{t('Вход в систему')}</h1>
@@ -103,13 +114,13 @@ function LoginPage({ onLogin }) {
             {isLoading ? t('Входим...') : t('Войти')}
           </button>
         </form>
-        <InstallAppButton />
       </section>
     </main>
   )
 }
 
 function ProtectedRoute({ adminOnly = false, children, moduleCode, token, user }) {
+  const location = useLocation()
   if (!token) {
     return <Navigate to="/login" replace />
   }
@@ -117,10 +128,10 @@ function ProtectedRoute({ adminOnly = false, children, moduleCode, token, user }
     return null
   }
   if (moduleCode && !hasModuleAccess(user, moduleCode)) {
-    return <Navigate to="/welcome" replace />
+    return <Navigate to={getUserStartPath(user) === location.pathname ? '/no-access' : getUserStartPath(user)} replace />
   }
   if (adminOnly && !user?.is_admin) {
-    return <Navigate to="/welcome" replace />
+    return <Navigate to={getUserStartPath(user) === location.pathname ? '/no-access' : getUserStartPath(user)} replace />
   }
 
   return children
@@ -129,15 +140,25 @@ function ProtectedRoute({ adminOnly = false, children, moduleCode, token, user }
 function AppRoutes({ onLogin, onLogout, token, user }) {
   const hasToken = Boolean(token)
   const startPath = getUserStartPath(user)
+  if (hasToken && !user) return null
 
   return (
     <Routes>
       <Route path="/login" element={hasToken ? <Navigate to={startPath} replace /> : <LoginPage onLogin={onLogin} />} />
-      <Route path="/welcome" element={<ProtectedRoute token={token} user={user}><OverviewPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/welcome" element={<ProtectedRoute moduleCode="dashboard" token={token} user={user}><OverviewPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/production" element={<ProtectedRoute moduleCode="production-workspace" token={token} user={user}><ProductionWorkspacePage onLogout={onLogout} user={user} /></ProtectedRoute>} />
+      {productionSections.map((section) => <Route key={section.id} path={`/production/${section.id}`} element={<ProtectedRoute moduleCode="production-workspace" token={token} user={user}><ProductionWorkspacePage sectionId={section.id} onLogout={onLogout} user={user} /></ProtectedRoute>} />)}
+      <Route path="/no-access" element={<ProtectedRoute token={token} user={user}><DashboardShell title={t('Нет доступных разделов')} onLogout={onLogout} user={user}><section className="page-title access-page-title"><h1>{t('Нет доступных разделов')}</h1><p>{t('У вашей учётной записи нет доступных разделов. Обратитесь к администратору.')}</p></section></DashboardShell></ProtectedRoute>} />
       <Route path="/knowledge" element={<ProtectedRoute moduleCode="knowledge-base" token={token} user={user}><Suspense fallback={<p className="empty-state">{t('Загрузка…')}</p>}><KnowledgePage onLogout={onLogout} token={token} user={user} /></Suspense></ProtectedRoute>} />
       <Route path="/raw-material/receipts" element={<ProtectedRoute moduleCode="raw-material-receiving" token={token} user={user}><RawMaterialReceiptsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/laboratory/analyses" element={<ProtectedRoute moduleCode="laboratory-analysis" token={token} user={user}><LaboratoryAnalysesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/boiler-loading" element={<ProtectedRoute moduleCode="boiler-loading" token={token} user={user}><BoilerLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/production/canister-loading" element={<ProtectedRoute moduleCode="canister-loading" token={token} user={user}><ProductionLoadingPage key="canisters" target="canisters" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/production/canister-output" element={<ProtectedRoute moduleCode="canister-output" token={token} user={user}><ProductionOutputPage key="canister-output" target="canisters" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/production/cap-output" element={<ProtectedRoute moduleCode="cap-output" token={token} user={user}><ProductionOutputPage key="cap-output" target="caps" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/production/cap-loading" element={<ProtectedRoute moduleCode="cap-loading" token={token} user={user}><ProductionLoadingPage key="caps" target="caps" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/sorbent-loading" element={<ProtectedRoute moduleCode="sorbent-loading" token={token} user={user}><ProductionLoadingPage key="sorption" target="sorption" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/sorbent-cycle" element={<ProtectedRoute moduleCode="sorbent-cycle" token={token} user={user}><SorbentCyclePage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/separator-loading" element={<ProtectedRoute moduleCode="separator-loading" token={token} user={user}><SeparatorLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/separator-output" element={<ProtectedRoute moduleCode="separator-output" token={token} user={user}><SeparatorOutputPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/chemical-mixer-loading" element={<ProtectedRoute moduleCode="chemical-mixer-loading" token={token} user={user}><ChemicalMixerLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
@@ -152,6 +173,10 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
       <Route path="/processing/raw-diesel-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><RawDieselTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/raw-spindle-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><RawSpindleTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/journal" element={<ProtectedRoute adminOnly token={token} user={user}><ProcessingJournalPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      {Object.keys(oilFinishingForms).map((step) => <Route key={step} path={`/processing/${step}`} element={<ProtectedRoute moduleCode={step} token={token} user={user}><OilFinishingPage key={step} step={step} onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />)}
+      {Object.keys(oilManufacturingConfig).map((step) => <Route key={step} path={`/oil-production/${step}`} element={<ProtectedRoute moduleCode={step} token={token} user={user}><OilManufacturingPage key={step} step={step} onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />)}
+      <Route path="/oil-production/grades" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><OilGradesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      {Object.entries(oilContainerConfig).map(([kind, config]) => <Route key={kind} path={`/processing/${config.path}`} element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><OilContainersPage key={kind} kind={kind} onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />)}
       <Route path="/warehouse/overview" element={<ProtectedRoute moduleCode="warehouse-accounting" token={token} user={user}><WarehouseOverviewPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/warehouse/receipts" element={<ProtectedRoute moduleCode="warehouse-accounting" token={token} user={user}><WarehouseReceiptsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/warehouse/issues" element={<ProtectedRoute moduleCode="warehouse-accounting" token={token} user={user}><WarehouseIssuesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />

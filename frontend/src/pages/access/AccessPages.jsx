@@ -196,7 +196,7 @@ export function AccessGroupsPage({ onLogout, token, user }) {
       ? ['view', 'receipt', 'issue', 'transfer', 'transfer-confirm', 'inventory']
       : moduleItem.code === 'laboratory-analysis'
         ? ['view', 'update', 'approve']
-        : moduleItem.code === 'dashboard'
+        : ['dashboard', 'production-workspace'].includes(moduleItem.code)
           ? ['view']
           : ['view', 'create', 'update', 'delete']
     return permissions.filter((permission) => permissionCodes.includes(permission.code))

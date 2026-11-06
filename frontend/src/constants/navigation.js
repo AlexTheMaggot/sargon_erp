@@ -1,19 +1,25 @@
+import { oilContainerConfig } from './oilFinishing'
+import { oilOperations, packagingOperations, recyclingOperations } from './productionWorkspace'
+
 export const navItems = [
-  { path: '/welcome', label: 'Обзор' },
+  { path: '/welcome', label: 'Обзор', moduleCode: 'dashboard' },
+  { path: '/production', label: 'Производство', moduleCode: 'production-workspace' },
   { path: '/knowledge', label: 'База знаний', moduleCode: 'knowledge-base' },
   {
     label: 'Переработка',
     children: [
       { path: '/raw-material/receipts', label: 'Прием сырья', moduleCode: 'raw-material-receiving' },
       { path: '/laboratory/analyses', label: 'Лабораторный анализ', moduleCode: 'laboratory-analysis' },
-      { path: '/processing/boiler-loading', label: 'Загрузка котла отработки', moduleCode: 'boiler-loading' },
-      { path: '/processing/separator-loading', label: 'Загрузка сепаратора', moduleCode: 'separator-loading' },
-      { path: '/processing/separator-output', label: 'Отгрузка сепаратора', moduleCode: 'separator-output' },
-      { path: '/processing/chemical-mixer-loading', label: 'Загрузка химического миксера', moduleCode: 'chemical-mixer-loading' },
-      { path: '/processing/workshop-loading', label: 'Загрузка в цех переработки', moduleCode: 'workshop-loading' },
-      { path: '/processing/raw-diesel-tank-loading', label: 'Загрузка бака сырой солярки', moduleCode: 'raw-diesel-tank-loading' },
-      { path: '/processing/raw-spindle-tank-loading', label: 'Загрузка бака сырой веретенки', moduleCode: 'raw-spindle-tank-loading' },
+      ...recyclingOperations,
     ],
+  },
+  {
+    label: 'Производство канистр',
+    children: packagingOperations,
+  },
+  {
+    label: 'Производство масел',
+    children: oilOperations,
   },
   {
     label: 'Склад',
@@ -44,6 +50,8 @@ export const navItems = [
       { path: '/processing/workshops', label: 'Цеха переработки', moduleCode: 'used-oil-processing' },
       { path: '/processing/raw-diesel-tanks', label: 'Баки сырой солярки', moduleCode: 'used-oil-processing' },
       { path: '/processing/raw-spindle-tanks', label: 'Баки сырой веретенки', moduleCode: 'used-oil-processing' },
+      ...Object.values(oilContainerConfig).map((config) => ({ path: `/processing/${config.path}`, label: config.title, moduleCode: 'used-oil-processing' })),
+      { path: '/oil-production/grades', label: 'Марки масел', moduleCode: 'used-oil-processing' },
       { path: '/processing/journal', label: 'Журнал операций', adminOnly: true },
     ],
   },

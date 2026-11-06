@@ -74,18 +74,40 @@ export function useWarehouseOverview(token) {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    apiRequest('/api/warehouse/overview/', token)
-      .then(setOverview)
-      .catch((loadError) => setError(loadError.message))
+    let active = true
+    let loading = false
+    const refresh = async () => {
+      if (loading) return
+      loading = true
+      try {
+        const result = await apiRequest('/api/warehouse/overview/', token)
+        if (active) {
+          setOverview(result)
+          setError('')
+        }
+      } catch (loadError) {
+        if (active) setError(loadError.message)
+      } finally {
+        loading = false
+      }
+    }
+    refresh()
+    const interval = window.setInterval(refresh, 15000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      active = false
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refresh)
+    }
   }, [token])
 
   return { overview, error }
 }
 
-export function useWarehouseSettings(token, entity) {
+export function useWarehouseSettings(token, entity, customPath = null) {
   const [items, setItems] = useState([])
   const [error, setError] = useState('')
-  const path = `/api/warehouse/settings/${entity}/`
+  const path = customPath || `/api/warehouse/settings/${entity}/`
 
   const reload = useCallback(async () => {
     try {

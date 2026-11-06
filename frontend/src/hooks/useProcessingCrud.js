@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiRequest } from '../api/client'
+import { oilContainerApiPath, oilContainerConfig } from '../constants/oilFinishing'
 
 const containerPaths = {
   receiving_tank: '/api/processing/receiving-tanks/',
@@ -9,11 +10,12 @@ const containerPaths = {
   processing_workshop: '/api/processing/workshops/',
   raw_diesel_tank: '/api/processing/raw-diesel-tanks/',
   raw_spindle_tank: '/api/processing/raw-spindle-tanks/',
+  ...Object.fromEntries(Object.keys(oilContainerConfig).map((kind) => [kind, oilContainerApiPath(kind)])),
 }
 
 const allContainerKinds = Object.keys(containerPaths)
 
-export function useProcessingCrud(token, { containerKinds = allContainerKinds, loadJournal = false } = {}) {
+export function useProcessingCrud(token, { containerKinds = allContainerKinds, loadJournal = false, loadOilGrades = false } = {}) {
   const [receivingTanks, setReceivingTanks] = useState([])
   const [boilers, setBoilers] = useState([])
   const [separators, setSeparators] = useState([])
@@ -21,6 +23,8 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
   const [processingWorkshops, setProcessingWorkshops] = useState([])
   const [rawDieselTanks, setRawDieselTanks] = useState([])
   const [rawSpindleTanks, setRawSpindleTanks] = useState([])
+  const [oilContainers, setOilContainers] = useState({})
+  const [oilGrades, setOilGrades] = useState([])
   const [journal, setJournal] = useState({ items: [], total: 0, page: 1, page_count: 1 })
   const [error, setError] = useState('')
   const containerKindsKey = [...containerKinds].sort().join(',')
@@ -32,6 +36,7 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
       await apiRequest(containerPaths[kind], token),
     ]))
     const dataByKind = Object.fromEntries(responses)
+    setOilContainers(Object.fromEntries(Object.entries(dataByKind).map(([kind, data]) => [kind, data.items])))
 
     if (dataByKind.receiving_tank) setReceivingTanks(dataByKind.receiving_tank.items)
     if (dataByKind.preheating_boiler) setBoilers(dataByKind.preheating_boiler.items)
@@ -53,6 +58,15 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
     setJournal(data)
     return data
   }, [token])
+
+  useEffect(() => {
+    if (!loadOilGrades) return
+    let cancelled = false
+    apiRequest('/api/oil-production/grades/', token)
+      .then((data) => { if (!cancelled) setOilGrades(data.items) })
+      .catch((loadError) => { if (!cancelled) setError(loadError.message) })
+    return () => { cancelled = true }
+  }, [loadOilGrades, token])
 
   useEffect(() => {
     let isCancelled = false
@@ -120,6 +134,7 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
         number: form.number,
         capacity_liters: form.capacity_liters,
         is_active: form.is_active,
+        ...(form.kind === 'finished_oil_tank' ? { oil_grade_id: Number(form.oil_grade_id) } : {}),
       }),
     }))
   }
@@ -199,6 +214,8 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
     error,
     fetchJournal,
     journal,
+    oilContainers,
+    oilGrades,
     processingWorkshops,
     rawDieselTanks,
     rawSpindleTanks,
