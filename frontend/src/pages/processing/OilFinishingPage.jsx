@@ -29,7 +29,7 @@ export function OilFinishingPage({ onLogout, step, token, user }) {
   const amount = Number(form.volume_liters)
   const exceedsSource = source && amount > Number(source.current_volume_liters)
   const exceedsDestination = destination && amount > Number(destination.free_volume_liters)
-  const otherProductOnLine = step === 'sorption-loading' && source?.oil_product && history.line_product && source.oil_product !== history.line_product
+  const otherProductOnLine = step === 'finishing-mixer-loading' && source?.oil_product && history.line_product && source.oil_product !== history.line_product
   const canSubmit = source?.is_active && destination && Number.isFinite(amount) && amount > 0 && !exceedsSource && !exceedsDestination && !otherProductOnLine
 
   function updateForm(field, value) {

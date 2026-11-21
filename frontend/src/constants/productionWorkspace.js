@@ -9,13 +9,10 @@ export const recyclingOperations = [
   { path: '/processing/workshop-loading', label: 'Загрузка в цех переработки', moduleCode: 'workshop-loading', group: 'processing', icon: 'factory', description: 'Направить подготовленное масло из миксера в цех.' },
   { path: '/processing/raw-diesel-tank-loading', label: 'Загрузка бака сырой солярки', moduleCode: 'raw-diesel-tank-loading', group: 'processing', icon: 'tank', description: 'Перелить сырую солярку из цеха в отдельный бак.' },
   { path: '/processing/raw-spindle-tank-loading', label: 'Загрузка бака сырой веретенки', moduleCode: 'raw-spindle-tank-loading', group: 'processing', icon: 'tank', description: 'Перелить сырую веретенку из цеха в отдельный бак.' },
-  { path: '/processing/sorbent-loading', label: 'Загрузка сорбента', moduleCode: 'sorbent-loading', group: 'sorbent', icon: 'supply', description: 'Пополнить бак новым сорбентом со склада.' },
-  { path: '/processing/sorbent-cycle', label: 'Циркуляция сорбента', moduleCode: 'sorbent-cycle', group: 'sorbent', icon: 'cycle', description: 'Подать сорбент в систему, на очистку и вернуть в бак.' },
   ...Object.entries(oilFinishingForms).map(([code, config]) => ({
     path: `/processing/${code}`, label: config.title, moduleCode: code, group: 'finishing',
     ...({
-      'sorption-loading': { icon: 'cycle', description: 'Направить сырую солярку или веретенку на сорбентную очистку.' },
-      'finishing-mixer-loading': { icon: 'mixer', description: 'Передать масло из сорбент-системы в финишный миксер.' },
+      'finishing-mixer-loading': { icon: 'mixer', description: 'Передать сырую солярку или веретенку из бака в финишный миксер.' },
       'finishing-filter-loading': { icon: 'filter', description: 'Передать масло из финишного миксера на фильтрацию.' },
       'finished-product-loading': { icon: 'tank', description: 'Заполнить бак готовой солярки или веретенки после фильтра.' },
     })[code],
@@ -40,8 +37,8 @@ export const packagingOperations = [
 ]
 
 export const productionSections = [
-  { id: 'recycling', title: 'Переработка масла', icon: 'cycle', tone: 'emerald', description: 'Прогрев, разделение, переработка и очистка масла. Сорбент — в этом же разделе.', operations: recyclingOperations,
-    groups: [{ id: 'preparation', title: 'Подготовка сырья' }, { id: 'processing', title: 'Основная переработка' }, { id: 'finishing', title: 'Финишная очистка' }, { id: 'sorbent', title: 'Работа с сорбентом' }] },
+  { id: 'recycling', title: 'Переработка масла', icon: 'cycle', tone: 'emerald', description: 'Прогрев, разделение, переработка и очистка масла.', operations: recyclingOperations,
+    groups: [{ id: 'preparation', title: 'Подготовка сырья' }, { id: 'processing', title: 'Основная переработка' }, { id: 'finishing', title: 'Финишная очистка' }] },
   { id: 'oils', title: 'Производство масла', icon: 'oil', tone: 'teal', description: 'Приготовление концентрата, смешивание, продуктовые баки и розлив.', operations: oilOperations,
     groups: [{ id: 'oil', title: 'Операции с товарным маслом' }] },
   { id: 'packaging', title: 'Производство канистр', icon: 'canister', tone: 'gold', description: 'Две отдельные линии: канистры и крышки. Загрузка материалов и регистрация выпуска.', operations: packagingOperations,

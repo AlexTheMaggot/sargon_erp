@@ -1,6 +1,6 @@
 # Модули и права доступа
 
-Актуализация: 2026-11-06. Источники: `api/views.py`, `api/consumers.py`,
+Актуализация: 2026-11-22. Источники: `api/views.py`, `api/consumers.py`,
 миграции, `constants/navigation.js`, `components/App/App.jsx`, страницы управления.
 
 ## Публичные подсказки входа
@@ -61,10 +61,7 @@ Staff/член административной группы может виде
 | `raw-spindle-tank-loading` | `/processing/raw-spindle-tank-loading` | `view`, `create`: цех → бак сырой веретенки |
 | `canister-loading` | `/production/canister-loading` | `view`, `create`: гранулы и красители со склада в производство канистр |
 | `cap-loading` | `/production/cap-loading` | `view`, `create`: гранулы и красители со склада в производство крышек |
-| `sorbent-loading` | `/processing/sorbent-loading` | `view`, `create`: сорбент со склада на участок сорбции |
-| `sorbent-cycle` | `/processing/sorbent-cycle` | `view`: остатки/история; `create`: бак → система → прогрев/очистка → бак; компенсация только администратору |
-| `sorption-loading` | `/processing/sorption-loading` | `view`, `create`: масло из сырого продуктового бака в сорбент-систему; не выдача сорбента |
-| `finishing-mixer-loading` | `/processing/finishing-mixer-loading` | `view`, `create`: сорбент-система → финишный миксер |
+| `finishing-mixer-loading` | `/processing/finishing-mixer-loading` | `view`, `create`: бак сырой солярки/веретенки → финишный миксер |
 | `finishing-filter-loading` | `/processing/finishing-filter-loading` | `view`, `create`: финишный миксер → фильтр |
 | `finished-product-loading` | `/processing/finished-product-loading` | `view`, `create`: фильтр → готовый бак соответствующего продукта |
 | `concentrate-loading` | `/oil-production/concentrate-loading` | `view`, `create`: реактор, веретенка и складское списание полипропилена; завершение открытой партии |
@@ -194,9 +191,6 @@ DELETE → `delete`, если endpoint поддерживает этот мет�
 - `0038` создаёт эту группу только при её отсутствии, сохраняя существующие
   настройки. `0040` добавляет четыре новых модуля масел существующим группам
   «Администраторы»/«Начальник смены» только при первом создании модулей.
-- `0042` аналогично добавляет этим группам новый модуль `sorbent-cycle` с
-  `view/create`, не меняя старые назначения, ограничения и стартовую страницу.
-  Право `sorbent-loading` на выдачу со склада остаётся независимым.
 - `0043` по новому требованию перенастраивает только «Начальника смены»: оставляет
   все действующие производственные формы и чтение ёмкостей, снимает другие модули,
   включая обзор, выбирает старт загрузки котла. Для совместимости прочим существующим

@@ -24,9 +24,9 @@ class ShiftSupervisorTests(TestCase):
         read_only = {'used-oil-processing', 'production-workspace'}
         operations = {
             'boiler-loading', 'separator-loading', 'separator-output', 'chemical-mixer-loading', 'workshop-loading',
-            'raw-diesel-tank-loading', 'raw-spindle-tank-loading', 'sorption-loading', 'finishing-mixer-loading',
-            'finishing-filter-loading', 'finished-product-loading', 'sorbent-loading',
-            'canister-loading', 'cap-loading', 'canister-output', 'cap-output', 'sorbent-cycle',
+            'raw-diesel-tank-loading', 'raw-spindle-tank-loading', 'finishing-mixer-loading',
+            'finishing-filter-loading', 'finished-product-loading',
+            'canister-loading', 'cap-loading', 'canister-output', 'cap-output',
         }
         operations.update(MANUFACTURING_STEPS)
         self.assertEqual(set(access), read_only | operations)
@@ -43,7 +43,6 @@ class ShiftSupervisorTests(TestCase):
 
     def test_production_views_and_operations_are_accessible(self):
         for path in (
-            '/api/processing/sorbent-cycle/',
             '/api/processing/receiving-tanks/', '/api/processing/preheating-boilers/',
             '/api/processing/separators/', '/api/processing/chemical-mixers/',
             '/api/processing/workshops/', '/api/processing/raw-diesel-tanks/', '/api/processing/raw-spindle-tanks/',
@@ -54,7 +53,6 @@ class ShiftSupervisorTests(TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path, **self.headers).status_code, 200)
         for path in (
-            '/api/processing/sorbent-cycle/',
             '/api/processing/movements/tank-to-boiler/', '/api/processing/movements/boiler-to-separator/',
             '/api/processing/movements/separator-output/', '/api/processing/movements/separator-to-chemical-mixer/',
             '/api/processing/movements/chemical-mixer-to-workshop/',
@@ -76,7 +74,7 @@ class ShiftSupervisorTests(TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path, **self.headers).status_code, 403)
         for path in (
-            '/api/processing/receiving-tanks/', '/api/processing/oil-containers/sorption-systems/',
+            '/api/processing/receiving-tanks/', '/api/processing/oil-containers/finishing-mixers/',
             '/api/processing/movements/1/compensate/',
         ):
             with self.subTest(path=path):
@@ -137,6 +135,8 @@ class ShiftSupervisorTests(TestCase):
 
     def test_access_migration_preserves_other_groups_and_configures_only_production(self):
         migration = importlib.import_module('api.migrations.0043_configure_shift_supervisor_access')
+        for code in migration.OPERATIONS:
+            Module.objects.get_or_create(code=code, defaults={'name': code})
         other = AccessGroup.objects.create(name='Тест сохранения другой группы', start_module=Module.objects.get(code='suppliers'))
         suppliers = GroupModuleAccess.objects.create(group=other, module=other.start_module)
         suppliers.permissions.add(Permission.objects.get(code='view'))

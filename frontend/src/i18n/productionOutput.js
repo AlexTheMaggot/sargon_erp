@@ -12,8 +12,6 @@ export const productionOutputMessages = {
   'Отменено:': 'Bekor qilingan:',
   'С отклонениями': 'Me’yordan og‘ishli',
   'Материалы на участке': 'Uchastkadagi materiallar',
-  'Переданный сорбент': 'Berilgan sorbent',
-  'Использование и замену сорбента пока не учитываем. Выданное количество не является фактическим остатком в контуре.': 'Sorbentning ishlatilishi va almashtirilishi hozircha hisobga olinmaydi. Berilgan miqdor konturdagi haqiqiy qoldiq emas.',
   'Стоимость переданного сырья:': 'Berilgan xomashyo qiymati:',
   'Загружено со склада, использовано в зарегистрированном выпуске и доступно для следующего выпуска.': 'Ombordan yuklangan, qayd etilgan mahsulotni ishlab chiqarishda ishlatilgan va keyingi ishlab chiqarish uchun mavjud miqdor.',
   'Загружено:': 'Yuklangan:',

@@ -1,6 +1,6 @@
 # Архитектура
 
-Актуализация: 2026-11-06. Описана текущая локальная реализация, не целевая архитектура.
+Актуализация: 2026-11-22. Описана текущая локальная реализация, не целевая архитектура.
 
 ## Компоненты
 
@@ -96,10 +96,19 @@ MaterialMovement → 0..1 компенсируемое MaterialMovement
 
 - Старое nullable-поле `LaboratoryAnalysis.receipt` сохранено для совместимости;
   новые анализы привязываются к партии через `batch`.
-- `ProductionContainer.kind` различает пятнадцать видов ёмкостей. Общая модель не означает
+- Завершение приёма принимает в одном `PATCH receipts/<id>/` поля `is_completed`,
+  `batches: [{id, input_quantity, input_unit}]` и `distributions`.
+  Количества всех одобренных партий, движения и завершение записываются атомарно;
+  прежний формат завершения с уже сохранёнными количествами остаётся совместимым.
+  Сериализация партии включает `analysis_density` для локального пересчёта кг в л.
+  `pages/operations/receiptDistribution.js` считает распределения в целых тысячных
+  литра; бэкенд пересчитывает их независимо через `Decimal`.
+  Изменение приёма, партий и анализов использует общую блокировку строки приёма;
+  WebSocket-события регистрируются через `transaction.on_commit()`.
+- `ProductionContainer.kind` различает четырнадцать видов ёмкостей. Общая модель не означает
   взаимозаменяемость типов: каждый маршрут проверяет источник и назначение.
 - Баланс хранится в `current_volume_liters`; история — в `MaterialMovement`.
-- `api/oil_processing.py` реализует общую линию сорбция → финишный миксер → фильтр
+- `api/oil_processing.py` реализует общую линию сырые продуктовые баки → финишный миксер → фильтр
   → раздельные готовые баки. `oil_product` фиксирует продукт в непустом общем
   оборудовании и снимок продукта движения. PostgreSQL transaction-level advisory
   lock `734092601` сериализует операции линии и компенсации, включая пустую линию.
@@ -148,11 +157,11 @@ WarehouseDocumentSequence → номер по типу документа и г�
 в карточке номенклатуры.
 
 `InventoryItem.production_material` определяет назначение гранул, красителей,
-сорбента и полипропилена; `permanent_warehouses` задаёт постоянное отображение позиций с нулевым
+полипропилена; `permanent_warehouses` задаёт постоянное отображение позиций с нулевым
 остатком без создания строк баланса при GET. Имена товаров не управляют логикой.
 Загрузка в производство — специализация `WarehouseDocument` типа `issue` с
 `production_target` и уникальным `idempotency_key`, не параллельная система остатков.
-Стоимость берётся из неизменяемых `WarehouseMovement`. Три формы используют
+Стоимость берётся из неизменяемых `WarehouseMovement`. Две формы используют
 общие `ProductionLoadingPage` и `useProductionLoading` с опросом раз в 15 секунд.
 Сырьё на участке вычисляется по проведённым загрузкам минус активный расход
 в `ProductionMaterialUsage`. Отдельного кеша остатков производства нет.
@@ -164,26 +173,6 @@ WarehouseDocumentSequence → номер по типу документа и г�
 Формы `ProductionOutputPage` используют общий `useProductionLoading` с режимом
 `outputs`. Автоматическое оприходование изделий и себестоимость единицы продукции
 отложены: текущая стоимость относится к фактически использованному сырью.
-
-### Замкнутый контур сорбента
-
-`api/sorbent.py` учитывает массу в общем производственном баке, сорбент-системах
-и на прогреве/очистке. Бак — единое логическое место хранения, не новая жидкостная
-ёмкость с вместимостью в литрах. Источниками служат проведённые складские расходы
-на `sorption`; исторические неотменённые выдачи тоже считаются пополнениями бака.
-`SorbentMovement` ссылается на исходный `WarehouseMovement` и конкретную
-`ProductionContainer` вида `sorption_system`. Остатки по исходной выдаче вычисляются
-из неизменяемых движений; компенсированные движения исключаются. Это связь с
-документом происхождения, не новая система складских партий.
-
-Операции: `tank_to_system` → `system_to_regeneration` → `regeneration_to_tank`.
-Компенсация — отдельная строка с уникальным `reversal_of`, не удаление исходной.
-Движения, компенсации, отмена складских документов и изменение ёмкостей используют
-общий advisory lock масляной линии, затем блокировки строк. GET не создаёт остатков.
-`GET/POST /api/processing/sorbent-cycle/` возвращает справочные данные, остатки и
-историю; POST `/<id>/reverse/` доступен только администратору.
-`SorbentCyclePage` и `useSorbentCycle` обновляют данные каждые 15 секунд и при фокусе.
-Общий обзор получает только количества через `sorbent_cycle`, без финансовых полей.
 
 ### Схема канистр и крышек
 
@@ -252,8 +241,8 @@ WarehouseDocumentSequence → номер по типу документа и г�
 | Ёмкости | `processing/receiving-tanks/`, `preheating-boilers/`, `separators/`, `chemical-mixers/`, `workshops/`, `raw-diesel-tanks/`, `raw-spindle-tanks/` — все под `processing/` |
 | Деталь ёмкости | `processing/containers/<id>/` |
 | Движения | `processing/movements/tank-to-boiler/`, `boiler-to-separator/`, `separator-output/`, `separator-to-chemical-mixer/`, `chemical-mixer-to-workshop/`, `workshop-to-raw-diesel-tank/`, `workshop-to-raw-spindle-tank/` — все под `processing/movements/` |
-| Финишная очистка | `processing/oil-containers/{sorption-systems,finishing-mixers,finishing-filters,finished-diesel-tanks,finished-spindle-tanks}/`: GET/POST; изменение/удаление через общий `processing/containers/<id>/` |
-| Движения финишной очистки | `processing/oil-movements/{sorption-loading,finishing-mixer-loading,finishing-filter-loading,finished-product-loading}/`: POST; GET — история соответствующей операции по 10 записей |
+| Финишная очистка | `processing/oil-containers/{finishing-mixers,finishing-filters,finished-diesel-tanks,finished-spindle-tanks}/`: GET/POST; изменение/удаление через общий `processing/containers/<id>/` |
+| Движения финишной очистки | `processing/oil-movements/{finishing-mixer-loading,finishing-filter-loading,finished-product-loading}/`: POST; GET — история соответствующей операции по 10 записей |
 | Производство масел | `oil-production/operations/{concentrate-loading,oil-blending,oil-tank-loading,oil-filling}/`: GET — справочные данные/история, POST — проведение |
 | Партии масел | `oil-production/batches/<id>/{complete,cancel}/`: POST; отмена только администратором |
 | Оборудование масел | `oil-production/containers/{concentrate-reactors,oil-blenders,finished-oil-tanks}/`: GET/POST; общий `processing/containers/<id>/` для изменения и удаления |
@@ -263,7 +252,7 @@ WarehouseDocumentSequence → номер по типу документа и г�
 | Складские справочники | `warehouse/settings/categories/`, `units/`, `items/`, `warehouses/` — все под `warehouse/settings/` |
 | Склад | `warehouse/reference-data/`, `warehouse/overview/`, `warehouse/documents/` |
 | Складские действия | `warehouse/documents/<id>/post/`, `transfer-decision/`, `cancel/` — под тем же документом |
-| Загрузки материалов | `warehouse/production-loadings/<target>/` — список/проведение; `reference-data/` — разрешённые материалы, склады и доступное количество; target: `canisters`, `caps`, `sorption` |
+| Загрузки материалов | `warehouse/production-loadings/<target>/` — список/проведение; `reference-data/` — разрешённые материалы, склады и доступное количество; target: `canisters`, `caps` |
 | Выпуск упаковки | `warehouse/production-outputs/<target>/`, `reference-data/`, `<id>/cancel/`; target: `canisters`, `caps` |
 | База знаний | `knowledge/categories/`, `knowledge/articles/` и детали |
 
@@ -313,6 +302,14 @@ worker-процессами. WebSocket проверяет доступ при п
 сокета в диагностических отчётах или логах.
 
 ## Целостность, время и миграции
+
+- `0046_remove_sorbent` очищает связанные тестовые данные, затем
+  `0047_remove_sorbent_schema` удаляет схему выведенного этапа. Отдельные транзакции
+  исключают конфликт отложенных PostgreSQL FK-триггеров с изменением таблиц.
+  Очистка удаляет только связанные
+  тестовые записи, сохраняя остальные ёмкости, номенклатуру, остатки и строки
+  смешанных складских документов. Данные удаляются без архива по согласованию
+  пользователя; откат схемы их не восстанавливает. Старые миграции не редактируются.
 
 - Производственные распределения/перемещения и складские проведения используют
   транзакции и блокировки. Не все обычные CRUD-цепочки заключены в одну транзакцию;

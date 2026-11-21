@@ -27,7 +27,6 @@ from .views import production_container_detail_view
 from .views import tank_to_boiler_movements_view
 from .oil_processing import oil_containers_view, oil_movements_view
 from .oil_manufacturing import manufacturing_view, manufacturing_containers_view, batch_action_view, grades_view
-from .sorbent import sorbent_cycle_view, sorbent_reverse_view
 from .views import compensate_movement_view
 from .views import processing_journal_view
 from .views import production_overview_view
@@ -69,8 +68,6 @@ from .views import knowledge_article_detail_view
 
 
 urlpatterns = [
-    path('processing/sorbent-cycle/', sorbent_cycle_view, name='sorbent-cycle'),
-    path('processing/sorbent-cycle/<int:movement_id>/reverse/', sorbent_reverse_view, name='sorbent-reverse'),
     path('knowledge/categories/', knowledge_categories_view, name='knowledge-categories'),
     path('knowledge/categories/<int:category_id>/', knowledge_category_detail_view, name='knowledge-category-detail'),
     path('knowledge/articles/', knowledge_articles_view, name='knowledge-articles'),

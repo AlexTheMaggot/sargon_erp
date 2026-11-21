@@ -20,7 +20,6 @@ import { oilContainerConfig, oilFinishingForms } from '../../constants/oilFinish
 import { oilManufacturingConfig } from '../../constants/oilManufacturing'
 import { OilManufacturingPage } from '../../pages/processing/OilManufacturingPage'
 import { OilGradesPage } from '../../pages/processing/OilGradesPage'
-import { SorbentCyclePage } from '../../pages/processing/SorbentCyclePage'
 import { ProductionWorkspacePage } from '../../pages/production/ProductionWorkspacePage'
 import { productionSections } from '../../constants/productionWorkspace'
 import './App.css'
@@ -157,8 +156,6 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
       <Route path="/production/canister-output" element={<ProtectedRoute moduleCode="canister-output" token={token} user={user}><ProductionOutputPage key="canister-output" target="canisters" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/cap-output" element={<ProtectedRoute moduleCode="cap-output" token={token} user={user}><ProductionOutputPage key="cap-output" target="caps" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/cap-loading" element={<ProtectedRoute moduleCode="cap-loading" token={token} user={user}><ProductionLoadingPage key="caps" target="caps" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
-      <Route path="/processing/sorbent-loading" element={<ProtectedRoute moduleCode="sorbent-loading" token={token} user={user}><ProductionLoadingPage key="sorption" target="sorption" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
-      <Route path="/processing/sorbent-cycle" element={<ProtectedRoute moduleCode="sorbent-cycle" token={token} user={user}><SorbentCyclePage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/separator-loading" element={<ProtectedRoute moduleCode="separator-loading" token={token} user={user}><SeparatorLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/separator-output" element={<ProtectedRoute moduleCode="separator-output" token={token} user={user}><SeparatorOutputPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/chemical-mixer-loading" element={<ProtectedRoute moduleCode="chemical-mixer-loading" token={token} user={user}><ChemicalMixerLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />

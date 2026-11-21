@@ -169,7 +169,7 @@ const FLOW_NODES = {
     statusTone: 'running',
     throughput: '10 000 л/ч',
     currentFlow: '21 600 л',
-    description: 'Накопление сырой солярки перед поочередной сорбентной очисткой.',
+    description: 'Накопление сырой солярки перед подачей в финишный миксер.',
     metrics: [
       ['Текущий объем', '21 600 л'],
       ['Вместимость', '35 000 л'],
@@ -191,36 +191,6 @@ const FLOW_NODES = {
       ['Заполнение', '50%'],
     ],
   },
-  sorbentSystem: {
-    name: 'Сорбент-система',
-    shortName: 'СС',
-    stage: 'Тонкая очистка',
-    status: 'Веретенка в работе',
-    statusTone: 'running',
-    throughput: '9 500 л/ч',
-    currentFlow: '7 200 л',
-    description: 'Общая линия сорбентной очистки. Солярка и веретенка обрабатываются только по очереди.',
-    metrics: [
-      ['Текущая партия', 'Веретенка'],
-      ['В обработке', '7 200 л'],
-      ['Чистота на выходе', '98,7%'],
-    ],
-  },
-  sorbentTank: {
-    name: 'Бак сорбента',
-    shortName: 'БС',
-    stage: 'Замкнутый контур',
-    status: 'Циркуляция',
-    statusTone: 'sorbent',
-    throughput: '2 400 л/ч',
-    currentFlow: '1 850 л',
-    description: 'Сорбент циркулирует между накопительным баком и системой очистки.',
-    metrics: [
-      ['В контуре', '1 850 л'],
-      ['Ресурс сорбента', '76%'],
-      ['Циклов с замены', '14'],
-    ],
-  },
   finishingMixer: {
     name: 'Финишный миксер',
     shortName: 'ФМ',
@@ -229,7 +199,7 @@ const FLOW_NODES = {
     statusTone: 'running',
     throughput: '9 500 л/ч',
     currentFlow: '7 050 л',
-    description: 'Финальное смешивание очищенного продукта перед фильтрацией.',
+    description: 'Смешивание сырой солярки или веретенки перед фильтрацией.',
     metrics: [
       ['В обработке', '7 050 л'],
       ['Время цикла', '28 мин'],
@@ -691,11 +661,10 @@ function buildPackagingOverviewNodes(nodes, summary) {
   return result
 }
 
-function buildOilFinishingNodes(nodes, summary, sorbentCycle) {
+function buildOilFinishingNodes(nodes, summary) {
   if (!summary) return {}
   const result = {}
   for (const [nodeId, kind, singular, plural] of [
-    ['sorbentSystem', 'sorption_system', 'Сорбент-система', 'Сорбент-системы'],
     ['finishingMixer', 'finishing_mixer', 'Финишный миксер', 'Финишные миксеры'],
     ['filter', 'finishing_filter', 'Финишный фильтр', 'Финишные фильтры'],
     ['finishedDieselTank', 'finished_diesel_tank', 'Бак готовой солярки', 'Баки готовой солярки'],
@@ -722,15 +691,6 @@ function buildOilFinishingNodes(nodes, summary, sorbentCycle) {
       dataNote: t('Отгрузки сепаратора за вычетом компенсированных движений. Это не остаток в накопителе.'),
     }
   }
-  const kilograms = (value) => value == null ? '—' : `${Number(value).toLocaleString(getLocale(), { maximumFractionDigits: 2 })} ${t('кг')}`
-  result.sorbentTank = {
-    ...nodes.sorbentTank, isLive: true, status: t('Замкнутый контур'),
-    currentFlow: kilograms(sorbentCycle?.tank_kg), throughput: kilograms(sorbentCycle?.total_kg),
-    capacityCaption: t('всего в контуре'), throughputLabel: t('Всего в контуре'),
-    metrics: [[t('В баке сорбента'), kilograms(sorbentCycle?.tank_kg)], [t('В сорбент-системах'), kilograms(sorbentCycle?.in_system_kg)], [t('На прогреве и очистке'), kilograms(sorbentCycle?.regeneration_kg)]],
-    dataNote: t('Очищенный сорбент возвращается в бак. Склад списывается только при пополнении новым сорбентом.'),
-  }
-  result.sorbentSystem.metrics.push([t('В сорбент-системах'), kilograms(sorbentCycle?.in_system_kg)])
   return result
 }
 
@@ -847,7 +807,7 @@ export function OverviewPage({ onLogout, token, user }) {
     if (!overviewData) {
       const liveNodeIds = ['reception', 'storageTank', 'preheater', 'separator', 'water', 'waste',
         'chemicalMixer1', 'chemicalMixer2', 'workshop1', 'workshop2', 'rawDieselTank', 'rawSpindleTank',
-        'sorbentSystem', 'sorbentTank', 'finishingMixer', 'filter', 'finishedDieselTank', 'finishedSpindleTank',
+        'finishingMixer', 'filter', 'finishedDieselTank', 'finishedSpindleTank',
         'polypropyleneFeed', 'concentrateReactor', 'additiveStation', 'blender1', 'blender2', 'blender3',
         'transmissionOilTank', 'hydraulicOilTank', 'industrialOilTank', 'motorOilTank', 'fillingLine']
       return { ...nodes, ...Object.fromEntries(liveNodeIds.map((nodeId) => [nodeId, {
@@ -867,7 +827,7 @@ export function OverviewPage({ onLogout, token, user }) {
     return {
       ...nodes,
       ...buildPackagingOverviewNodes(nodes, overviewData.packaging_production),
-      ...buildOilFinishingNodes(nodes, overviewData.oil_finishing, overviewData.sorbent_cycle),
+      ...buildOilFinishingNodes(nodes, overviewData.oil_finishing),
       ...buildManufacturingNodes(nodes, overviewData.oil_manufacturing),
       reception: {
         ...nodes.reception,
@@ -996,7 +956,7 @@ export function OverviewPage({ onLogout, token, user }) {
               <div>
                 <p className="auth-eyebrow">{t('Технологическая линия')}</p>
                 <h1>{t('Переработка отработанного масла')}</h1>
-                <p>{t('Реальный учёт движений от приёма до готовых баков и замкнутого контура сорбента. Технологические параметры пока не учитываются.')}</p>
+                <p>{t('Реальный учёт движений от приёма до готовых баков. Технологические параметры пока не учитываются.')}</p>
               </div>
               <div className="process-summary">
                 <span><i className="summary-indicator" />{t('Учёт подключён')}</span>
@@ -1011,7 +971,6 @@ export function OverviewPage({ onLogout, token, user }) {
               <span><i className="legend-line legend-line--product" />{t('Основной продукт')}</span>
               <span><i className="legend-line legend-line--water" />{t('Вода')}</span>
               <span><i className="legend-line legend-line--waste" />{t('Мусор')}</span>
-              <span><i className="legend-line legend-line--sorbent" />{t('Сорбент')}</span>
               <span><i className="legend-status legend-status--running" />{t('В работе')}</span>
               <span><i className="legend-status legend-status--ready" />{t('Готов / ожидает')}</span>
               <small>{t('Жидкие продукты — литры, твердые компоненты — килограммы')}</small>
@@ -1044,12 +1003,6 @@ export function OverviewPage({ onLogout, token, user }) {
           </div>
 
           <div className="snake-row snake-row--reverse">
-            <div className="snake-sorbent-inline">
-              <span>{t('↔ замкнутый контур сорбента')}</span>
-              <ProcessNode compact nodeId="sorbentTank" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
-              <ProcessNode compact nodeId="sorbentSystem" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
-            </div>
-            <FlowArrow direction="left" />
             <CompactNodeGroup nodeIds={['rawDieselTank', 'rawSpindleTank']} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
             <FlowArrow direction="left" />
             <CompactNodeGroup nodeIds={['workshop1', 'workshop2']} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />

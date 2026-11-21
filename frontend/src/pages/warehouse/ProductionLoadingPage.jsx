@@ -59,7 +59,7 @@ export function ProductionLoadingPage({ onLogout, target, token, user }) {
       <section className="page-title access-page-title">
         <p className="auth-eyebrow">{t('Материалы в производство')}</p>
         <h1>{t(config.title)}</h1>
-        <p>{t(target === 'sorption' ? 'Новый сорбент списывается со склада и поступает в бак замкнутого контура.' : 'При проведении материалы сразу покидают склад. Готовая продукция этой операцией не создаётся.')}</p>
+        <p>{t('При проведении материалы сразу покидают склад. Готовая продукция этой операцией не создаётся.')}</p>
       </section>
       {error && <p className="access-error" role="alert">{t(error)}</p>}
       {success && <p className="production-loading-success" role="status">{t(success)}</p>}
@@ -92,7 +92,7 @@ export function ProductionLoadingPage({ onLogout, target, token, user }) {
           </fieldset>
         </form>
       </article></section>}
-      <ProductionBalances balances={production_balances} target={target} />
+      <ProductionBalances balances={production_balances} />
       <section className="access-grid"><article className="access-card">
         <h3>{t('История загрузок')}</h3>
         <ListControls {...controls} onPageChange={controls.setCurrentPage} onSearchChange={controls.setSearchQuery} />

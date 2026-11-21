@@ -5,7 +5,6 @@ export const emptyPermissionForm = { id: null, code: '', name: '', description: 
 export const emptySupplierForm = { id: null, company_name: '', city_id: '', address: '', phone: '' }
 export const emptyCityForm = { id: null, name: '' }
 export const emptyOilFinishingForm = { source_id: '', destination_id: '', volume_liters: '' }
-export const emptySorbentCycleForm = { movement_type: 'tank_to_system', source_movement_id: '', system_id: '', quantity: '', note: '' }
 export const emptyOilGradeForm = { id: null, name: '', is_active: true }
 export const emptyOilManufacturingForms = {
   'concentrate-loading': { equipment_id: '', source_tank_id: '', base_liters: '', warehouse_id: '', item_id: '', polypropylene_quantity: '' },

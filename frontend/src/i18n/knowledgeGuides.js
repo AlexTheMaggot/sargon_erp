@@ -1,4 +1,4 @@
-export const knowledgeGuides = [
+const originalKnowledgeGuides = [
   {
     sourceTitle: 'Как устроена система SHENOLL',
     sourceSummary: 'Основные разделы системы и различие между производственным и складским учётом.',
@@ -88,3 +88,15 @@ export const knowledgeGuides = [
     content: '## Yetkazib beruvchi kartochkasi\n\n«Ma’lumotnomalar → Yetkazib beruvchilar»da kompaniya nomi, shahar, manzil va telefon saqlanadi. Shahar alohida ma’lumotnomadan tanlanadi. Yetkazib beruvchi ma’lumotlari qabul va ombor kirimini rasmiylashtirishda ishlatiladi.\n\n## Shaharlar\n\nShaharlar «Ma’lumotnomalar → Shaharlar» sahifasida yaratiladi va tahrirlanadi. Yetkazib beruvchi unga bog‘langan bo‘lsa, shaharni o‘chirib bo‘lmaydi. Yetkazib beruvchilar bilan ishlash huquqi shaharlar yoki foydalanuvchilarni boshqarish huquqini avtomatik bermaydi.\n\n## Qabuldagi qidiruv\n\nAriza yaratishda yetkazib beruvchi nomini kirita boshlang va mos natijani tanlang. Mavjud arizada tanlangan yetkazib beruvchi ko‘rsatiladi: yaratilgandan keyin uni almashtirish mumkin emas.',
   },
 ]
+
+export const knowledgeGuides = originalKnowledgeGuides.map((guide) => guide.sourceTitle === 'Проведение анализа и принятие решения' ? {
+  ...guide,
+  sourceContent: guide.sourceContent.replace(
+    'Для одобрения заполните все показатели.',
+    'Для одобрения заполните плотность и текущую температуру. Температура вспышки и количество воды необязательны; пустые значения не заменяются нулями.',
+  ),
+  content: guide.content.replace(
+    'Tasdiqlash uchun barcha ko‘rsatkichlarni to‘ldiring.',
+    'Tasdiqlash uchun zichlik va joriy haroratni kiriting. Chaqnash harorati va suv miqdori ixtiyoriy; bo‘sh qiymatlar nolga almashtirilmaydi.',
+  ),
+} : guide)

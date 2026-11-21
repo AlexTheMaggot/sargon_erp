@@ -27,13 +27,6 @@ function buildReceiptPayload(form) {
   }
 }
 
-function buildBatchPayload(batch) {
-  return {
-    input_quantity: batch.input_quantity,
-    input_unit: batch.input_unit,
-  }
-}
-
 function buildAnalysisPayload(form, statusPayload = {}) {
   return {
     density: form.density,
@@ -202,13 +195,6 @@ export function useOperationsCrud(token, { onReceiptCreated } = {}) {
     return runOperation(() => apiRequest(receiptBatchesPath(receiptId), token, { method: 'POST' }))
   }
 
-  async function saveReceiptBatch(batch) {
-    return runOperation(() => apiRequest(batchPath(batch.id), token, {
-      method: 'PATCH',
-      body: JSON.stringify(buildBatchPayload(batch)),
-    }))
-  }
-
   async function deleteReceiptBatch(id) {
     return runOperation(() => apiRequest(batchPath(id), token, { method: 'DELETE' }))
   }
@@ -217,10 +203,10 @@ export function useOperationsCrud(token, { onReceiptCreated } = {}) {
     return runOperation(() => apiRequest(receiptPath(id), token, { method: 'DELETE' }))
   }
 
-  async function completeReceipt(id, distributions) {
+  async function completeReceipt(id, distributions, batches) {
     return runOperation(() => apiRequest(receiptPath(id), token, {
       method: 'PATCH',
-      body: JSON.stringify({ is_completed: true, distributions }),
+      body: JSON.stringify({ is_completed: true, distributions, batches }),
     }))
   }
 
@@ -235,7 +221,6 @@ export function useOperationsCrud(token, { onReceiptCreated } = {}) {
     suppliers,
     deleteReceipt,
     saveAnalysisStatus,
-    saveReceiptBatch,
     saveReceipt,
   }
 }

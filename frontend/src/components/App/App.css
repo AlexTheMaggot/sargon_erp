@@ -1654,9 +1654,6 @@ button:disabled {
   background: #7b8580;
 }
 
-.legend-line--sorbent {
-  background: #c88a16;
-}
 
 .legend-status {
   width: 9px;
@@ -1770,9 +1767,6 @@ button:disabled {
   border-top-color: #7b8580;
 }
 
-.process-node--sorbent {
-  border-top-color: #c88a16;
-}
 
 .process-node--finished {
   border-top-color: #8b63c7;
@@ -1822,10 +1816,6 @@ button:disabled {
   color: #59635e;
 }
 
-.process-node-icon--sorbent {
-  background: #fff4d6;
-  color: #94630b;
-}
 
 .process-node-icon--finished {
   background: #f0eafb;
@@ -1876,10 +1866,6 @@ button:disabled {
   box-shadow: 0 0 0 3px rgba(123, 133, 128, 0.12);
 }
 
-.process-node--sorbent .process-node-status i {
-  background: #c88a16;
-  box-shadow: 0 0 0 3px rgba(200, 138, 22, 0.12);
-}
 
 .process-node--finished .process-node-status i {
   background: #8b63c7;
@@ -2036,8 +2022,7 @@ button:disabled {
   fill: #16815d;
 }
 
-.separator-stage,
-.sorbent-stage {
+.separator-stage {
   display: grid;
   align-content: center;
   gap: 16px;
@@ -2102,59 +2087,12 @@ button:disabled {
   color: #7b8580;
 }
 
-.sorbent-stage {
-  position: relative;
-}
 
-.sorbent-loop {
-  position: relative;
-  padding: 34px 20px 0;
-}
 
-.sorbent-loop > span {
-  position: absolute;
-  top: 4px;
-  right: 0;
-  left: 0;
-  color: #a47012;
-  font-size: 8px;
-  font-weight: 850;
-  text-align: center;
-  text-transform: uppercase;
-}
 
-.sorbent-loop-lines {
-  position: absolute;
-  top: -22px;
-  right: 6px;
-  bottom: 28px;
-  left: 6px;
-  border: 2px solid #c88a16;
-  border-radius: 16px;
-  pointer-events: none;
-}
 
-.sorbent-loop-lines::before,
-.sorbent-loop-lines::after {
-  content: '';
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border-top: 2px solid #c88a16;
-  border-right: 2px solid #c88a16;
-}
 
-.sorbent-loop-lines::before {
-  top: 34px;
-  right: -5px;
-  transform: rotate(45deg);
-}
 
-.sorbent-loop-lines::after {
-  bottom: 34px;
-  left: -5px;
-  transform: rotate(225deg);
-}
 
 .process-details {
   animation: panel-enter 420ms ease 180ms both;
@@ -2227,10 +2165,6 @@ button:disabled {
   color: #59635e;
 }
 
-.process-detail-status--sorbent {
-  background: #fff4d6;
-  color: #94630b;
-}
 
 .process-detail-status--finished {
   background: #f0eafb;
@@ -2318,6 +2252,7 @@ button:disabled {
     205px 46px 205px 46px 205px 46px minmax(330px, 1fr);
 }
 
+.snake-row--reverse,
 .snake-row--final {
   grid-template-columns:
     minmax(0, 1fr) 90px minmax(0, 1fr) 90px minmax(0, 1.35fr);
@@ -2392,8 +2327,7 @@ button:disabled {
   line-height: 1.15;
 }
 
-.snake-separator,
-.snake-sorbent-inline {
+.snake-separator {
   display: grid;
   gap: 7px;
   min-width: 0;
@@ -2460,32 +2394,8 @@ button:disabled {
   color: #59635e;
 }
 
-.process-outlet--sorbent {
-  border-left-color: #c88a16;
-  color: #94630b;
-}
 
-.snake-sorbent-inline {
-  position: relative;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  border: 1px dashed #d1a346;
-  border-radius: 7px;
-  background: #fffaf0;
-  padding: 22px 6px 6px;
-}
 
-.snake-sorbent-inline > span {
-  position: absolute;
-  top: 7px;
-  right: 6px;
-  left: 6px;
-  color: #94630b;
-  font-size: 7px;
-  font-weight: 850;
-  line-height: 1.2;
-  text-align: center;
-  text-transform: uppercase;
-}
 
 .snake-turn {
   position: relative;
@@ -2951,8 +2861,7 @@ button:disabled {
 
   .snake-row > .process-node,
   .snake-row > .compact-node-group,
-  .snake-separator,
-  .snake-sorbent-inline {
+  .snake-separator {
     width: min(100%, 520px);
   }
 
@@ -3298,42 +3207,159 @@ button:disabled {
   font-size: 24px;
 }
 
+.receipt-batch {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  border: 1px solid #edf3ef;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.receipt-batch-summary {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.receipt-batch-summary strong {
+  color: #13251d;
+}
+
+.receipt-batch-summary span {
+  color: #577466;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.receipt-batch-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.receipt-batch-quantity,
+.receipt-batch-unit {
+  min-width: 0;
+}
+
+.receipt-batch-quantity > span,
+.receipt-batch-unit legend {
+  color: #577466;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.receipt-batch-quantity input {
+  min-width: 0;
+}
+
+.receipt-batch-unit {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.receipt-batch-unit legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-weight: 700;
+}
+
+.receipt-batch-unit .unit-radio-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.receipt-batch-unit .unit-radio-group label {
+  justify-content: center;
+  min-width: 0;
+  padding: 10px 8px;
+  font-size: 13px;
+}
+
+.receipt-batch-actions {
+  grid-column: 1 / -1;
+  align-items: center;
+  min-width: 0;
+}
+
+.receipt-batch-actions button {
+  flex: 1 1 120px;
+}
+
+.receipt-batch-actions .empty-state {
+  flex: 1 1 200px;
+}
+
 .receipt-distribution {
   display: grid;
   gap: 16px;
-  margin-top: 14px;
-  padding: 18px;
+  min-width: 0;
+  grid-column: 1 / -1;
+  padding: 14px;
   border: 1px solid #c9ded4;
   border-radius: 16px;
   background: #f7fbf9;
 }
 
-.receipt-distribution h3,
+.receipt-distribution h4,
 .receipt-distribution p {
   margin: 0;
 }
 
-.distribution-batch {
+.distribution-calculator {
   display: grid;
-  gap: 10px;
-  padding: 14px;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
   border: 1px solid #d6e3dc;
   border-radius: 12px;
   background: #fff;
+  color: #315344;
+  font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
-.distribution-batch-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: #315344;
+.distribution-calculator.complete {
+  border-color: #6dbb97;
+  background: #edf8f1;
+}
+
+.distribution-calculator.exceeded {
+  border-color: #d8a0a0;
+  background: #fff1f1;
+  color: #923c3c;
 }
 
 .distribution-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(130px, 180px) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 140px) auto;
   gap: 10px;
-  align-items: center;
+  align-items: end;
+}
+
+.distribution-row label {
+  min-width: 0;
+}
+
+.distribution-row label > span {
+  font-size: 13px;
+  color: #577466;
+}
+
+.distribution-row select,
+.distribution-row input {
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .receipt-batch-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .journal-filters {
@@ -3511,10 +3537,6 @@ button:disabled {
   .movement-preview-arrow {
     justify-self: center;
     transform: rotate(90deg);
-  }
-
-  .distribution-batch-heading {
-    flex-direction: column;
   }
 
   .distribution-row,

@@ -76,7 +76,6 @@ MODULE_WAREHOUSE_SETTINGS = 'warehouse-settings'
 MODULE_KNOWLEDGE_BASE = 'knowledge-base'
 MODULE_CANISTER_LOADING = 'canister-loading'
 MODULE_CAP_LOADING = 'cap-loading'
-MODULE_SORBENT_LOADING = 'sorbent-loading'
 MODULE_CANISTER_OUTPUT = 'canister-output'
 MODULE_CAP_OUTPUT = 'cap-output'
 
@@ -90,7 +89,7 @@ PROCESSING_FORM_MODULE_CODES = {
     MODULE_RAW_SPINDLE_TANK_LOADING,
 }
 PROCESSING_FORM_MODULE_CODES.update(OIL_FINISHING_STEPS)
-PROCESSING_FORM_MODULE_CODES.update(('concentrate-loading', 'oil-blending', 'oil-tank-loading', 'oil-filling', 'sorbent-cycle'))
+PROCESSING_FORM_MODULE_CODES.update(('concentrate-loading', 'oil-blending', 'oil-tank-loading', 'oil-filling'))
 
 PERMISSION_APPROVE = 'approve'
 PERMISSION_CREATE = 'create'
@@ -128,17 +127,15 @@ def _broadcast_operations_event(event_type, payload=None, target_module=None):
     if channel_layer is None:
         return
 
-    async_to_sync(channel_layer.group_send)(
-        OPERATIONS_GROUP,
-        {
-            'type': 'operations.event',
-            'payload': {
-                'event': event_type,
-                'target_module': target_module,
-                **(payload or {}),
-            },
+    event = {
+        'type': 'operations.event',
+        'payload': {
+            'event': event_type,
+            'target_module': target_module,
+            **(payload or {}),
         },
-    )
+    }
+    transaction.on_commit(lambda: async_to_sync(channel_layer.group_send)(OPERATIONS_GROUP, event))
 
 
 def _decimal_value(value):
@@ -413,6 +410,7 @@ def _serialize_batch(batch):
         'input_unit': batch.input_unit,
         'quantity_liters': str(batch.quantity_liters) if batch.quantity_liters is not None else '',
         'laboratory_analysis_id': analysis.pk if analysis else None,
+        'analysis_density': str(analysis.density) if analysis and analysis.is_approved and analysis.density is not None else '',
         'analysis_status': _analysis_status(analysis),
         'is_analysis_filled': is_analysis_filled,
         'is_analysis_approved': is_analysis_approved,
@@ -643,7 +641,7 @@ def _container_code(kind, number):
 
 
 def _container_has_movements(container):
-    return container.incoming_movements.exists() or container.outgoing_movements.exists() or container.oil_batches.exists() or container.sorbent_movements.exists()
+    return container.incoming_movements.exists() or container.outgoing_movements.exists() or container.oil_batches.exists()
 
 
 def _serialize_container(container, user, raw_material_options=False):
@@ -831,9 +829,9 @@ def _boolean_value(value):
     return bool(value)
 
 
-def _validate_laboratory_values(values, require_all=False):
-    if require_all and any(value is None for value in values.values()):
-        return 'Все лабораторные показатели должны быть корректными числами.'
+def _validate_laboratory_values(values, require_complete=False):
+    if require_complete and any(values.get(field) is None for field in ('density', 'current_temperature')):
+        return 'Для одобрения заполните плотность и текущую температуру корректными числами.'
     if values.get('density') is not None and values['density'] <= 0:
         return 'Плотность должна быть больше нуля.'
     if values.get('water_percentage') is not None and not Decimal('0') <= values['water_percentage'] <= Decimal('100'):
@@ -887,7 +885,7 @@ def _sync_group_start_module(group, start_module_id):
     group.save(update_fields=['start_module'])
 
 
-def _complete_receipt(receipt_id, user, distributions):
+def _complete_receipt(receipt_id, user, distributions, batch_quantities=None):
     with transaction.atomic():
         receipt = (
             RawMaterialReceipt.objects
@@ -898,15 +896,50 @@ def _complete_receipt(receipt_id, user, distributions):
         )
         if receipt.is_completed:
             return receipt, None
+        batches = list(receipt.batches.all())
+        if batch_quantities is not None:
+            approved_map = {
+                batch.pk: batch for batch in batches
+                if (analysis := _get_batch_laboratory_analysis(batch)) and analysis.is_approved and not analysis.is_rejected
+            }
+            if not isinstance(batch_quantities, list):
+                return None, 'Batch quantities must be a list of approved batches.'
+            seen_batches = set()
+            for item in batch_quantities:
+                if not isinstance(item, dict) or type(item.get('id')) is not int:
+                    return None, 'Batch quantities must be a list of approved batches.'
+                batch_id = item['id']
+                if batch_id not in approved_map or batch_id in seen_batches:
+                    return None, 'Batch quantities must include every approved batch exactly once.'
+                batch = approved_map[batch_id]
+                if batch.material_movements.filter(movement_type=MaterialMovement.TYPE_RECEIPT_TO_TANK).exists():
+                    return None, 'Distributed batch cannot be changed.'
+                quantity = _volume_value(item.get('input_quantity'))
+                if quantity is None:
+                    return None, 'Quantity must be positive with up to three decimals.'
+                input_unit = item.get('input_unit')
+                if not isinstance(input_unit, str) or input_unit not in dict(RawMaterialReceipt.UNIT_CHOICES):
+                    return None, 'Invalid quantity unit.'
+                batch.input_quantity = quantity
+                batch.input_unit = input_unit
+                seen_batches.add(batch_id)
+            if seen_batches != set(approved_map):
+                return None, 'Batch quantities must include every approved batch exactly once.'
         if not _can_complete_receipt(receipt):
             return None, 'Receipt can be completed only after all batches have final laboratory decisions and approved batches have quantity.'
 
         approved_batches = []
-        for batch in receipt.batches.all():
+        for batch in batches:
             analysis = _get_batch_laboratory_analysis(batch)
             if analysis and analysis.is_approved and not analysis.is_rejected:
-                _sync_batch_liters(batch, analysis.density)
+                batch.quantity_liters = _calculate_quantity_liters(batch, analysis.density)
+                if _volume_value(batch.quantity_liters) is None:
+                    return None, 'Quantity must be positive with up to three decimals.'
                 approved_batches.append(batch)
+
+        total_liters = sum((batch.quantity_liters for batch in approved_batches), Decimal('0.000'))
+        if total_liters > Decimal('99999999999.999'):
+            return None, 'Receipt total exceeds the supported volume.'
 
         if not approved_batches:
             if distributions:
@@ -960,7 +993,7 @@ def _complete_receipt(receipt_id, user, distributions):
 
         containers = {
             container.pk: container
-            for container in ProductionContainer.objects.select_for_update().filter(pk__in=sorted(container_ids))
+            for container in ProductionContainer.objects.select_for_update().filter(pk__in=container_ids).order_by('pk')
         }
         if len(containers) != len(container_ids):
             return None, 'One or more receiving tanks do not exist.'
@@ -970,6 +1003,14 @@ def _complete_receipt(receipt_id, user, distributions):
                 return None, 'Only active receiving tanks can accept material.'
             if container.current_volume_liters + requested_volume > container.capacity_liters:
                 return None, f'Переполнение бака: {container.display_name}.'
+
+        for batch in approved_batches:
+            batch.save(update_fields=['input_quantity', 'input_unit', 'quantity_liters'])
+            if batch_quantities is not None:
+                _audit_operation('receipt_batch_updated', 'receipt_batch', batch.pk, user, {
+                    'input_quantity': str(batch.input_quantity), 'input_unit': batch.input_unit,
+                    'quantity_liters': str(batch.quantity_liters),
+                })
 
         for batch_id, container_id, volume in normalized:
             batch = batch_map[batch_id]
@@ -1708,12 +1749,16 @@ def raw_material_receipts_view(request):
 
 
 @csrf_exempt
+@transaction.atomic
 def raw_material_receipt_detail_view(request, receipt_id):
     user, error = _require_permission(request, MODULE_RAW_MATERIAL)
     if error:
         return error
 
-    receipt = RawMaterialReceipt.objects.select_related('supplier__city').prefetch_related('batches__laboratory_analysis').filter(pk=receipt_id).first()
+    receipt_query = RawMaterialReceipt.objects.select_related('supplier__city').prefetch_related('batches__laboratory_analysis')
+    if request.method != 'GET':
+        receipt_query = receipt_query.select_for_update(of=('self',))
+    receipt = receipt_query.filter(pk=receipt_id).first()
     if receipt is None:
         return JsonResponse({'detail': 'Raw material receipt not found.'}, status=404)
 
@@ -1729,7 +1774,9 @@ def raw_material_receipt_detail_view(request, receipt_id):
             return JsonResponse({'detail': 'Receipt is locked.'}, status=423)
 
         if body.get('is_completed'):
-            completed_receipt, completion_error = _complete_receipt(receipt.pk, user, body.get('distributions'))
+            if 'batches' in body and body['batches'] is None:
+                return JsonResponse({'detail': 'Batch quantities must be a list of approved batches.'}, status=400)
+            completed_receipt, completion_error = _complete_receipt(receipt.pk, user, body.get('distributions'), body.get('batches'))
             if completion_error:
                 return JsonResponse({'detail': completion_error}, status=400)
             _broadcast_operations_event(
@@ -1783,12 +1830,16 @@ def raw_material_receipt_detail_view(request, receipt_id):
 
 
 @csrf_exempt
+@transaction.atomic
 def raw_material_receipt_batches_view(request, receipt_id):
     user, error = _require_permission(request, MODULE_RAW_MATERIAL)
     if error:
         return error
 
-    receipt = RawMaterialReceipt.objects.select_related('supplier__city').filter(pk=receipt_id).first()
+    receipt_query = RawMaterialReceipt.objects.select_related('supplier__city')
+    if request.method != 'GET':
+        receipt_query = receipt_query.select_for_update(of=('self',))
+    receipt = receipt_query.filter(pk=receipt_id).first()
     if receipt is None:
         return JsonResponse({'detail': 'Raw material receipt not found.'}, status=404)
 
@@ -1820,6 +1871,7 @@ def raw_material_receipt_batches_view(request, receipt_id):
 
 
 @csrf_exempt
+@transaction.atomic
 def raw_material_batch_detail_view(request, batch_id):
     user, error = _require_permission(request, MODULE_RAW_MATERIAL)
     if error:
@@ -1828,6 +1880,12 @@ def raw_material_batch_detail_view(request, batch_id):
     batch = ReceiptBatch.objects.select_related('receipt__supplier__city').filter(pk=batch_id).first()
     if batch is None:
         return JsonResponse({'detail': 'Receipt batch not found.'}, status=404)
+
+    if request.method != 'GET':
+        RawMaterialReceipt.objects.select_for_update().filter(pk=batch.receipt_id).first()
+        batch = ReceiptBatch.objects.select_related('receipt__supplier__city').filter(pk=batch_id).first()
+        if batch is None:
+            return JsonResponse({'detail': 'Receipt batch not found.'}, status=404)
 
     if request.method == 'GET':
         return JsonResponse(_serialize_batch(batch))
@@ -1927,6 +1985,7 @@ def laboratory_analyses_view(request):
 
 
 @csrf_exempt
+@transaction.atomic
 def laboratory_analysis_detail_view(request, analysis_id):
     user, error = _require_permission(request, MODULE_LABORATORY)
     if error:
@@ -1935,6 +1994,13 @@ def laboratory_analysis_detail_view(request, analysis_id):
     analysis = LaboratoryAnalysis.objects.select_related('batch__receipt__supplier__city', 'receipt__supplier__city').filter(pk=analysis_id).first()
     if analysis is None:
         return JsonResponse({'detail': 'Laboratory analysis not found.'}, status=404)
+
+    if request.method in ('PUT', 'PATCH'):
+        receipt_id = analysis.batch.receipt_id if analysis.batch else analysis.receipt_id
+        RawMaterialReceipt.objects.select_for_update().filter(pk=receipt_id).first()
+        analysis = LaboratoryAnalysis.objects.select_related('batch__receipt__supplier__city', 'receipt__supplier__city').filter(pk=analysis_id).first()
+        if analysis is None:
+            return JsonResponse({'detail': 'Laboratory analysis not found.'}, status=404)
 
     if request.method == 'GET':
         return JsonResponse(_serialize_laboratory_analysis(analysis))
@@ -1958,7 +2024,11 @@ def laboratory_analysis_detail_view(request, analysis_id):
 
         for field in ('density', 'flash_point_temperature', 'current_temperature', 'water_percentage'):
             if field in body:
-                value = _decimal_value(body.get(field))
+                raw_value = body.get(field)
+                is_empty = raw_value is None or (isinstance(raw_value, str) and not raw_value.strip())
+                value = None if is_empty else _decimal_value(raw_value)
+                if not is_empty and (value is None or not value.is_finite()):
+                    return JsonResponse({'detail': 'Все лабораторные показатели должны быть корректными числами.'}, status=400)
                 setattr(analysis, field, value)
 
         if 'is_approved' in body:
@@ -1979,7 +2049,7 @@ def laboratory_analysis_detail_view(request, analysis_id):
             'current_temperature': analysis.current_temperature,
             'water_percentage': analysis.water_percentage,
         }
-        validation_error = _validate_laboratory_values(values, require_all=analysis.is_approved)
+        validation_error = _validate_laboratory_values(values, require_complete=analysis.is_approved)
         if validation_error:
             return JsonResponse({'detail': validation_error}, status=400)
         if analysis.is_approved and not analysis.is_filled:
@@ -2160,10 +2230,6 @@ def production_container_detail_view(request, container_id):
             return JsonResponse({'detail': 'Вместимость не может быть меньше текущего объёма.'}, status=400)
         if not is_active and container.current_volume_liters > 0:
             return JsonResponse({'detail': 'Filled container cannot be deactivated.'}, status=400)
-        if not is_active and container.kind == ProductionContainer.KIND_SORPTION_SYSTEM:
-            from .sorbent import system_has_sorbent
-            if system_has_sorbent(container.pk):
-                return JsonResponse({'detail': 'Сначала верните весь сорбент системы и участка очистки в бак.'}, status=400)
         batch = container.oil_batches.filter(status=OilManufacturingBatch.STATUS_OPEN).first()
         if batch and (not is_active or capacity < max(batch.input_liters, batch.output_liters)):
             return JsonResponse({'detail': 'Нельзя отключить оборудование с открытой партией или уменьшить его вместимость ниже загрузки и выхода.'}, status=400)
@@ -3007,7 +3073,6 @@ def processing_journal_view(request):
 def production_overview_view(request):
     from .oil_processing import oil_overview
     from .oil_manufacturing import manufacturing_overview
-    from .sorbent import sorbent_overview
     _, error = _require_processing_permission(request, MODULE_DASHBOARD, PERMISSION_VIEW)
     if error:
         return error
@@ -3092,7 +3157,6 @@ def production_overview_view(request):
         'packaging_production': _packaging_production_overview(),
         'oil_finishing': oil_overview(),
         'oil_manufacturing': manufacturing_overview(),
-        'sorbent_cycle': sorbent_overview(),
         'updated_at': timezone.now().isoformat(),
     })
 
@@ -3916,10 +3980,6 @@ def warehouse_document_cancel_view(request, document_id):
             WarehouseDocument.STATUS_COMPLETED,
         ):
             return JsonResponse({'detail': 'Этот документ нельзя отменить.'}, status=423)
-        if document.production_target == WarehouseDocument.TARGET_SORPTION:
-            from .sorbent import loading_is_in_use
-            if loading_is_in_use(document.pk):
-                return JsonResponse({'detail': 'Нельзя отменить пополнение бака: сначала компенсируйте связанные движения сорбента.'}, status=423)
         if document.production_target and ProductionMaterialUsage.objects.filter(
             source_movement__document=document, output__is_cancelled=False,
         ).exists():
@@ -3953,7 +4013,6 @@ def warehouse_document_cancel_view(request, document_id):
 PRODUCTION_LOADING_CONFIG = {
     WarehouseDocument.TARGET_CANISTERS: (MODULE_CANISTER_LOADING, (InventoryItem.MATERIAL_GRANULES, InventoryItem.MATERIAL_DYE)),
     WarehouseDocument.TARGET_CAPS: (MODULE_CAP_LOADING, (InventoryItem.MATERIAL_GRANULES, InventoryItem.MATERIAL_DYE)),
-    WarehouseDocument.TARGET_SORPTION: (MODULE_SORBENT_LOADING, (InventoryItem.MATERIAL_SORBENT,)),
 }
 
 

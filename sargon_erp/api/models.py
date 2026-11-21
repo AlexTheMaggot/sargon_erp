@@ -159,9 +159,7 @@ class LaboratoryAnalysis(models.Model):
     def is_filled(self):
         return all([
             self.density is not None,
-            self.flash_point_temperature is not None,
             self.current_temperature is not None,
-            self.water_percentage is not None,
         ])
 
     def __str__(self):
@@ -187,7 +185,6 @@ class ProductionContainer(models.Model):
     KIND_PROCESSING_WORKSHOP = 'processing_workshop'
     KIND_RAW_DIESEL_TANK = 'raw_diesel_tank'
     KIND_RAW_SPINDLE_TANK = 'raw_spindle_tank'
-    KIND_SORPTION_SYSTEM = 'sorption_system'
     KIND_FINISHING_MIXER = 'finishing_mixer'
     KIND_FINISHING_FILTER = 'finishing_filter'
     KIND_FINISHED_DIESEL_TANK = 'finished_diesel_tank'
@@ -196,7 +193,7 @@ class ProductionContainer(models.Model):
     KIND_OIL_BLENDER = 'oil_blender'
     KIND_FINISHED_OIL_TANK = 'finished_oil_tank'
     OIL_BATCH_KINDS = (KIND_CONCENTRATE_REACTOR, KIND_OIL_BLENDER)
-    SHARED_OIL_KINDS = (KIND_SORPTION_SYSTEM, KIND_FINISHING_MIXER, KIND_FINISHING_FILTER)
+    SHARED_OIL_KINDS = (KIND_FINISHING_MIXER, KIND_FINISHING_FILTER)
     OIL_PRODUCTS = [('diesel', 'Солярка'), ('spindle', 'Веретенка')]
     KIND_CHOICES = [
         (KIND_RECEIVING_TANK, 'Приёмный бак'),
@@ -206,7 +203,6 @@ class ProductionContainer(models.Model):
         (KIND_PROCESSING_WORKSHOP, 'Цех переработки'),
         (KIND_RAW_DIESEL_TANK, 'Бак сырой солярки'),
         (KIND_RAW_SPINDLE_TANK, 'Бак сырой веретенки'),
-        (KIND_SORPTION_SYSTEM, 'Сорбент-система'),
         (KIND_FINISHING_MIXER, 'Финишный миксер'),
         (KIND_FINISHING_FILTER, 'Финишный фильтр'),
         (KIND_FINISHED_DIESEL_TANK, 'Бак готовой солярки'),
@@ -243,9 +239,9 @@ class ProductionContainer(models.Model):
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(kind__in=['sorption_system', 'finishing_mixer', 'finishing_filter'], current_volume_liters__gt=0, oil_product__in=['diesel', 'spindle'])
-                    | models.Q(kind__in=['sorption_system', 'finishing_mixer', 'finishing_filter'], current_volume_liters=0, oil_product='')
-                    | (~models.Q(kind__in=['sorption_system', 'finishing_mixer', 'finishing_filter']) & models.Q(oil_product=''))
+                    models.Q(kind__in=['finishing_mixer', 'finishing_filter'], current_volume_liters__gt=0, oil_product__in=['diesel', 'spindle'])
+                    | models.Q(kind__in=['finishing_mixer', 'finishing_filter'], current_volume_liters=0, oil_product='')
+                    | (~models.Q(kind__in=['finishing_mixer', 'finishing_filter']) & models.Q(oil_product=''))
                 ),
                 name='production_container_oil_product_valid',
             ),
@@ -274,8 +270,7 @@ class MaterialMovement(models.Model):
     TYPE_CHEMICAL_MIXER_TO_WORKSHOP = 'chemical_mixer_to_workshop'
     TYPE_WORKSHOP_TO_RAW_DIESEL_TANK = 'workshop_to_raw_diesel_tank'
     TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK = 'workshop_to_raw_spindle_tank'
-    TYPE_RAW_TO_SORPTION = 'raw_to_sorption'
-    TYPE_SORPTION_TO_MIXER = 'sorption_to_mixer'
+    TYPE_RAW_TO_FINISHING_MIXER = 'raw_to_finishing_mixer'
     TYPE_MIXER_TO_FILTER = 'mixer_to_filter'
     TYPE_FILTER_TO_FINISHED_TANK = 'filter_to_finished_tank'
     TYPE_SPINDLE_TO_CONCENTRATE = 'spindle_to_concentrate'
@@ -284,7 +279,7 @@ class MaterialMovement(models.Model):
     TYPE_BLENDER_TO_OIL_TANK = 'blender_to_oil_tank'
     TYPE_OIL_FILLING = 'oil_filling'
     OIL_MANUFACTURING_TYPES = (TYPE_SPINDLE_TO_CONCENTRATE, TYPE_SPINDLE_TO_BLENDER, TYPE_CONCENTRATE_TO_BLENDER, TYPE_BLENDER_TO_OIL_TANK, TYPE_OIL_FILLING)
-    OIL_FINISHING_TYPES = (TYPE_RAW_TO_SORPTION, TYPE_SORPTION_TO_MIXER, TYPE_MIXER_TO_FILTER, TYPE_FILTER_TO_FINISHED_TANK)
+    OIL_FINISHING_TYPES = (TYPE_RAW_TO_FINISHING_MIXER, TYPE_MIXER_TO_FILTER, TYPE_FILTER_TO_FINISHED_TANK)
     TYPE_COMPENSATION = 'compensation'
     TYPE_CHOICES = [
         (TYPE_RECEIPT_TO_TANK, 'Поступление из приёмки'),
@@ -295,8 +290,7 @@ class MaterialMovement(models.Model):
         (TYPE_CHEMICAL_MIXER_TO_WORKSHOP, 'Загрузка в цех переработки'),
         (TYPE_WORKSHOP_TO_RAW_DIESEL_TANK, 'Загрузка бака сырой солярки'),
         (TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK, 'Загрузка бака сырой веретенки'),
-        (TYPE_RAW_TO_SORPTION, 'Загрузка масла в сорбент-систему'),
-        (TYPE_SORPTION_TO_MIXER, 'Загрузка финишного миксера'),
+        (TYPE_RAW_TO_FINISHING_MIXER, 'Загрузка финишного миксера'),
         (TYPE_MIXER_TO_FILTER, 'Загрузка финишного фильтра'),
         (TYPE_FILTER_TO_FINISHED_TANK, 'Загрузка бака готовой продукции'),
         (TYPE_SPINDLE_TO_CONCENTRATE, 'Загрузка реактора концентрата'),
@@ -479,13 +473,11 @@ class UnitOfMeasure(models.Model):
 class InventoryItem(models.Model):
     MATERIAL_GRANULES = 'granules'
     MATERIAL_DYE = 'dye'
-    MATERIAL_SORBENT = 'sorbent'
     MATERIAL_POLYPROPYLENE = 'polypropylene'
     MATERIAL_CHOICES = [
         ('', 'Не используется в производственной загрузке'),
         (MATERIAL_GRANULES, 'Гранулы'),
         (MATERIAL_DYE, 'Краситель'),
-        (MATERIAL_SORBENT, 'Сорбент'),
         (MATERIAL_POLYPROPYLENE, 'Полипропилен'),
     ]
     PRODUCT_CHOICES = [('', 'Не является выпускаемой упаковкой'), ('canisters', 'Канистры'), ('caps', 'Крышки')]
@@ -567,12 +559,10 @@ class WarehouseDocumentSequence(models.Model):
 class WarehouseDocument(models.Model):
     TARGET_CANISTERS = 'canisters'
     TARGET_CAPS = 'caps'
-    TARGET_SORPTION = 'sorption'
     TARGET_OIL_CONCENTRATE = 'oil_concentrate'
     PRODUCTION_TARGET_CHOICES = [
         (TARGET_CANISTERS, 'Производство канистр'),
         (TARGET_CAPS, 'Производство крышек'),
-        (TARGET_SORPTION, 'Участок сорбции'),
         (TARGET_OIL_CONCENTRATE, 'Приготовление концентрата'),
     ]
 
@@ -734,43 +724,6 @@ class WarehouseMovement(models.Model):
 
     def __str__(self):
         return f'{self.document} · {self.item}'
-
-
-class SorbentMovement(models.Model):
-    TYPE_TO_SYSTEM = 'tank_to_system'
-    TYPE_TO_REGENERATION = 'system_to_regeneration'
-    TYPE_TO_TANK = 'regeneration_to_tank'
-    TYPE_REVERSAL = 'reversal'
-    TYPE_CHOICES = [
-        (TYPE_TO_SYSTEM, 'Подача сорбента из бака'),
-        (TYPE_TO_REGENERATION, 'Передача сорбента на прогрев и очистку'),
-        (TYPE_TO_TANK, 'Возврат очищенного сорбента в бак'),
-        (TYPE_REVERSAL, 'Компенсация движения сорбента'),
-    ]
-
-    number = models.CharField(max_length=40, unique=True)
-    movement_type = models.CharField(max_length=24, choices=TYPE_CHOICES)
-    source_movement = models.ForeignKey(WarehouseMovement, on_delete=models.PROTECT, related_name='sorbent_movements')
-    system = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, related_name='sorbent_movements')
-    system_snapshot = models.CharField(max_length=180)
-    item_snapshot = models.CharField(max_length=180)
-    quantity = models.DecimalField(max_digits=18, decimal_places=2)
-    note = models.CharField(max_length=1000, blank=True)
-    reversal_of = models.OneToOneField('self', on_delete=models.PROTECT, related_name='reversed_by', null=True, blank=True)
-    idempotency_key = models.CharField(max_length=80, unique=True)
-    created_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, related_name='sorbent_movements', null=True)
-    created_at = models.DateTimeField(default=timezone.now)
-
-    class Meta:
-        ordering = ['-created_at', '-id']
-        constraints = [
-            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='sorbent_movement_quantity_positive'),
-            models.CheckConstraint(
-                condition=models.Q(movement_type='reversal', reversal_of__isnull=False) | models.Q(
-                    movement_type__in=['tank_to_system', 'system_to_regeneration', 'regeneration_to_tank'], reversal_of__isnull=True,
-                ), name='sorbent_movement_reversal_link',
-            ),
-        ]
 
 
 class ProductionOutput(models.Model):

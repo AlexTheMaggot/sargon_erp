@@ -2,7 +2,6 @@ export const oilContainerConfig = {
   concentrate_reactor: { path: 'concentrate-reactors', title: 'Реакторы концентрата', manufacturing: true },
   oil_blender: { path: 'oil-blenders', title: 'Блендинговые смесители', manufacturing: true },
   finished_oil_tank: { path: 'finished-oil-tanks', title: 'Баки товарных масел', manufacturing: true },
-  sorption_system: { path: 'sorption-systems', title: 'Сорбент-системы' },
   finishing_mixer: { path: 'finishing-mixers', title: 'Финишные миксеры' },
   finishing_filter: { path: 'finishing-filters', title: 'Финишные фильтры' },
   finished_diesel_tank: { path: 'finished-diesel-tanks', title: 'Баки готовой солярки' },
@@ -10,14 +9,9 @@ export const oilContainerConfig = {
 }
 
 export const oilFinishingForms = {
-  'sorption-loading': {
-    title: 'Загрузка масла в сорбент-систему',
-    sources: ['raw_diesel_tank', 'raw_spindle_tank'],
-    destinations: ['sorption_system'], movementType: 'raw_to_sorption',
-  },
   'finishing-mixer-loading': {
     title: 'Загрузка финишного миксера',
-    sources: ['sorption_system'], destinations: ['finishing_mixer'], movementType: 'sorption_to_mixer',
+    sources: ['raw_diesel_tank', 'raw_spindle_tank'], destinations: ['finishing_mixer'], movementType: 'raw_to_finishing_mixer',
   },
   'finishing-filter-loading': {
     title: 'Загрузка финишного фильтра',

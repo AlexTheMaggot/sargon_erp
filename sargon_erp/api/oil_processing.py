@@ -10,17 +10,11 @@ from .models import MaterialMovement, ProductionContainer
 
 
 OIL_FINISHING_STEPS = {
-    'sorption-loading': {
-        'title': 'Загрузка масла в сорбент-систему',
-        'sources': (ProductionContainer.KIND_RAW_DIESEL_TANK, ProductionContainer.KIND_RAW_SPINDLE_TANK),
-        'destinations': (ProductionContainer.KIND_SORPTION_SYSTEM,),
-        'movement_type': MaterialMovement.TYPE_RAW_TO_SORPTION,
-    },
     'finishing-mixer-loading': {
         'title': 'Загрузка финишного миксера',
-        'sources': (ProductionContainer.KIND_SORPTION_SYSTEM,),
+        'sources': (ProductionContainer.KIND_RAW_DIESEL_TANK, ProductionContainer.KIND_RAW_SPINDLE_TANK),
         'destinations': (ProductionContainer.KIND_FINISHING_MIXER,),
-        'movement_type': MaterialMovement.TYPE_SORPTION_TO_MIXER,
+        'movement_type': MaterialMovement.TYPE_RAW_TO_FINISHING_MIXER,
     },
     'finishing-filter-loading': {
         'title': 'Загрузка финишного фильтра',
@@ -37,7 +31,6 @@ OIL_FINISHING_STEPS = {
 }
 
 OIL_CONTAINER_PATHS = {
-    'sorption-systems': ProductionContainer.KIND_SORPTION_SYSTEM,
     'finishing-mixers': ProductionContainer.KIND_FINISHING_MIXER,
     'finishing-filters': ProductionContainer.KIND_FINISHING_FILTER,
     'finished-diesel-tanks': ProductionContainer.KIND_FINISHED_DIESEL_TANK,

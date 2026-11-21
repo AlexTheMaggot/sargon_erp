@@ -898,7 +898,7 @@ class ProductionLoadingTests(TestCase):
         self.warehouse = Warehouse.objects.create(name='Склад производства теста')
         self.other_warehouse = Warehouse.objects.create(name='Другой склад теста')
         self.items = {}
-        for material in ('granules', 'dye', 'sorbent'):
+        for material in ('granules', 'dye', 'polypropylene'):
             item = InventoryItem.objects.create(name=f'Материал {material}', category=self.category, unit=self.unit, production_material=material)
             item.permanent_warehouses.add(self.warehouse)
             WarehouseBalance.objects.create(warehouse=self.warehouse, item=item, quantity='100.00', average_unit_cost='200.00')
@@ -949,10 +949,8 @@ class ProductionLoadingTests(TestCase):
         changed = self.send(lines=[{'item_id': self.items['granules'].pk, 'quantity': '11.00'}])
         self.assertEqual(changed.status_code, 409)
 
-    def test_sorbent_and_packaging_materials_cannot_cross_directions(self):
-        self.assertEqual(self.send(target='sorption').status_code, 400)
-        self.assertEqual(self.send(lines=[{'item_id': self.items['sorbent'].pk, 'quantity': '10'}]).status_code, 400)
-        self.assertEqual(self.send(target='sorption', lines=[{'item_id': self.items['sorbent'].pk, 'quantity': '10'}]).status_code, 201)
+    def test_packaging_accepts_only_packaging_materials(self):
+        self.assertEqual(self.send(lines=[{'item_id': self.items['polypropylene'].pk, 'quantity': '10'}]).status_code, 400)
         self.assertEqual(self.send(target='caps', key='caps-test').status_code, 201)
 
     def test_unassigned_warehouse_and_invalid_quantities_are_rejected(self):
