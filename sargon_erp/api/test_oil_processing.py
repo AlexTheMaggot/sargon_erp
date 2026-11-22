@@ -7,7 +7,6 @@ from uuid import uuid4
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections, IntegrityError, transaction
 from django.test import Client, TestCase, TransactionTestCase
-from django.utils import timezone
 
 from .auth import create_access_token
 from .models import AccessGroup, GroupModuleAccess, MaterialMovement, Module, Permission, ProductionContainer, UserProfile
@@ -19,7 +18,7 @@ class OilProcessingFixture:
         self.token = create_access_token(self.admin)
         self.containers = {}
         for kind in (
-            'raw_diesel_tank', 'raw_spindle_tank', 'finishing_mixer',
+            'raw_diesel_tank', 'raw_spindle_tank', 'chemical_mixer', 'finishing_mixer',
             'finishing_filter', 'finished_diesel_tank', 'finished_spindle_tank',
         ):
             self.containers[kind] = ProductionContainer.objects.create(
@@ -43,7 +42,8 @@ class OilProcessingFixture:
     def chain(self, product, volume='100'):
         result = []
         for step, source, destination in (
-            ('finishing-mixer-loading', f'raw_{product}_tank', 'finishing_mixer'),
+            ('chemical-mixer-loading', f'raw_{product}_tank', 'chemical_mixer'),
+            ('finishing-mixer-loading', 'chemical_mixer', 'finishing_mixer'),
             ('finishing-filter-loading', 'finishing_mixer', 'finishing_filter'),
             ('finished-product-loading', 'finishing_filter', f'finished_{product}_tank'),
         ):
@@ -84,43 +84,45 @@ class OilProcessingTests(OilProcessingFixture, TestCase):
             container.refresh_from_db()
             self.assertEqual(container.current_volume_liters, 0)
             self.assertEqual(container.oil_product, '')
-        self.assertEqual(MaterialMovement.objects.count(), 6)
+        self.assertEqual(MaterialMovement.objects.count(), 8)
 
     def test_mixing_is_blocked_while_product_is_anywhere_on_shared_line(self):
-        self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer')
+        self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer')
+        self.post('finishing-mixer-loading', 'chemical_mixer', 'finishing_mixer')
         self.post('finishing-filter-loading', 'finishing_mixer', 'finishing_filter')
-        response = self.post('finishing-mixer-loading', 'raw_spindle_tank', 'finishing_mixer')
+        response = self.post('chemical-mixer-loading', 'raw_spindle_tank', 'chemical_mixer')
         self.assertEqual(response.status_code, 400)
         self.assertIn('линия', response.json()['detail'])
-        self.assertEqual(MaterialMovement.objects.count(), 2)
+        self.assertEqual(MaterialMovement.objects.count(), 3)
         self.containers['raw_spindle_tank'].refresh_from_db()
         self.assertEqual(self.containers['raw_spindle_tank'].current_volume_liters, 500)
 
     def test_invalid_volume_source_overflow_and_wrong_stage_do_not_mutate(self):
         for amount in ('0', '-1', '1.0001', 'NaN', 'Infinity', '1e99999', '501', [], None):
             with self.subTest(amount=amount):
-                self.assertEqual(self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', amount).status_code, 400)
+                self.assertEqual(self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', amount).status_code, 400)
         self.assertEqual(self.post('finishing-filter-loading', 'raw_diesel_tank', 'finishing_filter').status_code, 400)
-        self.containers['finishing_mixer'].capacity_liters = 10
-        self.containers['finishing_mixer'].save()
-        self.assertEqual(self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', '11').status_code, 400)
+        self.containers['chemical_mixer'].capacity_liters = 10
+        self.containers['chemical_mixer'].save()
+        self.assertEqual(self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', '11').status_code, 400)
         self.assertEqual(MaterialMovement.objects.count(), 0)
 
     def test_idempotency_matches_payload_and_operation(self):
-        first = self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', key='oil-duplicate')
-        second = self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', key='oil-duplicate')
-        changed = self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', volume='101', key='oil-duplicate')
+        first = self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', key='oil-duplicate')
+        second = self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', key='oil-duplicate')
+        changed = self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', volume='101', key='oil-duplicate')
         different = self.post('finishing-filter-loading', 'finishing_mixer', 'finishing_filter', key='oil-duplicate')
         self.assertEqual([first.status_code, second.status_code, changed.status_code, different.status_code], [201, 200, 409, 409])
         self.assertEqual(first.json()['id'], second.json()['id'])
         self.assertEqual(MaterialMovement.objects.count(), 1)
 
     def test_finished_tank_kind_cannot_be_swapped(self):
-        self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer')
+        self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer')
+        self.post('finishing-mixer-loading', 'chemical_mixer', 'finishing_mixer')
         self.post('finishing-filter-loading', 'finishing_mixer', 'finishing_filter')
         response = self.post('finished-product-loading', 'finishing_filter', 'finished_spindle_tank')
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(MaterialMovement.objects.count(), 2)
+        self.assertEqual(MaterialMovement.objects.count(), 3)
 
     def test_compensations_reverse_chain_and_preserve_history(self):
         movements = self.chain('diesel')
@@ -131,12 +133,12 @@ class OilProcessingTests(OilProcessingFixture, TestCase):
         self.assertEqual(self.compensate(movements[-1]['id']).status_code, 400)
         self.containers['raw_diesel_tank'].refresh_from_db()
         self.assertEqual(self.containers['raw_diesel_tank'].current_volume_liters, 500)
-        self.assertEqual(MaterialMovement.objects.filter(is_compensated=True).count(), 3)
-        self.assertEqual(MaterialMovement.objects.count(), 6)
+        self.assertEqual(MaterialMovement.objects.filter(is_compensated=True).count(), 4)
+        self.assertEqual(MaterialMovement.objects.count(), 8)
 
     def test_compensation_cannot_return_other_product_into_busy_line(self):
         movements = self.chain('diesel')
-        self.post('finishing-mixer-loading', 'raw_spindle_tank', 'finishing_mixer')
+        self.post('chemical-mixer-loading', 'raw_spindle_tank', 'chemical_mixer')
         self.assertEqual(self.compensate(movements[-1]['id']).status_code, 400)
         self.containers['finished_diesel_tank'].refresh_from_db()
         self.assertEqual(self.containers['finished_diesel_tank'].current_volume_liters, 100)
@@ -144,21 +146,21 @@ class OilProcessingTests(OilProcessingFixture, TestCase):
     def test_read_only_and_single_form_permissions(self):
         operator = get_user_model().objects.create_user('oil-test-operator')
         group = AccessGroup.objects.create(name='Oil test group')
-        module = Module.objects.get(code='finishing-mixer-loading')
+        module = Module.objects.get(code='chemical-mixer-loading')
         access = GroupModuleAccess.objects.create(group=group, module=module)
         access.permissions.add(Permission.objects.get(code='view'))
         UserProfile.objects.filter(user=operator).update(group=group)
         token = create_access_token(operator)
         headers = {'HTTP_AUTHORIZATION': f'Bearer {token}'}
         for path in ('/api/processing/raw-diesel-tanks/', '/api/processing/raw-spindle-tanks/',
-                     '/api/processing/oil-containers/finishing-mixers/', '/api/processing/oil-movements/finishing-mixer-loading/'):
+                     '/api/processing/chemical-mixers/', '/api/processing/oil-movements/chemical-mixer-loading/'):
             self.assertEqual(self.client.get(path, **headers).status_code, 200)
         self.assertEqual(self.client.get('/api/processing/oil-containers/finishing-filters/', **headers).status_code, 403)
-        self.assertEqual(self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', token=token).status_code, 403)
+        self.assertEqual(self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', token=token).status_code, 403)
         access.permissions.add(Permission.objects.get(code='create'))
-        self.assertEqual(self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', token=token).status_code, 201)
+        self.assertEqual(self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', token=token).status_code, 201)
         self.assertEqual(self.post('finishing-filter-loading', 'finishing_mixer', 'finishing_filter', token=token).status_code, 403)
-        self.assertEqual(self.client.post('/api/processing/oil-containers/finishing-mixers/', data='{}', content_type='application/json', **headers).status_code, 403)
+        self.assertEqual(self.client.post('/api/processing/chemical-mixers/', data='{}', content_type='application/json', **headers).status_code, 403)
         self.assertEqual(self.client.get('/api/processing/journal/', **headers).status_code, 403)
 
     def test_container_admin_crud_and_database_product_constraint(self):
@@ -171,30 +173,23 @@ class OilProcessingTests(OilProcessingFixture, TestCase):
             ProductionContainer.objects.filter(pk=self.containers['finishing_mixer'].pk).update(current_volume_liters=1)
 
     def test_inactive_containers_and_malformed_requests_are_rejected(self):
-        self.containers['finishing_mixer'].is_active = False
-        self.containers['finishing_mixer'].save()
-        self.assertEqual(self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer').status_code, 400)
-        url = '/api/processing/oil-movements/finishing-mixer-loading/'
+        self.containers['chemical_mixer'].is_active = False
+        self.containers['chemical_mixer'].save()
+        self.assertEqual(self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer').status_code, 400)
+        url = '/api/processing/oil-movements/chemical-mixer-loading/'
         headers = {'HTTP_AUTHORIZATION': f'Bearer {self.token}'}
         for body in ('[]', 'null', '{'):
             self.assertEqual(self.client.post(url, data=body, content_type='application/json', **headers).status_code, 400)
+        for field in ('source_id', 'destination_id'):
+            for value in (True, 1.5, 'bad', 0, -1, 2 ** 63):
+                with self.subTest(field=field, value=value):
+                    payload = {'source_id': self.containers['raw_diesel_tank'].pk,
+                               'destination_id': self.containers['chemical_mixer'].pk,
+                               'volume_liters': '1', 'idempotency_key': str(uuid4()), field: value}
+                    self.assertEqual(self.client.post(url, data=json.dumps(payload), content_type='application/json', **headers).status_code, 400)
         self.assertEqual(self.client.get(url).status_code, 401)
         self.assertEqual(self.client.patch(url, **headers).status_code, 405)
         self.assertEqual(MaterialMovement.objects.count(), 0)
-
-    def test_separator_overview_excludes_cancelled_discharge(self):
-        MaterialMovement.objects.create(
-            movement_number='water-actual', movement_type=MaterialMovement.TYPE_SEPARATOR_OUTPUT,
-            product_name=MaterialMovement.PRODUCT_TECHNICAL_WATER, volume_liters='12.250', moved_at=timezone.now(),
-        )
-        MaterialMovement.objects.create(
-            movement_number='water-cancelled', movement_type=MaterialMovement.TYPE_SEPARATOR_OUTPUT,
-            product_name=MaterialMovement.PRODUCT_TECHNICAL_WATER, volume_liters='5', is_compensated=True,
-        )
-        response = self.client.get('/api/dashboard/overview/', HTTP_AUTHORIZATION=f'Bearer {self.token}')
-        self.assertEqual(response.json()['oil_finishing']['separator_outputs']['water'], {
-            'today_liters': '12.250', 'total_liters': '12.250',
-        })
 
     def test_overview_and_paginated_history_are_real(self):
         self.chain('diesel')
@@ -204,8 +199,8 @@ class OilProcessingTests(OilProcessingFixture, TestCase):
         self.assertEqual(data['finished_spindle_tank']['current_volume_liters'], '0.000')
         self.assertEqual(data['finishing_mixer']['items'][0]['oil_product'], '')
         for index in range(11):
-            self.assertEqual(self.post('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', '1', key=f'page-{index}').status_code, 201)
-        history = self.client.get('/api/processing/oil-movements/finishing-mixer-loading/?page=2', **headers).json()
+            self.assertEqual(self.post('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', '1', key=f'page-{index}').status_code, 201)
+        history = self.client.get('/api/processing/oil-movements/chemical-mixer-loading/?page=2', **headers).json()
         self.assertEqual(history['total'], 12)
         self.assertEqual(len(history['items']), 2)
 
@@ -229,11 +224,11 @@ class ConcurrentOilProcessingTests(OilProcessingFixture, TransactionTestCase):
 
     def test_simultaneous_different_products_cannot_occupy_line(self):
         self.containers['mixer_other'] = ProductionContainer.objects.create(
-            kind='finishing_mixer', number=100, system_code='oil-test-other-mixer', capacity_liters=1000,
+            kind='chemical_mixer', number=100, system_code='oil-test-other-mixer', capacity_liters=1000,
         )
         statuses = self.parallel([
-            ('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', '100', 'parallel-diesel'),
-            ('finishing-mixer-loading', 'raw_spindle_tank', 'mixer_other', '100', 'parallel-spindle'),
+            ('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', '100', 'parallel-diesel'),
+            ('chemical-mixer-loading', 'raw_spindle_tank', 'mixer_other', '100', 'parallel-spindle'),
         ])
         self.assertEqual(statuses, [201, 400])
         self.assertEqual(MaterialMovement.objects.count(), 1)
@@ -242,7 +237,7 @@ class ConcurrentOilProcessingTests(OilProcessingFixture, TransactionTestCase):
         movements = self.chain('diesel')
         statuses = self.parallel([
             ('compensate', movements[-1]['id']),
-            ('finishing-mixer-loading', 'raw_spindle_tank', 'finishing_mixer', '100', 'parallel-after-compensation'),
+            ('chemical-mixer-loading', 'raw_spindle_tank', 'chemical_mixer', '100', 'parallel-after-compensation'),
         ])
         self.assertEqual(statuses, [201, 400])
         products = set(ProductionContainer.objects.filter(
@@ -251,11 +246,11 @@ class ConcurrentOilProcessingTests(OilProcessingFixture, TransactionTestCase):
         self.assertEqual(len(products), 1)
 
     def test_concurrent_duplicate_and_overdraw(self):
-        request = ('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', '400', 'parallel-duplicate')
+        request = ('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', '400', 'parallel-duplicate')
         self.assertEqual(self.parallel([request, request]), [200, 201])
         self.assertEqual(self.parallel([
-            ('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', '75', 'parallel-first'),
-            ('finishing-mixer-loading', 'raw_diesel_tank', 'finishing_mixer', '75', 'parallel-second'),
+            ('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', '75', 'parallel-first'),
+            ('chemical-mixer-loading', 'raw_diesel_tank', 'chemical_mixer', '75', 'parallel-second'),
         ]), [201, 400])
         self.containers['raw_diesel_tank'].refresh_from_db()
         self.assertEqual(self.containers['raw_diesel_tank'].current_volume_liters, 25)

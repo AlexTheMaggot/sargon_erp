@@ -180,7 +180,6 @@ class OilGrade(models.Model):
 class ProductionContainer(models.Model):
     KIND_RECEIVING_TANK = 'receiving_tank'
     KIND_PREHEATING_BOILER = 'preheating_boiler'
-    KIND_SEPARATOR = 'separator'
     KIND_CHEMICAL_MIXER = 'chemical_mixer'
     KIND_PROCESSING_WORKSHOP = 'processing_workshop'
     KIND_RAW_DIESEL_TANK = 'raw_diesel_tank'
@@ -193,12 +192,11 @@ class ProductionContainer(models.Model):
     KIND_OIL_BLENDER = 'oil_blender'
     KIND_FINISHED_OIL_TANK = 'finished_oil_tank'
     OIL_BATCH_KINDS = (KIND_CONCENTRATE_REACTOR, KIND_OIL_BLENDER)
-    SHARED_OIL_KINDS = (KIND_FINISHING_MIXER, KIND_FINISHING_FILTER)
+    SHARED_OIL_KINDS = (KIND_CHEMICAL_MIXER, KIND_FINISHING_MIXER, KIND_FINISHING_FILTER)
     OIL_PRODUCTS = [('diesel', 'Солярка'), ('spindle', 'Веретенка')]
     KIND_CHOICES = [
         (KIND_RECEIVING_TANK, 'Приёмный бак'),
         (KIND_PREHEATING_BOILER, 'Котёл первичного прогрева'),
-        (KIND_SEPARATOR, 'Сепаратор'),
         (KIND_CHEMICAL_MIXER, 'Химический миксер'),
         (KIND_PROCESSING_WORKSHOP, 'Цех переработки'),
         (KIND_RAW_DIESEL_TANK, 'Бак сырой солярки'),
@@ -239,9 +237,9 @@ class ProductionContainer(models.Model):
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(kind__in=['finishing_mixer', 'finishing_filter'], current_volume_liters__gt=0, oil_product__in=['diesel', 'spindle'])
-                    | models.Q(kind__in=['finishing_mixer', 'finishing_filter'], current_volume_liters=0, oil_product='')
-                    | (~models.Q(kind__in=['finishing_mixer', 'finishing_filter']) & models.Q(oil_product=''))
+                    models.Q(kind__in=['chemical_mixer', 'finishing_mixer', 'finishing_filter'], current_volume_liters__gt=0, oil_product__in=['diesel', 'spindle'])
+                    | models.Q(kind__in=['chemical_mixer', 'finishing_mixer', 'finishing_filter'], current_volume_liters=0, oil_product='')
+                    | (~models.Q(kind__in=['chemical_mixer', 'finishing_mixer', 'finishing_filter']) & models.Q(oil_product=''))
                 ),
                 name='production_container_oil_product_valid',
             ),
@@ -264,9 +262,10 @@ class ProductionContainer(models.Model):
 class MaterialMovement(models.Model):
     TYPE_RECEIPT_TO_TANK = 'receipt_to_tank'
     TYPE_TANK_TO_BOILER = 'tank_to_boiler'
-    TYPE_BOILER_TO_SEPARATOR = 'boiler_to_separator'
-    TYPE_SEPARATOR_OUTPUT = 'separator_output'
-    TYPE_SEPARATOR_TO_CHEMICAL_MIXER = 'separator_to_chemical_mixer'
+    TYPE_BOILER_TO_WORKSHOP = 'boiler_to_workshop'
+    TYPE_RAW_TO_CHEMICAL_MIXER = 'raw_to_chemical_mixer'
+    TYPE_CHEMICAL_TO_FINISHING_MIXER = 'chemical_to_finishing_mixer'
+    TYPE_BOILER_TO_CHEMICAL_MIXER = 'boiler_to_chemical_mixer'
     TYPE_CHEMICAL_MIXER_TO_WORKSHOP = 'chemical_mixer_to_workshop'
     TYPE_WORKSHOP_TO_RAW_DIESEL_TANK = 'workshop_to_raw_diesel_tank'
     TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK = 'workshop_to_raw_spindle_tank'
@@ -279,18 +278,19 @@ class MaterialMovement(models.Model):
     TYPE_BLENDER_TO_OIL_TANK = 'blender_to_oil_tank'
     TYPE_OIL_FILLING = 'oil_filling'
     OIL_MANUFACTURING_TYPES = (TYPE_SPINDLE_TO_CONCENTRATE, TYPE_SPINDLE_TO_BLENDER, TYPE_CONCENTRATE_TO_BLENDER, TYPE_BLENDER_TO_OIL_TANK, TYPE_OIL_FILLING)
-    OIL_FINISHING_TYPES = (TYPE_RAW_TO_FINISHING_MIXER, TYPE_MIXER_TO_FILTER, TYPE_FILTER_TO_FINISHED_TANK)
+    OIL_FINISHING_TYPES = (TYPE_RAW_TO_CHEMICAL_MIXER, TYPE_CHEMICAL_TO_FINISHING_MIXER, TYPE_RAW_TO_FINISHING_MIXER, TYPE_MIXER_TO_FILTER, TYPE_FILTER_TO_FINISHED_TANK)
     TYPE_COMPENSATION = 'compensation'
     TYPE_CHOICES = [
         (TYPE_RECEIPT_TO_TANK, 'Поступление из приёмки'),
         (TYPE_TANK_TO_BOILER, 'Загрузка котла'),
-        (TYPE_BOILER_TO_SEPARATOR, 'Загрузка сепаратора'),
-        (TYPE_SEPARATOR_OUTPUT, 'Отгрузка сепаратора'),
-        (TYPE_SEPARATOR_TO_CHEMICAL_MIXER, 'Загрузка химического миксера'),
-        (TYPE_CHEMICAL_MIXER_TO_WORKSHOP, 'Загрузка в цех переработки'),
+        (TYPE_BOILER_TO_WORKSHOP, 'Загрузка в цех переработки'),
+        (TYPE_RAW_TO_CHEMICAL_MIXER, 'Загрузка химического миксера'),
+        (TYPE_CHEMICAL_TO_FINISHING_MIXER, 'Загрузка финишного миксера'),
+        (TYPE_BOILER_TO_CHEMICAL_MIXER, 'Загрузка химического миксера (прежний маршрут)'),
+        (TYPE_CHEMICAL_MIXER_TO_WORKSHOP, 'Загрузка в цех переработки (прежний маршрут)'),
         (TYPE_WORKSHOP_TO_RAW_DIESEL_TANK, 'Загрузка бака сырой солярки'),
         (TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK, 'Загрузка бака сырой веретенки'),
-        (TYPE_RAW_TO_FINISHING_MIXER, 'Загрузка финишного миксера'),
+        (TYPE_RAW_TO_FINISHING_MIXER, 'Загрузка финишного миксера (прежний маршрут)'),
         (TYPE_MIXER_TO_FILTER, 'Загрузка финишного фильтра'),
         (TYPE_FILTER_TO_FINISHED_TANK, 'Загрузка бака готовой продукции'),
         (TYPE_SPINDLE_TO_CONCENTRATE, 'Загрузка реактора концентрата'),
@@ -300,9 +300,6 @@ class MaterialMovement(models.Model):
         (TYPE_OIL_FILLING, 'Розлив товарного масла'),
         (TYPE_COMPENSATION, 'Компенсирующее движение'),
     ]
-
-    PRODUCT_TECHNICAL_WATER = 'Техническая вода'
-    PRODUCT_TECHNICAL_WASTE = 'Технический мусор'
 
     STATUS_CONFIRMED = 'confirmed'
     STATUS_CHOICES = [

@@ -1,20 +1,24 @@
 from decimal import Decimal, InvalidOperation
 
 from django.db import connection, IntegrityError, transaction
-from django.db.models import Sum
 from django.http import JsonResponse
-from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import MaterialMovement, ProductionContainer
 
 
 OIL_FINISHING_STEPS = {
+    'chemical-mixer-loading': {
+        'title': 'Загрузка химического миксера',
+        'sources': (ProductionContainer.KIND_RAW_DIESEL_TANK, ProductionContainer.KIND_RAW_SPINDLE_TANK),
+        'destinations': (ProductionContainer.KIND_CHEMICAL_MIXER,),
+        'movement_type': MaterialMovement.TYPE_RAW_TO_CHEMICAL_MIXER,
+    },
     'finishing-mixer-loading': {
         'title': 'Загрузка финишного миксера',
-        'sources': (ProductionContainer.KIND_RAW_DIESEL_TANK, ProductionContainer.KIND_RAW_SPINDLE_TANK),
+        'sources': (ProductionContainer.KIND_CHEMICAL_MIXER,),
         'destinations': (ProductionContainer.KIND_FINISHING_MIXER,),
-        'movement_type': MaterialMovement.TYPE_RAW_TO_FINISHING_MIXER,
+        'movement_type': MaterialMovement.TYPE_CHEMICAL_TO_FINISHING_MIXER,
     },
     'finishing-filter-loading': {
         'title': 'Загрузка финишного фильтра',
@@ -31,6 +35,7 @@ OIL_FINISHING_STEPS = {
 }
 
 OIL_CONTAINER_PATHS = {
+    'chemical-mixers': ProductionContainer.KIND_CHEMICAL_MIXER,
     'finishing-mixers': ProductionContainer.KIND_FINISHING_MIXER,
     'finishing-filters': ProductionContainer.KIND_FINISHING_FILTER,
     'finished-diesel-tanks': ProductionContainer.KIND_FINISHED_DIESEL_TANK,
@@ -131,8 +136,13 @@ def oil_movements_view(request, step):
     if not isinstance(body, dict):
         return _invalid_json_body()
     try:
-        source_id = int(body.get('source_id'))
-        destination_id = int(body.get('destination_id'))
+        source_value = str(body.get('source_id', '')).strip()
+        destination_value = str(body.get('destination_id', '')).strip()
+        if not source_value.isdecimal() or not destination_value.isdecimal():
+            raise ValueError
+        source_id, destination_id = int(source_value), int(destination_value)
+        if not 0 < source_id < 2 ** 63 or not 0 < destination_id < 2 ** 63:
+            raise ValueError
         volume = Decimal(str(body.get('volume_liters')))
         if not volume.is_finite() or not 0 < volume <= Decimal('99999999999.999') or volume != volume.quantize(Decimal('0.001')):
             raise ValueError
@@ -192,12 +202,4 @@ def oil_overview():
         for item in items:
             item['oil_product'] = products[item['id']]
         result[kind] = {**_overview_container_totals(kind), 'items': items}
-    today = timezone.localdate()
-    result['separator_outputs'] = {}
-    for code, name in [('water', MaterialMovement.PRODUCT_TECHNICAL_WATER), ('waste', MaterialMovement.PRODUCT_TECHNICAL_WASTE)]:
-        movements = MaterialMovement.objects.filter(movement_type=MaterialMovement.TYPE_SEPARATOR_OUTPUT, product_name=name, is_compensated=False)
-        result['separator_outputs'][code] = {
-            'today_liters': str(movements.filter(moved_at__date=today).aggregate(total=Sum('volume_liters'))['total'] or Decimal('0.000')),
-            'total_liters': str(movements.aggregate(total=Sum('volume_liters'))['total'] or Decimal('0.000')),
-        }
     return result

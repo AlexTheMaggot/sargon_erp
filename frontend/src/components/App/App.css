@@ -1100,18 +1100,7 @@ button:disabled {
   gap: 8px;
 }
 
-.separator-output-options {
-  border: 0;
-  margin: 0;
-  padding: 0;
-}
 
-.separator-output-options legend {
-  color: #315344;
-  font-size: 14px;
-  font-weight: 800;
-  margin-bottom: 8px;
-}
 
 .filter-pills label,
 .unit-radio-group label {
@@ -1646,13 +1635,7 @@ button:disabled {
   background: #0f8a61;
 }
 
-.legend-line--water {
-  background: #1686c4;
-}
 
-.legend-line--waste {
-  background: #7b8580;
-}
 
 
 .legend-status {
@@ -1759,13 +1742,7 @@ button:disabled {
   border-top-color: #4d7fc7;
 }
 
-.process-node--water {
-  border-top-color: #1686c4;
-}
 
-.process-node--waste {
-  border-top-color: #7b8580;
-}
 
 
 .process-node--finished {
@@ -1806,15 +1783,7 @@ button:disabled {
   color: #315e9e;
 }
 
-.process-node-icon--water {
-  background: #e0f2fe;
-  color: #0873ad;
-}
 
-.process-node-icon--waste {
-  background: #ecefed;
-  color: #59635e;
-}
 
 
 .process-node-icon--finished {
@@ -1856,15 +1825,7 @@ button:disabled {
   box-shadow: 0 0 0 3px rgba(77, 127, 199, 0.12);
 }
 
-.process-node--water .process-node-status i {
-  background: #1686c4;
-  box-shadow: 0 0 0 3px rgba(22, 134, 196, 0.12);
-}
 
-.process-node--waste .process-node-status i {
-  background: #7b8580;
-  box-shadow: 0 0 0 3px rgba(123, 133, 128, 0.12);
-}
 
 
 .process-node--finished .process-node-status i {
@@ -2022,70 +1983,15 @@ button:disabled {
   fill: #16815d;
 }
 
-.separator-stage {
-  display: grid;
-  align-content: center;
-  gap: 16px;
-}
 
-.separator-stage {
-  align-self: stretch;
-}
 
-.separator-stage > .process-node {
-  width: 222px;
-  margin: auto;
-}
 
-.separator-byproducts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
 
-.byproduct-branch {
-  position: relative;
-  padding-top: 37px;
-}
 
-.byproduct-branch::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 2px;
-  height: 28px;
-  background: currentColor;
-}
 
-.byproduct-branch::after {
-  content: '';
-  position: absolute;
-  top: 20px;
-  left: calc(50% - 4px);
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(45deg);
-}
 
-.byproduct-branch > span {
-  position: absolute;
-  top: 7px;
-  left: calc(50% + 8px);
-  font-size: 8px;
-  font-weight: 850;
-  text-transform: uppercase;
-}
 
-.byproduct-branch--water {
-  color: #1686c4;
-}
 
-.byproduct-branch--waste {
-  color: #7b8580;
-}
 
 
 
@@ -2155,15 +2061,7 @@ button:disabled {
   color: #315e9e;
 }
 
-.process-detail-status--water {
-  background: #e0f2fe;
-  color: #0873ad;
-}
 
-.process-detail-status--waste {
-  background: #ecefed;
-  color: #59635e;
-}
 
 
 .process-detail-status--finished {
@@ -2242,21 +2140,11 @@ button:disabled {
   display: grid;
   align-items: center;
   grid-template-columns:
-    minmax(0, 1fr) 58px minmax(0, 1fr) 58px
-    minmax(0, 1fr) 58px minmax(0, 1fr);
+    minmax(0, 1fr) 90px minmax(0, 1fr) 90px minmax(0, 1.35fr);
   min-height: 176px;
 }
 
-.snake-row--forward:not(.snake-row--final) {
-  grid-template-columns:
-    205px 46px 205px 46px 205px 46px minmax(330px, 1fr);
-}
 
-.snake-row--reverse,
-.snake-row--final {
-  grid-template-columns:
-    minmax(0, 1fr) 90px minmax(0, 1fr) 90px minmax(0, 1.35fr);
-}
 
 .process-snake .process-node--compact {
   min-height: 134px;
@@ -2327,22 +2215,18 @@ button:disabled {
   line-height: 1.15;
 }
 
-.snake-separator {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
 
-.snake-separator {
-  grid-template-columns: minmax(190px, 1.35fr) minmax(120px, 0.85fr);
-  align-items: stretch;
-}
 
-.separator-outlets {
-  display: grid;
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
+
+
+
+
+
+
+
+
+
+
 
 .process-outlet {
   display: flex;
@@ -2384,18 +2268,10 @@ button:disabled {
   font-size: 9px;
 }
 
-.process-outlet--water {
-  border-left-color: #1686c4;
-  color: #0873ad;
+.oil-blending-feeds .process-outlet--material {
+  border-left-color: #d3911b;
+  color: #95630b;
 }
-
-.process-outlet--waste {
-  border-left-color: #7b8580;
-  color: #59635e;
-}
-
-
-
 
 .snake-turn {
   position: relative;
@@ -2712,10 +2588,6 @@ button:disabled {
   padding-bottom: 2px;
 }
 
-.oil-blending-feeds .process-outlet--material {
-  border-left-color: #d3911b;
-  color: #95630b;
-}
 
 .oil-blenders {
   display: grid;
@@ -2860,14 +2732,10 @@ button:disabled {
   }
 
   .snake-row > .process-node,
-  .snake-row > .compact-node-group,
-  .snake-separator {
+  .snake-row > .compact-node-group {
     width: min(100%, 520px);
   }
 
-  .snake-separator {
-    grid-template-columns: minmax(0, 1.35fr) minmax(120px, 0.85fr);
-  }
 
   .process-snake .process-arrow {
     width: 100%;
@@ -3081,14 +2949,7 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .snake-separator {
-    grid-template-columns: 1fr;
-  }
 
-  .separator-outlets {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: none;
-  }
 
   .oil-production-header {
     padding: 20px;

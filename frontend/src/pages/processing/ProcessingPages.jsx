@@ -67,7 +67,7 @@ function createIdempotencyKey() {
 
 function ContainerPage({ kind, onLogout, token, user }) {
   const isAdmin = Boolean(user?.is_admin)
-  const { boilers, chemicalMixers, deleteContainer, error, oilContainers, oilGrades, processingWorkshops, rawDieselTanks, rawSpindleTanks, receivingTanks, saveContainer, separators } = useProcessingCrud(token, { containerKinds: [kind], loadOilGrades: kind === 'finished_oil_tank' })
+  const { boilers, chemicalMixers, deleteContainer, error, oilContainers, oilGrades, processingWorkshops, rawDieselTanks, rawSpindleTanks, receivingTanks, saveContainer } = useProcessingCrud(token, { containerKinds: [kind], loadOilGrades: kind === 'finished_oil_tank' })
   const pageConfig = {
     receiving_tank: {
       containers: receivingTanks,
@@ -78,11 +78,6 @@ function ContainerPage({ kind, onLogout, token, user }) {
       containers: boilers,
       description: t('Учёт загрузки котлов первичного прогрева без запуска и параметров прогрева.'),
       title: t('Котлы первичного прогрева'),
-    },
-    separator: {
-      containers: separators,
-      description: t('Учёт вместимости, текущего объёма и доступности сепараторов.'),
-      title: t('Сепараторы'),
     },
     chemical_mixer: {
       containers: chemicalMixers,
@@ -260,10 +255,6 @@ export function PreheatingBoilersPage(props) {
   return <ContainerPage {...props} kind="preheating_boiler" />
 }
 
-export function SeparatorsPage(props) {
-  return <ContainerPage {...props} kind="separator" />
-}
-
 export function ChemicalMixersPage(props) {
   return <ContainerPage {...props} kind="chemical_mixer" />
 }
@@ -437,336 +428,22 @@ export function BoilerLoadingPage({ onLogout, token, user }) {
   )
 }
 
-export function SeparatorLoadingPage({ onLogout, token, user }) {
-  const { boilers, createBoilerToSeparatorMovement, error, separators } = useProcessingCrud(token, { containerKinds: ['preheating_boiler', 'separator'] })
+export function WorkshopLoadingPage({ onLogout, token, user }) {
+  const { boilers, processingWorkshops, createWorkshopLoading, error } = useProcessingCrud(token, { containerKinds: ['preheating_boiler', 'processing_workshop'] })
   const [form, setForm] = useState(() => ({
     source_boiler_id: '',
-    destination_separator_id: '',
-    volume_liters: '',
-    idempotency_key: createIdempotencyKey(),
-  }))
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [createdMovement, setCreatedMovement] = useState(null)
-  const availableBoilers = boilers.filter((boiler) => boiler.is_active && Number(boiler.current_volume_liters) > 0)
-  const availableSeparators = separators.filter((separator) => separator.is_active && separator.can_receive)
-  const selectedBoiler = boilers.find((boiler) => String(boiler.id) === String(form.source_boiler_id))
-  const selectedSeparator = separators.find((separator) => String(separator.id) === String(form.destination_separator_id))
-  const volume = Number(form.volume_liters)
-  const sourceVolume = Number(selectedBoiler?.current_volume_liters || 0)
-  const destinationVolume = Number(selectedSeparator?.current_volume_liters || 0)
-  const destinationFreeVolume = selectedSeparator?.free_volume_liters === undefined
-    ? null
-    : Number(selectedSeparator.free_volume_liters)
-  const hasPositiveVolume = Number.isFinite(volume) && volume > 0
-  const exceedsSource = hasPositiveVolume && volume > sourceVolume
-  const exceedsDestination = hasPositiveVolume && destinationFreeVolume !== null && volume > destinationFreeVolume
-  const canSubmit = Boolean(selectedBoiler && selectedSeparator && hasPositiveVolume && !exceedsSource && !exceedsDestination && !isSubmitting)
-
-  async function handleSubmit(event) {
-    event.preventDefault()
-    if (!canSubmit) {
-      return
-    }
-
-    setIsSubmitting(true)
-    setCreatedMovement(null)
-    const movement = await createBoilerToSeparatorMovement(form)
-    setIsSubmitting(false)
-    if (movement?.id) {
-      setCreatedMovement(movement)
-      setForm((current) => ({
-        ...current,
-        volume_liters: '',
-        idempotency_key: createIdempotencyKey(),
-      }))
-    }
-  }
-
-  return (
-    <DashboardShell title={t('Загрузка сепаратора')} onLogout={onLogout} user={user}>
-      <ProcessingPageHeader
-        title={t('Загрузка сепаратора')}
-        description={t('Регистрация движения отработанного масла из котла первичного прогрева в сепаратор.')}
-      />
-
-      {error && <p className="access-error">{t(error)}</p>}
-
-      <section className="boiler-loading-layout">
-        <article className="access-card boiler-loading-form-card">
-          <div className="panel-heading">
-            <div>
-              <p className="auth-eyebrow">{t('Новое движение')}</p>
-              <h3>{t('Выберите котёл, сепаратор и объём')}</h3>
-            </div>
-          </div>
-
-          <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
-            <label>
-              <span>{t('Котёл первичного прогрева')}</span>
-              <select required value={form.source_boiler_id} onChange={(event) => setForm({ ...form, source_boiler_id: event.target.value })}>
-                <option value="">{t('Выберите котёл')}</option>
-                {availableBoilers.map((boiler) => (
-                  <option key={boiler.id} value={boiler.id}>{t(boiler.name)}{t(' · доступно ')}{formatVolume(boiler.current_volume_liters)}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              <span>{t('Сепаратор')}</span>
-              <select required value={form.destination_separator_id} onChange={(event) => setForm({ ...form, destination_separator_id: event.target.value })}>
-                <option value="">{t('Выберите сепаратор')}</option>
-                {availableSeparators.map((separator) => (
-                  <option key={separator.id} value={separator.id}>{t(separator.name)}{t(' · сейчас ')}{formatVolume(separator.current_volume_liters)}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              <span>{t('Объём движения, л')}</span>
-              <input
-                min="0.001"
-                placeholder="0.000"
-                required
-                step="0.001"
-                type="number"
-                value={form.volume_liters}
-                onChange={(event) => setForm({ ...form, volume_liters: event.target.value })}
-              />
-            </label>
-
-            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного котла.')}</p>}
-            {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место сепаратора.')}</p>}
-            {!availableBoilers.length && <p className="empty-state">{t('Нет активных котлов с доступным маслом.')}</p>}
-            {!availableSeparators.length && <p className="empty-state">{t('Нет активных сепараторов, доступных для загрузки.')}</p>}
-
-            <div className="form-actions">
-              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить движение')}</button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => {
-                  setCreatedMovement(null)
-                  setForm({
-                    source_boiler_id: '',
-                    destination_separator_id: '',
-                    volume_liters: '',
-                    idempotency_key: createIdempotencyKey(),
-                  })
-                }}
-              >{t('Очистить')}</button>
-            </div>
-          </form>
-        </article>
-
-        <aside className="boiler-loading-summary">
-          <article className="access-card movement-preview-card">
-            <p className="auth-eyebrow">{t('Предварительный баланс')}</p>
-            <h3>{t('После движения')}</h3>
-            <div className="movement-preview-grid">
-              <div>
-                <span>{t('Котёл')}</span>
-                <strong>{t(selectedBoiler?.name) || t('Не выбран')}</strong>
-                <small>{t('Сейчас: ')}{formatVolume(selectedBoiler?.current_volume_liters)}</small>
-                <small>{t('Останется: ')}{selectedBoiler && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
-              </div>
-              <span aria-hidden="true" className="movement-preview-arrow">→</span>
-              <div>
-                <span>{t('Сепаратор')}</span>
-                <strong>{t(selectedSeparator?.name) || t('Не выбран')}</strong>
-                <small>{t('Сейчас: ')}{formatVolume(selectedSeparator?.current_volume_liters)}</small>
-                <small>{t('Будет: ')}{selectedSeparator && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
-              </div>
-            </div>
-          </article>
-
-          {createdMovement && (
-            <article className="access-card movement-success-card">
-              <p className="auth-eyebrow">{t('Движение выполнено')}</p>
-              <h3>{createdMovement.movement_number}</h3>
-              <span>{t(createdMovement.source)} → {t(createdMovement.destination)}</span>
-              <strong>{formatVolume(createdMovement.volume_liters)}</strong>
-              <small>{formatDateTime(createdMovement.moved_at)}</small>
-            </article>
-          )}
-        </aside>
-      </section>
-    </DashboardShell>
-  )
-}
-
-export function ChemicalMixerLoadingPage({ onLogout, token, user }) {
-  const { chemicalMixers, createChemicalMixerLoading, error, separators } = useProcessingCrud(token, { containerKinds: ['separator', 'chemical_mixer'] })
-  const [form, setForm] = useState(() => ({
-    source_separator_id: '',
-    destination_mixer_id: '',
-    volume_liters: '',
-    idempotency_key: createIdempotencyKey(),
-  }))
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [createdMovement, setCreatedMovement] = useState(null)
-  const availableSeparators = separators.filter((separator) => separator.is_active && Number(separator.current_volume_liters) > 0)
-  const availableMixers = chemicalMixers.filter((mixer) => mixer.is_active && mixer.can_receive)
-  const selectedSeparator = separators.find((separator) => String(separator.id) === String(form.source_separator_id))
-  const selectedMixer = chemicalMixers.find((mixer) => String(mixer.id) === String(form.destination_mixer_id))
-  const volume = Number(form.volume_liters)
-  const sourceVolume = Number(selectedSeparator?.current_volume_liters || 0)
-  const destinationVolume = Number(selectedMixer?.current_volume_liters || 0)
-  const destinationFreeVolume = selectedMixer?.free_volume_liters === undefined
-    ? null
-    : Number(selectedMixer.free_volume_liters)
-  const hasPositiveVolume = Number.isFinite(volume) && volume > 0
-  const exceedsSource = hasPositiveVolume && volume > sourceVolume
-  const exceedsDestination = hasPositiveVolume && destinationFreeVolume !== null && volume > destinationFreeVolume
-  const canSubmit = Boolean(selectedSeparator && selectedMixer && hasPositiveVolume && !exceedsSource && !exceedsDestination && !isSubmitting)
-
-  async function handleSubmit(event) {
-    event.preventDefault()
-    if (!canSubmit) {
-      return
-    }
-
-    setIsSubmitting(true)
-    setCreatedMovement(null)
-    const movement = await createChemicalMixerLoading(form)
-    setIsSubmitting(false)
-    if (movement?.id) {
-      setCreatedMovement(movement)
-      setForm((current) => ({
-        ...current,
-        volume_liters: '',
-        idempotency_key: createIdempotencyKey(),
-      }))
-    }
-  }
-
-  return (
-    <DashboardShell title={t('Загрузка химического миксера')} onLogout={onLogout} user={user}>
-      <ProcessingPageHeader
-        title={t('Загрузка химического миксера')}
-        description={t('Регистрация движения очищенного отработанного масла из сепаратора в химический миксер.')}
-      />
-
-      {error && <p className="access-error">{t(error)}</p>}
-
-      <section className="boiler-loading-layout">
-        <article className="access-card boiler-loading-form-card">
-          <div className="panel-heading">
-            <div>
-              <p className="auth-eyebrow">{t('Новое движение')}</p>
-              <h3>{t('Выберите сепаратор, миксер и объём')}</h3>
-            </div>
-          </div>
-
-          <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
-            <label>
-              <span>{t('Сепаратор')}</span>
-              <select required value={form.source_separator_id} onChange={(event) => setForm({ ...form, source_separator_id: event.target.value })}>
-                <option value="">{t('Выберите сепаратор')}</option>
-                {availableSeparators.map((separator) => (
-                  <option key={separator.id} value={separator.id}>{t(separator.name)}{t(' · доступно ')}{formatVolume(separator.current_volume_liters)}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              <span>{t('Химический миксер')}</span>
-              <select required value={form.destination_mixer_id} onChange={(event) => setForm({ ...form, destination_mixer_id: event.target.value })}>
-                <option value="">{t('Выберите химический миксер')}</option>
-                {availableMixers.map((mixer) => (
-                  <option key={mixer.id} value={mixer.id}>{t(mixer.name)}{t(' · сейчас ')}{formatVolume(mixer.current_volume_liters)}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              <span>{t('Объём движения, л')}</span>
-              <input
-                min="0.001"
-                placeholder="0.000"
-                required
-                step="0.001"
-                type="number"
-                value={form.volume_liters}
-                onChange={(event) => setForm({ ...form, volume_liters: event.target.value })}
-              />
-            </label>
-
-            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного сепаратора.')}</p>}
-            {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место химического миксера.')}</p>}
-            {!availableSeparators.length && <p className="empty-state">{t('Нет активных сепараторов с доступным маслом.')}</p>}
-            {!availableMixers.length && <p className="empty-state">{t('Нет активных химических миксеров, доступных для загрузки.')}</p>}
-
-            <div className="form-actions">
-              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить движение')}</button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => {
-                  setCreatedMovement(null)
-                  setForm({
-                    source_separator_id: '',
-                    destination_mixer_id: '',
-                    volume_liters: '',
-                    idempotency_key: createIdempotencyKey(),
-                  })
-                }}
-              >{t('Очистить')}</button>
-            </div>
-          </form>
-        </article>
-
-        <aside className="boiler-loading-summary">
-          <article className="access-card movement-preview-card">
-            <p className="auth-eyebrow">{t('Предварительный баланс')}</p>
-            <h3>{t('После движения')}</h3>
-            <div className="movement-preview-grid">
-              <div>
-                <span>{t('Сепаратор')}</span>
-                <strong>{t(selectedSeparator?.name) || t('Не выбран')}</strong>
-                <small>{t('Сейчас: ')}{formatVolume(selectedSeparator?.current_volume_liters)}</small>
-                <small>{t('Останется: ')}{selectedSeparator && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
-              </div>
-              <span aria-hidden="true" className="movement-preview-arrow">→</span>
-              <div>
-                <span>{t('Химический миксер')}</span>
-                <strong>{t(selectedMixer?.name) || t('Не выбран')}</strong>
-                <small>{t('Сейчас: ')}{formatVolume(selectedMixer?.current_volume_liters)}</small>
-                <small>{t('Будет: ')}{selectedMixer && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
-              </div>
-            </div>
-          </article>
-
-          {createdMovement && (
-            <article className="access-card movement-success-card">
-              <p className="auth-eyebrow">{t('Движение выполнено')}</p>
-              <h3>{createdMovement.movement_number}</h3>
-              <span>{t(createdMovement.source)} → {t(createdMovement.destination)}</span>
-              <strong>{formatVolume(createdMovement.volume_liters)}</strong>
-              <small>{formatDateTime(createdMovement.moved_at)}</small>
-            </article>
-          )}
-        </aside>
-      </section>
-    </DashboardShell>
-  )
-}
-
-export function WorkshopLoadingPage({ onLogout, token, user }) {
-  const { chemicalMixers, createWorkshopLoading, error, processingWorkshops } = useProcessingCrud(token, { containerKinds: ['chemical_mixer', 'processing_workshop'] })
-  const [form, setForm] = useState(() => ({
-    source_mixer_id: '',
     destination_workshop_id: '',
     volume_liters: '',
     idempotency_key: createIdempotencyKey(),
   }))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [createdMovement, setCreatedMovement] = useState(null)
-  const availableMixers = chemicalMixers.filter((mixer) => mixer.is_active && Number(mixer.current_volume_liters) > 0)
+  const availableBoilers = boilers.filter((boiler) => boiler.is_active && Number(boiler.current_volume_liters) > 0)
   const availableWorkshops = processingWorkshops.filter((workshop) => workshop.is_active && workshop.can_receive)
-  const selectedMixer = chemicalMixers.find((mixer) => String(mixer.id) === String(form.source_mixer_id))
+  const selectedBoiler = boilers.find((boiler) => String(boiler.id) === String(form.source_boiler_id))
   const selectedWorkshop = processingWorkshops.find((workshop) => String(workshop.id) === String(form.destination_workshop_id))
   const volume = Number(form.volume_liters)
-  const sourceVolume = Number(selectedMixer?.current_volume_liters || 0)
+  const sourceVolume = Number(selectedBoiler?.current_volume_liters || 0)
   const destinationVolume = Number(selectedWorkshop?.current_volume_liters || 0)
   const destinationFreeVolume = selectedWorkshop?.free_volume_liters === undefined
     ? null
@@ -774,7 +451,7 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
   const hasPositiveVolume = Number.isFinite(volume) && volume > 0
   const exceedsSource = hasPositiveVolume && volume > sourceVolume
   const exceedsDestination = hasPositiveVolume && destinationFreeVolume !== null && volume > destinationFreeVolume
-  const canSubmit = Boolean(selectedMixer && selectedWorkshop && hasPositiveVolume && !exceedsSource && !exceedsDestination && !isSubmitting)
+  const canSubmit = Boolean(selectedBoiler && selectedWorkshop && hasPositiveVolume && !exceedsSource && !exceedsDestination && !isSubmitting)
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -800,7 +477,7 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
     <DashboardShell title={t('Загрузка в цех переработки')} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
         title={t('Загрузка в цех переработки')}
-        description={t('Регистрация движения химически подготовленного масла из химического миксера в цех переработки.')}
+        description={t('Регистрация движения прогретого отработанного масла из котла первичного прогрева в цех переработки.')}
       />
 
       {error && <p className="access-error">{t(error)}</p>}
@@ -810,17 +487,17 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
           <div className="panel-heading">
             <div>
               <p className="auth-eyebrow">{t('Новое движение')}</p>
-              <h3>{t('Выберите миксер, цех и объём')}</h3>
+              <h3>{t('Выберите котёл, цех и объём')}</h3>
             </div>
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
             <label>
-              <span>{t('Химический миксер')}</span>
-              <select required value={form.source_mixer_id} onChange={(event) => setForm({ ...form, source_mixer_id: event.target.value })}>
-                <option value="">{t('Выберите химический миксер')}</option>
-                {availableMixers.map((mixer) => (
-                  <option key={mixer.id} value={mixer.id}>{t(mixer.name)}{t(' · доступно ')}{formatVolume(mixer.current_volume_liters)}</option>
+              <span>{t('Котёл первичного прогрева')}</span>
+              <select required value={form.source_boiler_id} onChange={(event) => setForm({ ...form, source_boiler_id: event.target.value })}>
+                <option value="">{t('Выберите котёл')}</option>
+                {availableBoilers.map((boiler) => (
+                  <option key={boiler.id} value={boiler.id}>{t(boiler.name)}{t(' · доступно ')}{formatVolume(boiler.current_volume_liters)}</option>
                 ))}
               </select>
             </label>
@@ -848,9 +525,9 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
               />
             </label>
 
-            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного химического миксера.')}</p>}
+            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного котла.')}</p>}
             {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место цеха переработки.')}</p>}
-            {!availableMixers.length && <p className="empty-state">{t('Нет активных химических миксеров с доступным маслом.')}</p>}
+            {!availableBoilers.length && <p className="empty-state">{t('Нет активных котлов с доступным маслом.')}</p>}
             {!availableWorkshops.length && <p className="empty-state">{t('Нет активных цехов переработки, доступных для загрузки.')}</p>}
 
             <div className="form-actions">
@@ -861,7 +538,7 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
                 onClick={() => {
                   setCreatedMovement(null)
                   setForm({
-                    source_mixer_id: '',
+                    source_boiler_id: '',
                     destination_workshop_id: '',
                     volume_liters: '',
                     idempotency_key: createIdempotencyKey(),
@@ -878,10 +555,10 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
             <h3>{t('После движения')}</h3>
             <div className="movement-preview-grid">
               <div>
-                <span>{t('Химический миксер')}</span>
-                <strong>{t(selectedMixer?.name) || t('Не выбран')}</strong>
-                <small>{t('Сейчас: ')}{formatVolume(selectedMixer?.current_volume_liters)}</small>
-                <small>{t('Останется: ')}{selectedMixer && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
+                <span>{t('Котёл первичного прогрева')}</span>
+                <strong>{t(selectedBoiler?.name) || t('Не выбран')}</strong>
+                <small>{t('Сейчас: ')}{formatVolume(selectedBoiler?.current_volume_liters)}</small>
+                <small>{t('Останется: ')}{selectedBoiler && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
               </div>
               <span aria-hidden="true" className="movement-preview-arrow">→</span>
               <div>
@@ -1087,164 +764,6 @@ export function RawSpindleTankLoadingPage(props) {
   return <RawProductTankLoadingPage {...props} productType="spindle" />
 }
 
-export function SeparatorOutputPage({ onLogout, token, user }) {
-  const { createSeparatorOutputMovement, error, separators } = useProcessingCrud(token, { containerKinds: ['separator'] })
-  const [form, setForm] = useState(() => ({
-    source_separator_id: '',
-    output_type: 'water',
-    volume_liters: '',
-    idempotency_key: createIdempotencyKey(),
-  }))
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [createdMovement, setCreatedMovement] = useState(null)
-  const availableSeparators = separators.filter((separator) => separator.is_active && Number(separator.current_volume_liters) > 0)
-  const selectedSeparator = separators.find((separator) => String(separator.id) === String(form.source_separator_id))
-  const volume = Number(form.volume_liters)
-  const sourceVolume = Number(selectedSeparator?.current_volume_liters || 0)
-  const hasPositiveVolume = Number.isFinite(volume) && volume > 0
-  const exceedsSource = hasPositiveVolume && volume > sourceVolume
-  const canSubmit = Boolean(selectedSeparator && hasPositiveVolume && !exceedsSource && !isSubmitting)
-
-  async function handleSubmit(event) {
-    event.preventDefault()
-    if (!canSubmit) {
-      return
-    }
-
-    setIsSubmitting(true)
-    setCreatedMovement(null)
-    const movement = await createSeparatorOutputMovement(form)
-    setIsSubmitting(false)
-    if (movement?.id) {
-      setCreatedMovement(movement)
-      setForm((current) => ({
-        ...current,
-        volume_liters: '',
-        idempotency_key: createIdempotencyKey(),
-      }))
-    }
-  }
-
-  return (
-    <DashboardShell title={t('Отгрузка сепаратора')} onLogout={onLogout} user={user}>
-      <ProcessingPageHeader
-        title={t('Отгрузка сепаратора')}
-        description={t('Регистрация отгрузки технической воды или технического мусора из сепаратора. Топливный выход здесь не учитывается.')}
-      />
-
-      {error && <p className="access-error">{t(error)}</p>}
-
-      <section className="boiler-loading-layout">
-        <article className="access-card boiler-loading-form-card">
-          <div className="panel-heading">
-            <div>
-              <p className="auth-eyebrow">{t('Новая отгрузка')}</p>
-              <h3>{t('Выберите сепаратор, вид отхода и объём')}</h3>
-            </div>
-          </div>
-
-          <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
-            <label>
-              <span>{t('Сепаратор')}</span>
-              <select required value={form.source_separator_id} onChange={(event) => setForm({ ...form, source_separator_id: event.target.value })}>
-                <option value="">{t('Выберите сепаратор')}</option>
-                {availableSeparators.map((separator) => (
-                  <option key={separator.id} value={separator.id}>{t(separator.name)}{t(' · доступно ')}{formatVolume(separator.current_volume_liters)}</option>
-                ))}
-              </select>
-            </label>
-
-            <fieldset className="separator-output-options">
-              <legend>{t('Что отгружается')}</legend>
-              <div className="unit-radio-group" role="radiogroup" aria-label={t('Вид отгрузки сепаратора')}>
-                {[
-                  ['water', t('Техническая вода')],
-                  ['technical_waste', t('Технический мусор')],
-                ].map(([value, label]) => (
-                  <label className={form.output_type === value ? 'active' : ''} key={value}>
-                    <input
-                      checked={form.output_type === value}
-                      name="separator-output-type"
-                      type="radio"
-                      value={value}
-                      onChange={(event) => setForm({ ...form, output_type: event.target.value })}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <label>
-              <span>{t('Объём отгрузки, л')}</span>
-              <input
-                min="0.001"
-                placeholder="0.000"
-                required
-                step="0.001"
-                type="number"
-                value={form.volume_liters}
-                onChange={(event) => setForm({ ...form, volume_liters: event.target.value })}
-              />
-            </label>
-
-            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного сепаратора.')}</p>}
-            {!availableSeparators.length && <p className="empty-state">{t('Нет активных сепараторов с доступным объёмом.')}</p>}
-
-            <div className="form-actions">
-              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить отгрузку')}</button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => {
-                  setCreatedMovement(null)
-                  setForm({
-                    source_separator_id: '',
-                    output_type: 'water',
-                    volume_liters: '',
-                    idempotency_key: createIdempotencyKey(),
-                  })
-                }}
-              >{t('Очистить')}</button>
-            </div>
-          </form>
-        </article>
-
-        <aside className="boiler-loading-summary">
-          <article className="access-card movement-preview-card">
-            <p className="auth-eyebrow">{t('Предварительный баланс')}</p>
-            <h3>{t('После отгрузки')}</h3>
-            <div className="movement-preview-grid">
-              <div>
-                <span>{t('Сепаратор')}</span>
-                <strong>{t(selectedSeparator?.name) || t('Не выбран')}</strong>
-                <small>{t('Сейчас: ')}{formatVolume(selectedSeparator?.current_volume_liters)}</small>
-                <small>{t('Останется: ')}{selectedSeparator && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
-              </div>
-              <span aria-hidden="true" className="movement-preview-arrow">→</span>
-              <div>
-                <span>{t('Отгрузка')}</span>
-                <strong>{form.output_type === 'water' ? t('Техническая вода') : t('Технический мусор')}</strong>
-                <small>{t('Объём: ')}{hasPositiveVolume ? formatVolume(volume) : '—'}</small>
-              </div>
-            </div>
-          </article>
-
-          {createdMovement && (
-            <article className="access-card movement-success-card">
-              <p className="auth-eyebrow">{t('Отгрузка выполнена')}</p>
-              <h3>{createdMovement.movement_number}</h3>
-              <span>{t(createdMovement.source)} → {t(createdMovement.product_name)}</span>
-              <strong>{formatVolume(createdMovement.volume_liters)}</strong>
-              <small>{formatDateTime(createdMovement.moved_at)}</small>
-            </article>
-          )}
-        </aside>
-      </section>
-    </DashboardShell>
-  )
-}
-
 export function ProcessingJournalPage({ onLogout, token, user }) {
   const { compensateMovement, error, fetchJournal, journal } = useProcessingCrud(token, { containerKinds: [], loadJournal: true })
   const [filters, setFilters] = useState(emptyJournalFilters)
@@ -1286,13 +805,13 @@ export function ProcessingJournalPage({ onLogout, token, user }) {
               <option value="">{t('Все типы')}</option>
               <option value="receipt_to_tank">{t('Поступление из приёмки')}</option>
               <option value="tank_to_boiler">{t('Загрузка котла')}</option>
-              <option value="boiler_to_separator">{t('Загрузка сепаратора')}</option>
-              <option value="separator_output">{t('Отгрузка сепаратора')}</option>
-              <option value="separator_to_chemical_mixer">{t('Загрузка химического миксера')}</option>
-              <option value="chemical_mixer_to_workshop">{t('Загрузка в цех переработки')}</option>
+              <option value="boiler_to_workshop">{t('Загрузка в цех переработки')}</option>
               <option value="workshop_to_raw_diesel_tank">{t('Загрузка бака сырой солярки')}</option>
               <option value="workshop_to_raw_spindle_tank">{t('Загрузка бака сырой веретенки')}</option>
               {Object.values(oilFinishingForms).map((config) => <option key={config.movementType} value={config.movementType}>{t(config.title)}</option>)}
+              <option value="boiler_to_chemical_mixer">{t('Загрузка химического миксера (прежний маршрут)')}</option>
+              <option value="chemical_mixer_to_workshop">{t('Загрузка в цех переработки (прежний маршрут)')}</option>
+              <option value="raw_to_finishing_mixer">{t('Загрузка финишного миксера (прежний маршрут)')}</option>
               {Object.entries(oilManufacturingMovements).map(([code, name]) => <option key={code} value={code}>{t(name)}</option>)}
               <option value="compensation">{t('Компенсация')}</option>
             </select>

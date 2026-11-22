@@ -53,15 +53,13 @@ Staff/член административной группы может виде
 | `laboratory-analysis` | `/laboratory/analyses` | `view`, `update`, `approve`; для решения нужны и `update`, и `approve`; ручное создание/независимое удаление запрещены |
 | `used-oil-processing` | Страницы ёмкостей в «Прочее» | `view` даёт список; изменение/создание/удаление ёмкостей требует `_is_admin()`, одних CRUD-прав недостаточно |
 | `boiler-loading` | `/processing/boiler-loading` | `view` для формы, `create` для движения бак → котёл |
-| `separator-loading` | `/processing/separator-loading` | `view`, `create`: котёл → сепаратор |
-| `separator-output` | `/processing/separator-output` | `view`, `create`: вода/мусор из сепаратора |
-| `chemical-mixer-loading` | `/processing/chemical-mixer-loading` | `view`, `create`: сепаратор → химмиксер |
-| `workshop-loading` | `/processing/workshop-loading` | `view`, `create`: химмиксер → цех |
+| `chemical-mixer-loading` | `/processing/chemical-mixer-loading` | `view`, `create`: сырой продуктовый бак → химмиксер |
+| `workshop-loading` | `/processing/workshop-loading` | `view`, `create`: котёл → цех |
 | `raw-diesel-tank-loading` | `/processing/raw-diesel-tank-loading` | `view`, `create`: цех → бак сырой солярки |
 | `raw-spindle-tank-loading` | `/processing/raw-spindle-tank-loading` | `view`, `create`: цех → бак сырой веретенки |
 | `canister-loading` | `/production/canister-loading` | `view`, `create`: гранулы и красители со склада в производство канистр |
 | `cap-loading` | `/production/cap-loading` | `view`, `create`: гранулы и красители со склада в производство крышек |
-| `finishing-mixer-loading` | `/processing/finishing-mixer-loading` | `view`, `create`: бак сырой солярки/веретенки → финишный миксер |
+| `finishing-mixer-loading` | `/processing/finishing-mixer-loading` | `view`, `create`: химмиксер → финишный миксер |
 | `finishing-filter-loading` | `/processing/finishing-filter-loading` | `view`, `create`: финишный миксер → фильтр |
 | `finished-product-loading` | `/processing/finished-product-loading` | `view`, `create`: фильтр → готовый бак соответствующего продукта |
 | `concentrate-loading` | `/oil-production/concentrate-loading` | `view`, `create`: реактор, веретенка и складское списание полипропилена; завершение открытой партии |
@@ -100,12 +98,11 @@ DELETE → `delete`, если endpoint поддерживает этот мет�
 | Форма | Доступные типы для выбора |
 | --- | --- |
 | Загрузка котла | Приёмные баки, котлы |
-| Загрузка сепаратора | Котлы, сепараторы |
-| Отгрузка сепаратора | Сепараторы |
-| Загрузка химмиксера | Сепараторы, химмиксеры |
-| Загрузка цеха | Химмиксеры, цеха |
+| Загрузка химмиксера | Баки сырой солярки/веретенки, химмиксеры |
+| Загрузка цеха | Котлы, цеха |
 | Загрузка сырой солярки | Цеха, баки сырой солярки |
 | Загрузка сырой веретенки | Цеха, баки сырой веретенки |
+| Загрузка финишного миксера | Химмиксеры, финишные миксеры |
 
 Менеджер приёма отдельно читает активные приёмные баки для распределения;
 `?purpose=receipt` выдаёт сокращённые данные, включая свободный объём.

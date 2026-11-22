@@ -15,7 +15,7 @@ class RemoveSorbentMigrationTests(TransactionTestCase):
         ]).apps
 
     def tearDown(self):
-        MigrationExecutor(connection).migrate([('api', '0047_remove_sorbent_schema')])
+        MigrationExecutor(connection).migrate([('api', '0051_refresh_processing_route_guides')])
         super().tearDown()
 
     def test_cleanup_removes_only_retired_data_and_preserves_mixed_documents(self):

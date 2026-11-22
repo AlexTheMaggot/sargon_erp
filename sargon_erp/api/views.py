@@ -65,8 +65,6 @@ MODULE_RAW_MATERIAL = 'raw-material-receiving'
 MODULE_SUPPLIERS = 'suppliers'
 MODULE_USED_OIL_PROCESSING = 'used-oil-processing'
 MODULE_BOILER_LOADING = 'boiler-loading'
-MODULE_SEPARATOR_LOADING = 'separator-loading'
-MODULE_SEPARATOR_OUTPUT = 'separator-output'
 MODULE_CHEMICAL_MIXER_LOADING = 'chemical-mixer-loading'
 MODULE_WORKSHOP_LOADING = 'workshop-loading'
 MODULE_RAW_DIESEL_TANK_LOADING = 'raw-diesel-tank-loading'
@@ -81,8 +79,6 @@ MODULE_CAP_OUTPUT = 'cap-output'
 
 PROCESSING_FORM_MODULE_CODES = {
     MODULE_BOILER_LOADING,
-    MODULE_SEPARATOR_LOADING,
-    MODULE_SEPARATOR_OUTPUT,
     MODULE_CHEMICAL_MIXER_LOADING,
     MODULE_WORKSHOP_LOADING,
     MODULE_RAW_DIESEL_TANK_LOADING,
@@ -562,13 +558,8 @@ def _require_processing_permission(request, module_code, permission_code=None):
 def _can_view_processing_container(user, kind):
     module_codes_by_kind = {
         ProductionContainer.KIND_RECEIVING_TANK: [MODULE_BOILER_LOADING],
-        ProductionContainer.KIND_PREHEATING_BOILER: [MODULE_BOILER_LOADING, MODULE_SEPARATOR_LOADING],
-        ProductionContainer.KIND_SEPARATOR: [
-            MODULE_SEPARATOR_LOADING,
-            MODULE_SEPARATOR_OUTPUT,
-            MODULE_CHEMICAL_MIXER_LOADING,
-        ],
-        ProductionContainer.KIND_CHEMICAL_MIXER: [MODULE_CHEMICAL_MIXER_LOADING, MODULE_WORKSHOP_LOADING],
+        ProductionContainer.KIND_PREHEATING_BOILER: [MODULE_BOILER_LOADING, MODULE_WORKSHOP_LOADING],
+        ProductionContainer.KIND_CHEMICAL_MIXER: [MODULE_CHEMICAL_MIXER_LOADING],
         ProductionContainer.KIND_PROCESSING_WORKSHOP: [
             MODULE_WORKSHOP_LOADING,
             MODULE_RAW_DIESEL_TANK_LOADING,
@@ -630,7 +621,6 @@ def _container_code(kind, number):
     prefixes = {
         ProductionContainer.KIND_RECEIVING_TANK: 'receiving-tank',
         ProductionContainer.KIND_PREHEATING_BOILER: 'preheating-boiler',
-        ProductionContainer.KIND_SEPARATOR: 'separator',
         ProductionContainer.KIND_CHEMICAL_MIXER: 'chemical-mixer',
         ProductionContainer.KIND_PROCESSING_WORKSHOP: 'processing-workshop',
         ProductionContainer.KIND_RAW_DIESEL_TANK: 'raw-diesel-tank',
@@ -701,9 +691,8 @@ def _serialize_container(container, user, raw_material_options=False):
         })
         loading_types = {
             ProductionContainer.KIND_PREHEATING_BOILER: MaterialMovement.TYPE_TANK_TO_BOILER,
-            ProductionContainer.KIND_SEPARATOR: MaterialMovement.TYPE_BOILER_TO_SEPARATOR,
-            ProductionContainer.KIND_CHEMICAL_MIXER: MaterialMovement.TYPE_SEPARATOR_TO_CHEMICAL_MIXER,
-            ProductionContainer.KIND_PROCESSING_WORKSHOP: MaterialMovement.TYPE_CHEMICAL_MIXER_TO_WORKSHOP,
+            ProductionContainer.KIND_CHEMICAL_MIXER: MaterialMovement.TYPE_RAW_TO_CHEMICAL_MIXER,
+            ProductionContainer.KIND_PROCESSING_WORKSHOP: MaterialMovement.TYPE_BOILER_TO_WORKSHOP,
             ProductionContainer.KIND_RAW_DIESEL_TANK: MaterialMovement.TYPE_WORKSHOP_TO_RAW_DIESEL_TANK,
             ProductionContainer.KIND_RAW_SPINDLE_TANK: MaterialMovement.TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK,
         }
@@ -1070,6 +1059,8 @@ def _compensate_movement(movement_id, user, reason):
             return None, 'Movement has already been compensated or is itself a compensation.'
         if not reason.strip():
             return None, 'Compensation reason is required.'
+        if movement.movement_type in (MaterialMovement.TYPE_BOILER_TO_CHEMICAL_MIXER, MaterialMovement.TYPE_CHEMICAL_MIXER_TO_WORKSHOP):
+            return None, 'Отмена движения прежнего маршрута недоступна после переноса химического миксера.'
         if movement.movement_type in MaterialMovement.OIL_MANUFACTURING_TYPES:
             from .oil_manufacturing import compensate_manufacturing_movement
             return compensate_manufacturing_movement(movement, user, reason)
@@ -1077,7 +1068,7 @@ def _compensate_movement(movement_id, user, reason):
         container_ids = sorted(filter(None, [movement.source_container_id, movement.destination_container_id]))
         containers = {
             container.pk: container
-            for container in ProductionContainer.objects.select_for_update().filter(pk__in=container_ids)
+            for container in ProductionContainer.objects.select_for_update().filter(pk__in=container_ids).order_by('pk')
         }
         source = containers.get(movement.source_container_id)
         destination = containers.get(movement.destination_container_id)
@@ -1110,9 +1101,7 @@ def _compensate_movement(movement_id, user, reason):
             compensation_destination = None
         elif movement.movement_type in (
             MaterialMovement.TYPE_TANK_TO_BOILER,
-            MaterialMovement.TYPE_BOILER_TO_SEPARATOR,
-            MaterialMovement.TYPE_SEPARATOR_TO_CHEMICAL_MIXER,
-            MaterialMovement.TYPE_CHEMICAL_MIXER_TO_WORKSHOP,
+            MaterialMovement.TYPE_BOILER_TO_WORKSHOP,
             MaterialMovement.TYPE_WORKSHOP_TO_RAW_DIESEL_TANK,
             MaterialMovement.TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK,
         ):
@@ -1129,15 +1118,6 @@ def _compensate_movement(movement_id, user, reason):
             destination.save(update_fields=['current_volume_liters', 'updated_at'])
             source.save(update_fields=['current_volume_liters', 'updated_at'])
             compensation_source = destination
-            compensation_destination = source
-        elif movement.movement_type == MaterialMovement.TYPE_SEPARATOR_OUTPUT:
-            if source is None or source.current_volume_liters + movement.volume_liters > source.capacity_liters:
-                return None, 'Compensation would overflow the separator.'
-            compensation_destination_before = source.current_volume_liters
-            compensation_destination_after = compensation_destination_before + movement.volume_liters
-            source.current_volume_liters = compensation_destination_after
-            source.save(update_fields=['current_volume_liters', 'updated_at'])
-            compensation_source = None
             compensation_destination = source
         else:
             return None, 'Compensation movements cannot be compensated.'
@@ -2168,11 +2148,6 @@ def preheating_boilers_view(request):
 
 
 @csrf_exempt
-def separators_view(request):
-    return _production_containers_view(request, ProductionContainer.KIND_SEPARATOR)
-
-
-@csrf_exempt
 def chemical_mixers_view(request):
     return _production_containers_view(request, ProductionContainer.KIND_CHEMICAL_MIXER)
 
@@ -2400,330 +2375,17 @@ def tank_to_boiler_movements_view(request):
         return JsonResponse(_serialize_movement(movement), status=201)
 
 
-@csrf_exempt
-def boiler_to_separator_movements_view(request):
-    user, error = _require_processing_permission(request, MODULE_SEPARATOR_LOADING, PERMISSION_CREATE)
-    if error:
-        return error
-    if request.method != 'POST':
-        return _method_not_allowed()
-
-    body = _json_body(request)
-    if body is None:
-        return _invalid_json_body()
-    try:
-        source_id = int(body.get('source_boiler_id'))
-        destination_id = int(body.get('destination_separator_id'))
-    except (TypeError, ValueError):
-        return JsonResponse({'detail': 'Source boiler and destination separator are required.'}, status=400)
-    volume = _volume_value(body.get('volume_liters'))
-    idempotency_key = str(body.get('idempotency_key') or '').strip()
-    if volume is None:
-        return JsonResponse({'detail': 'Volume must be positive and contain up to three decimal places.'}, status=400)
-    if not idempotency_key or len(idempotency_key) > 80:
-        return JsonResponse({'detail': 'Valid idempotency key is required.'}, status=400)
-
-    existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-    if existing:
-        if existing.created_by_id != user.pk:
-            return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
-        return JsonResponse(_serialize_movement(existing))
-
-    with transaction.atomic():
-        containers = {
-            container.pk: container
-            for container in ProductionContainer.objects.select_for_update().filter(
-                pk__in=sorted([source_id, destination_id]),
-            )
-        }
-        source = containers.get(source_id)
-        destination = containers.get(destination_id)
-        existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-        if existing:
-            if existing.created_by_id != user.pk:
-                return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
-            return JsonResponse(_serialize_movement(existing))
-        if source is None or source.kind != ProductionContainer.KIND_PREHEATING_BOILER or not source.is_active:
-            return JsonResponse({'detail': 'Active preheating boiler does not exist.'}, status=400)
-        if destination is None or destination.kind != ProductionContainer.KIND_SEPARATOR or not destination.is_active:
-            return JsonResponse({'detail': 'Active separator does not exist.'}, status=400)
-        if source.current_volume_liters < volume:
-            _audit_operation(
-                'movement_rejected',
-                'material_movement',
-                '',
-                user,
-                {'reason': 'insufficient_source_volume', 'source_id': source_id, 'volume_liters': str(volume)},
-                OperationAuditLog.RESULT_REJECTED,
-            )
-            return JsonResponse({'detail': 'Insufficient preheating boiler volume.'}, status=400)
-        if destination.current_volume_liters + volume > destination.capacity_liters:
-            _audit_operation(
-                'movement_rejected',
-                'material_movement',
-                '',
-                user,
-                {'reason': 'destination_overflow', 'destination_id': destination_id, 'volume_liters': str(volume)},
-                OperationAuditLog.RESULT_REJECTED,
-            )
-            return JsonResponse({'detail': 'Separator capacity would be exceeded.'}, status=400)
-
-        source_before = source.current_volume_liters
-        destination_before = destination.current_volume_liters
-        source_after = source_before - volume
-        destination_after = destination_before + volume
-        try:
-            with transaction.atomic():
-                movement = MaterialMovement.objects.create(
-                    movement_number=_movement_number(),
-                    movement_type=MaterialMovement.TYPE_BOILER_TO_SEPARATOR,
-                    source_container=source,
-                    destination_container=destination,
-                    volume_liters=volume,
-                    created_by=user,
-                    idempotency_key=idempotency_key,
-                    source_snapshot=source.display_name,
-                    destination_snapshot=destination.display_name,
-                    source_volume_before=source_before,
-                    source_volume_after=source_after,
-                    destination_volume_before=destination_before,
-                    destination_volume_after=destination_after,
-                    system_description='Ручная загрузка сепаратора из котла первичного прогрева.',
-                )
-        except IntegrityError:
-            existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-            if existing and existing.created_by_id == user.pk:
-                return JsonResponse(_serialize_movement(existing))
-            return JsonResponse({'detail': 'Movement could not be created.'}, status=409)
-
-        source.current_volume_liters = source_after
-        destination.current_volume_liters = destination_after
-        source.save(update_fields=['current_volume_liters', 'updated_at'])
-        destination.save(update_fields=['current_volume_liters', 'updated_at'])
-        _audit_operation(
-            'movement_created',
-            'material_movement',
-            movement.pk,
-            user,
-            {'movement_number': movement.movement_number, 'volume_liters': str(volume)},
-        )
-        return JsonResponse(_serialize_movement(movement), status=201)
+def _workshop_loading_replay(movement, user, source_id, destination_id, volume):
+    if (movement.created_by_id != user.pk
+            or movement.movement_type != MaterialMovement.TYPE_BOILER_TO_WORKSHOP
+            or movement.source_container_id != source_id or movement.destination_container_id != destination_id
+            or movement.volume_liters != volume):
+        return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
+    return JsonResponse(_serialize_movement(movement))
 
 
 @csrf_exempt
-def separator_output_movements_view(request):
-    user, error = _require_processing_permission(request, MODULE_SEPARATOR_OUTPUT, PERMISSION_CREATE)
-    if error:
-        return error
-    if request.method != 'POST':
-        return _method_not_allowed()
-
-    body = _json_body(request)
-    if body is None:
-        return _invalid_json_body()
-    try:
-        separator_id = int(body.get('source_separator_id'))
-    except (TypeError, ValueError):
-        return JsonResponse({'detail': 'Source separator is required.'}, status=400)
-    products = {
-        'water': MaterialMovement.PRODUCT_TECHNICAL_WATER,
-        'technical_waste': MaterialMovement.PRODUCT_TECHNICAL_WASTE,
-    }
-    output_type = str(body.get('output_type') or '').strip()
-    product_name = products.get(output_type)
-    volume = _volume_value(body.get('volume_liters'))
-    idempotency_key = str(body.get('idempotency_key') or '').strip()
-    if product_name is None:
-        return JsonResponse({'detail': 'Only technical water or technical waste can be shipped.'}, status=400)
-    if volume is None:
-        return JsonResponse({'detail': 'Volume must be positive and contain up to three decimal places.'}, status=400)
-    if not idempotency_key or len(idempotency_key) > 80:
-        return JsonResponse({'detail': 'Valid idempotency key is required.'}, status=400)
-
-    existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-    if existing:
-        if existing.created_by_id != user.pk:
-            return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
-        return JsonResponse(_serialize_movement(existing))
-
-    with transaction.atomic():
-        separator = (
-            ProductionContainer.objects
-            .select_for_update()
-            .filter(pk=separator_id, kind=ProductionContainer.KIND_SEPARATOR, is_active=True)
-            .first()
-        )
-        existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-        if existing:
-            if existing.created_by_id != user.pk:
-                return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
-            return JsonResponse(_serialize_movement(existing))
-        if separator is None:
-            return JsonResponse({'detail': 'Active separator does not exist.'}, status=400)
-        if separator.current_volume_liters < volume:
-            _audit_operation(
-                'movement_rejected',
-                'material_movement',
-                '',
-                user,
-                {'reason': 'insufficient_separator_volume', 'separator_id': separator_id, 'volume_liters': str(volume)},
-                OperationAuditLog.RESULT_REJECTED,
-            )
-            return JsonResponse({'detail': 'Insufficient separator volume.'}, status=400)
-
-        source_before = separator.current_volume_liters
-        source_after = source_before - volume
-        try:
-            with transaction.atomic():
-                movement = MaterialMovement.objects.create(
-                    movement_number=_movement_number(),
-                    movement_type=MaterialMovement.TYPE_SEPARATOR_OUTPUT,
-                    source_container=separator,
-                    product_name=product_name,
-                    volume_liters=volume,
-                    created_by=user,
-                    idempotency_key=idempotency_key,
-                    source_snapshot=separator.display_name,
-                    destination_snapshot=product_name,
-                    source_volume_before=source_before,
-                    source_volume_after=source_after,
-                    system_description=f'Ручная отгрузка из сепаратора: {product_name}.',
-                )
-        except IntegrityError:
-            existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-            if existing and existing.created_by_id == user.pk:
-                return JsonResponse(_serialize_movement(existing))
-            return JsonResponse({'detail': 'Movement could not be created.'}, status=409)
-
-        separator.current_volume_liters = source_after
-        separator.save(update_fields=['current_volume_liters', 'updated_at'])
-        _audit_operation(
-            'movement_created',
-            'material_movement',
-            movement.pk,
-            user,
-            {
-                'movement_number': movement.movement_number,
-                'product_name': product_name,
-                'volume_liters': str(volume),
-            },
-        )
-        return JsonResponse(_serialize_movement(movement), status=201)
-
-
-@csrf_exempt
-def separator_to_chemical_mixer_movements_view(request):
-    user, error = _require_processing_permission(request, MODULE_CHEMICAL_MIXER_LOADING, PERMISSION_CREATE)
-    if error:
-        return error
-    if request.method != 'POST':
-        return _method_not_allowed()
-
-    body = _json_body(request)
-    if body is None:
-        return _invalid_json_body()
-    try:
-        source_id = int(body.get('source_separator_id'))
-        destination_id = int(body.get('destination_mixer_id'))
-    except (TypeError, ValueError):
-        return JsonResponse({'detail': 'Source separator and destination chemical mixer are required.'}, status=400)
-    volume = _volume_value(body.get('volume_liters'))
-    idempotency_key = str(body.get('idempotency_key') or '').strip()
-    if volume is None:
-        return JsonResponse({'detail': 'Volume must be positive and contain up to three decimal places.'}, status=400)
-    if not idempotency_key or len(idempotency_key) > 80:
-        return JsonResponse({'detail': 'Valid idempotency key is required.'}, status=400)
-
-    existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-    if existing:
-        if existing.created_by_id != user.pk:
-            return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
-        return JsonResponse(_serialize_movement(existing))
-
-    with transaction.atomic():
-        containers = {
-            container.pk: container
-            for container in ProductionContainer.objects.select_for_update().filter(
-                pk__in=sorted([source_id, destination_id]),
-            )
-        }
-        source = containers.get(source_id)
-        destination = containers.get(destination_id)
-        existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-        if existing:
-            if existing.created_by_id != user.pk:
-                return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
-            return JsonResponse(_serialize_movement(existing))
-        if source is None or source.kind != ProductionContainer.KIND_SEPARATOR or not source.is_active:
-            return JsonResponse({'detail': 'Active separator does not exist.'}, status=400)
-        if destination is None or destination.kind != ProductionContainer.KIND_CHEMICAL_MIXER or not destination.is_active:
-            return JsonResponse({'detail': 'Active chemical mixer does not exist.'}, status=400)
-        if source.current_volume_liters < volume:
-            _audit_operation(
-                'movement_rejected',
-                'material_movement',
-                '',
-                user,
-                {'reason': 'insufficient_separator_volume', 'source_id': source_id, 'volume_liters': str(volume)},
-                OperationAuditLog.RESULT_REJECTED,
-            )
-            return JsonResponse({'detail': 'Insufficient separator volume.'}, status=400)
-        if destination.current_volume_liters + volume > destination.capacity_liters:
-            _audit_operation(
-                'movement_rejected',
-                'material_movement',
-                '',
-                user,
-                {'reason': 'chemical_mixer_overflow', 'destination_id': destination_id, 'volume_liters': str(volume)},
-                OperationAuditLog.RESULT_REJECTED,
-            )
-            return JsonResponse({'detail': 'Chemical mixer capacity would be exceeded.'}, status=400)
-
-        source_before = source.current_volume_liters
-        destination_before = destination.current_volume_liters
-        source_after = source_before - volume
-        destination_after = destination_before + volume
-        try:
-            with transaction.atomic():
-                movement = MaterialMovement.objects.create(
-                    movement_number=_movement_number(),
-                    movement_type=MaterialMovement.TYPE_SEPARATOR_TO_CHEMICAL_MIXER,
-                    source_container=source,
-                    destination_container=destination,
-                    product_name='Очищенное отработанное масло',
-                    volume_liters=volume,
-                    created_by=user,
-                    idempotency_key=idempotency_key,
-                    source_snapshot=source.display_name,
-                    destination_snapshot=destination.display_name,
-                    source_volume_before=source_before,
-                    source_volume_after=source_after,
-                    destination_volume_before=destination_before,
-                    destination_volume_after=destination_after,
-                    system_description='Ручная загрузка химического миксера из сепаратора.',
-                )
-        except IntegrityError:
-            existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-            if existing and existing.created_by_id == user.pk:
-                return JsonResponse(_serialize_movement(existing))
-            return JsonResponse({'detail': 'Movement could not be created.'}, status=409)
-
-        source.current_volume_liters = source_after
-        destination.current_volume_liters = destination_after
-        source.save(update_fields=['current_volume_liters', 'updated_at'])
-        destination.save(update_fields=['current_volume_liters', 'updated_at'])
-        _audit_operation(
-            'movement_created',
-            'material_movement',
-            movement.pk,
-            user,
-            {'movement_number': movement.movement_number, 'volume_liters': str(volume)},
-        )
-        return JsonResponse(_serialize_movement(movement), status=201)
-
-
-@csrf_exempt
-def chemical_mixer_to_workshop_movements_view(request):
+def boiler_to_workshop_movements_view(request):
     user, error = _require_processing_permission(request, MODULE_WORKSHOP_LOADING, PERMISSION_CREATE)
     if error:
         return error
@@ -2731,15 +2393,22 @@ def chemical_mixer_to_workshop_movements_view(request):
         return _method_not_allowed()
 
     body = _json_body(request)
-    if body is None:
+    if not isinstance(body, dict):
         return _invalid_json_body()
     try:
-        source_id = int(body.get('source_mixer_id'))
-        destination_id = int(body.get('destination_workshop_id'))
-    except (TypeError, ValueError):
-        return JsonResponse({'detail': 'Source chemical mixer and destination processing workshop are required.'}, status=400)
+        source_value = str(body.get('source_boiler_id', '')).strip()
+        destination_value = str(body.get('destination_workshop_id', '')).strip()
+        if not source_value.isdecimal() or not destination_value.isdecimal():
+            raise ValueError
+        source_id = int(source_value)
+        destination_id = int(destination_value)
+        if not 0 < source_id < 2 ** 63 or not 0 < destination_id < 2 ** 63:
+            raise ValueError
+    except (TypeError, ValueError, OverflowError):
+        return JsonResponse({'detail': 'Source boiler and destination processing workshop are required.'}, status=400)
     volume = _volume_value(body.get('volume_liters'))
-    idempotency_key = str(body.get('idempotency_key') or '').strip()
+    raw_key = body.get('idempotency_key')
+    idempotency_key = raw_key.strip() if isinstance(raw_key, str) else ''
     if volume is None:
         return JsonResponse({'detail': 'Volume must be positive and contain up to three decimal places.'}, status=400)
     if not idempotency_key or len(idempotency_key) > 80:
@@ -2747,26 +2416,22 @@ def chemical_mixer_to_workshop_movements_view(request):
 
     existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
     if existing:
-        if existing.created_by_id != user.pk:
-            return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
-        return JsonResponse(_serialize_movement(existing))
+        return _workshop_loading_replay(existing, user, source_id, destination_id, volume)
 
     with transaction.atomic():
         containers = {
             container.pk: container
             for container in ProductionContainer.objects.select_for_update().filter(
-                pk__in=sorted([source_id, destination_id]),
-            )
+                pk__in=[source_id, destination_id],
+            ).order_by('pk')
         }
         source = containers.get(source_id)
         destination = containers.get(destination_id)
         existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
         if existing:
-            if existing.created_by_id != user.pk:
-                return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
-            return JsonResponse(_serialize_movement(existing))
-        if source is None or source.kind != ProductionContainer.KIND_CHEMICAL_MIXER or not source.is_active:
-            return JsonResponse({'detail': 'Active chemical mixer does not exist.'}, status=400)
+            return _workshop_loading_replay(existing, user, source_id, destination_id, volume)
+        if source is None or source.kind != ProductionContainer.KIND_PREHEATING_BOILER or not source.is_active:
+            return JsonResponse({'detail': 'Active preheating boiler does not exist.'}, status=400)
         if destination is None or destination.kind != ProductionContainer.KIND_PROCESSING_WORKSHOP or not destination.is_active:
             return JsonResponse({'detail': 'Active processing workshop does not exist.'}, status=400)
         if source.current_volume_liters < volume:
@@ -2775,10 +2440,10 @@ def chemical_mixer_to_workshop_movements_view(request):
                 'material_movement',
                 '',
                 user,
-                {'reason': 'insufficient_chemical_mixer_volume', 'source_id': source_id, 'volume_liters': str(volume)},
+                {'reason': 'insufficient_boiler_volume', 'source_id': source_id, 'volume_liters': str(volume)},
                 OperationAuditLog.RESULT_REJECTED,
             )
-            return JsonResponse({'detail': 'В химическом миксере недостаточно сырья.'}, status=400)
+            return JsonResponse({'detail': 'Insufficient preheating boiler volume.'}, status=400)
         if destination.current_volume_liters + volume > destination.capacity_liters:
             _audit_operation(
                 'movement_rejected',
@@ -2798,10 +2463,10 @@ def chemical_mixer_to_workshop_movements_view(request):
             with transaction.atomic():
                 movement = MaterialMovement.objects.create(
                     movement_number=_movement_number(),
-                    movement_type=MaterialMovement.TYPE_CHEMICAL_MIXER_TO_WORKSHOP,
+                    movement_type=MaterialMovement.TYPE_BOILER_TO_WORKSHOP,
                     source_container=source,
                     destination_container=destination,
-                    product_name='Химически подготовленное масло',
+                    product_name='Прогретое отработанное масло',
                     volume_liters=volume,
                     created_by=user,
                     idempotency_key=idempotency_key,
@@ -2811,12 +2476,12 @@ def chemical_mixer_to_workshop_movements_view(request):
                     source_volume_after=source_after,
                     destination_volume_before=destination_before,
                     destination_volume_after=destination_after,
-                    system_description='Ручная загрузка цеха переработки из химического миксера.',
+                    system_description='Ручная загрузка цеха переработки из котла первичного прогрева.',
                 )
         except IntegrityError:
             existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-            if existing and existing.created_by_id == user.pk:
-                return JsonResponse(_serialize_movement(existing))
+            if existing:
+                return _workshop_loading_replay(existing, user, source_id, destination_id, volume)
             return JsonResponse({'detail': 'Movement could not be created.'}, status=409)
 
         source.current_volume_liters = source_after
@@ -3086,16 +2751,15 @@ def production_overview_view(request):
     completed_count = completed_today.count()
     receiving_tanks = _overview_container_totals(ProductionContainer.KIND_RECEIVING_TANK)
     preheating_boilers = _overview_container_totals(ProductionContainer.KIND_PREHEATING_BOILER)
-    separators = _overview_container_totals(ProductionContainer.KIND_SEPARATOR)
     chemical_mixers = _overview_container_totals(ProductionContainer.KIND_CHEMICAL_MIXER)
     chemical_mixer_items = _overview_container_items(
         ProductionContainer.KIND_CHEMICAL_MIXER,
-        MaterialMovement.TYPE_SEPARATOR_TO_CHEMICAL_MIXER,
+        MaterialMovement.TYPE_RAW_TO_CHEMICAL_MIXER,
     )
     processing_workshops = _overview_container_totals(ProductionContainer.KIND_PROCESSING_WORKSHOP)
     processing_workshop_items = _overview_container_items(
         ProductionContainer.KIND_PROCESSING_WORKSHOP,
-        MaterialMovement.TYPE_CHEMICAL_MIXER_TO_WORKSHOP,
+        MaterialMovement.TYPE_BOILER_TO_WORKSHOP,
     )
     raw_diesel_tanks = _overview_container_totals(ProductionContainer.KIND_RAW_DIESEL_TANK)
     raw_spindle_tanks = _overview_container_totals(ProductionContainer.KIND_RAW_SPINDLE_TANK)
@@ -3104,9 +2768,6 @@ def production_overview_view(request):
     ).order_by('-moved_at', '-id').first()
     last_boiler_loading = MaterialMovement.objects.filter(
         movement_type=MaterialMovement.TYPE_TANK_TO_BOILER,
-    ).order_by('-moved_at', '-id').first()
-    last_separator_loading = MaterialMovement.objects.filter(
-        movement_type=MaterialMovement.TYPE_BOILER_TO_SEPARATOR,
     ).order_by('-moved_at', '-id').first()
     last_raw_diesel_loading = MaterialMovement.objects.filter(
         movement_type=MaterialMovement.TYPE_WORKSHOP_TO_RAW_DIESEL_TANK,
@@ -3133,10 +2794,6 @@ def production_overview_view(request):
         'preheating_boilers': {
             **preheating_boilers,
             'last_loading_at': last_boiler_loading.moved_at.isoformat() if last_boiler_loading else '',
-        },
-        'separators': {
-            **separators,
-            'last_loading_at': last_separator_loading.moved_at.isoformat() if last_separator_loading else '',
         },
         'chemical_mixers': {
             **chemical_mixers,

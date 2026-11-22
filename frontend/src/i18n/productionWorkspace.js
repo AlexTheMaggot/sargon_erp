@@ -1,4 +1,5 @@
 export const productionWorkspaceMessages = {
+  'Передать прогретое масло из котла в химический миксер.': 'Isitilgan moyni qozondan kimyoviy aralashtirgichga o‘tkazish.',
   'Прогрев, разделение, переработка и очистка масла.': 'Moyni isitish, ajratish, qayta ishlash va tozalash.',
   'Передать сырую солярку или веретенку из бака в финишный миксер.': 'Xom dizel yoqilg‘isi yoki veretyonka moyini bakdan yakuniy aralashtirgichga o‘tkazish.',
   'Производство': 'Ishlab chiqarish',
@@ -20,9 +21,7 @@ export const productionWorkspaceMessages = {
   'Операции с товарным маслом': 'Tayyor moy bilan operatsiyalar',
   'Нет доступных производственных операций. Обратитесь к администратору.': 'Mavjud ishlab chiqarish operatsiyalari yo‘q. Administratorga murojaat qiling.',
   'Передать масло из приёмного бака в котёл прогрева.': 'Moyni qabul bakidan isitish qozoniga o‘tkazish.',
-  'Подать прогретое масло из котла в сепаратор.': 'Isitilgan moyni qozondan separatorga uzatish.',
   'Зарегистрировать отгрузку воды или технического мусора.': 'Suv yoki texnik chiqindi chiqarilishini qayd etish.',
-  'Передать очищенное масло из сепаратора в химический миксер.': 'Tozalangan moyni separatordan kimyoviy aralashtirgichga o‘tkazish.',
   'Направить подготовленное масло из миксера в цех.': 'Tayyorlangan moyni aralashtirgichdan sexga uzatish.',
   'Перелить сырую солярку из цеха в отдельный бак.': 'Xom dizel yoqilg‘isini sexdan alohida bakka o‘tkazish.',
   'Перелить сырую веретенку из цеха в отдельный бак.': 'Xom veretyonka moyini sexdan alohida bakka o‘tkazish.',

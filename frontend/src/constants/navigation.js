@@ -45,7 +45,6 @@ export const navItems = [
     children: [
       { path: '/processing/receiving-tanks', label: 'Приёмные баки', moduleCode: 'used-oil-processing' },
       { path: '/processing/preheating-boilers', label: 'Котлы первичного прогрева', moduleCode: 'used-oil-processing' },
-      { path: '/processing/separators', label: 'Сепараторы', moduleCode: 'used-oil-processing' },
       { path: '/processing/chemical-mixers', label: 'Химические миксеры', moduleCode: 'used-oil-processing' },
       { path: '/processing/workshops', label: 'Цеха переработки', moduleCode: 'used-oil-processing' },
       { path: '/processing/raw-diesel-tanks', label: 'Баки сырой солярки', moduleCode: 'used-oil-processing' },

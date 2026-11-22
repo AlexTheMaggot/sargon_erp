@@ -30,7 +30,6 @@ export const oilFinishingMessages = {
   'всего отгружено': 'jami chiqarilgan',
   'Всего отгружено': 'Jami chiqarilgan',
   'Отгружено сегодня': 'Bugun chiqarilgan',
-  'Отгрузки сепаратора за вычетом компенсированных движений. Это не остаток в накопителе.': 'Teskari harakat bilan bekor qilinganlarini hisobga olmagan separator chiqarishlari. Bu yig‘gichdagi qoldiq emas.',
   'Учёт не подключён': 'Hisob ulanmagan',
   'Продукт источника не соответствует движению.': 'Manbadagi mahsulot harakatga mos emas.',
   'В источнике недостаточно продукта.': 'Manbada mahsulot yetarli emas.',

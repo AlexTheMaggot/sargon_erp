@@ -5,7 +5,6 @@ import { oilContainerApiPath, oilContainerConfig } from '../constants/oilFinishi
 const containerPaths = {
   receiving_tank: '/api/processing/receiving-tanks/',
   preheating_boiler: '/api/processing/preheating-boilers/',
-  separator: '/api/processing/separators/',
   chemical_mixer: '/api/processing/chemical-mixers/',
   processing_workshop: '/api/processing/workshops/',
   raw_diesel_tank: '/api/processing/raw-diesel-tanks/',
@@ -18,7 +17,6 @@ const allContainerKinds = Object.keys(containerPaths)
 export function useProcessingCrud(token, { containerKinds = allContainerKinds, loadJournal = false, loadOilGrades = false } = {}) {
   const [receivingTanks, setReceivingTanks] = useState([])
   const [boilers, setBoilers] = useState([])
-  const [separators, setSeparators] = useState([])
   const [chemicalMixers, setChemicalMixers] = useState([])
   const [processingWorkshops, setProcessingWorkshops] = useState([])
   const [rawDieselTanks, setRawDieselTanks] = useState([])
@@ -40,7 +38,6 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
 
     if (dataByKind.receiving_tank) setReceivingTanks(dataByKind.receiving_tank.items)
     if (dataByKind.preheating_boiler) setBoilers(dataByKind.preheating_boiler.items)
-    if (dataByKind.separator) setSeparators(dataByKind.separator.items)
     if (dataByKind.chemical_mixer) setChemicalMixers(dataByKind.chemical_mixer.items)
     if (dataByKind.processing_workshop) setProcessingWorkshops(dataByKind.processing_workshop.items)
     if (dataByKind.raw_diesel_tank) setRawDieselTanks(dataByKind.raw_diesel_tank.items)
@@ -150,29 +147,8 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
     }))
   }
 
-  function createBoilerToSeparatorMovement(form) {
-    return runOperation(() => apiRequest('/api/processing/movements/boiler-to-separator/', token, {
-      method: 'POST',
-      body: JSON.stringify(form),
-    }))
-  }
-
-  function createSeparatorOutputMovement(form) {
-    return runOperation(() => apiRequest('/api/processing/movements/separator-output/', token, {
-      method: 'POST',
-      body: JSON.stringify(form),
-    }))
-  }
-
-  function createChemicalMixerLoading(form) {
-    return runOperation(() => apiRequest('/api/processing/movements/separator-to-chemical-mixer/', token, {
-      method: 'POST',
-      body: JSON.stringify(form),
-    }))
-  }
-
   function createWorkshopLoading(form) {
-    return runOperation(() => apiRequest('/api/processing/movements/chemical-mixer-to-workshop/', token, {
+    return runOperation(() => apiRequest('/api/processing/movements/boiler-to-workshop/', token, {
       method: 'POST',
       body: JSON.stringify(form),
     }))
@@ -203,11 +179,8 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
     boilers,
     chemicalMixers,
     compensateMovement,
-    createBoilerToSeparatorMovement,
-    createChemicalMixerLoading,
     createRawDieselTankLoading,
     createRawSpindleTankLoading,
-    createSeparatorOutputMovement,
     createTankToBoilerMovement,
     createWorkshopLoading,
     deleteContainer,
@@ -220,7 +193,6 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
     rawDieselTanks,
     rawSpindleTanks,
     receivingTanks,
-    separators,
     saveContainer,
   }
 }

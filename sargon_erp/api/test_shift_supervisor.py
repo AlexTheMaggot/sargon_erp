@@ -23,7 +23,7 @@ class ShiftSupervisorTests(TestCase):
         access = _user_access_map(self.user)
         read_only = {'used-oil-processing', 'production-workspace'}
         operations = {
-            'boiler-loading', 'separator-loading', 'separator-output', 'chemical-mixer-loading', 'workshop-loading',
+            'boiler-loading', 'chemical-mixer-loading', 'workshop-loading',
             'raw-diesel-tank-loading', 'raw-spindle-tank-loading', 'finishing-mixer-loading',
             'finishing-filter-loading', 'finished-product-loading',
             'canister-loading', 'cap-loading', 'canister-output', 'cap-output',
@@ -44,7 +44,7 @@ class ShiftSupervisorTests(TestCase):
     def test_production_views_and_operations_are_accessible(self):
         for path in (
             '/api/processing/receiving-tanks/', '/api/processing/preheating-boilers/',
-            '/api/processing/separators/', '/api/processing/chemical-mixers/',
+            '/api/processing/chemical-mixers/',
             '/api/processing/workshops/', '/api/processing/raw-diesel-tanks/', '/api/processing/raw-spindle-tanks/',
             *(f'/api/processing/oil-containers/{path}/' for path in OIL_CONTAINER_PATHS),
             *(f'/api/processing/oil-movements/{step}/' for step in OIL_FINISHING_STEPS),
@@ -53,9 +53,8 @@ class ShiftSupervisorTests(TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path, **self.headers).status_code, 200)
         for path in (
-            '/api/processing/movements/tank-to-boiler/', '/api/processing/movements/boiler-to-separator/',
-            '/api/processing/movements/separator-output/', '/api/processing/movements/separator-to-chemical-mixer/',
-            '/api/processing/movements/chemical-mixer-to-workshop/',
+            '/api/processing/movements/tank-to-boiler/',
+            '/api/processing/movements/boiler-to-workshop/',
             '/api/processing/movements/workshop-to-raw-diesel-tank/', '/api/processing/movements/workshop-to-raw-spindle-tank/',
             *(f'/api/processing/oil-movements/{step}/' for step in OIL_FINISHING_STEPS),
             *(f'/api/oil-production/operations/{step}/' for step in MANUFACTURING_STEPS),

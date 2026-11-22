@@ -163,7 +163,7 @@ class ReceiptCompletionTests(ReceiptCompletionFixture, TestCase):
         self.assert_not_posted()
 
     def test_inactive_or_wrong_kind_tank_is_rejected(self):
-        for kind, active in ((ProductionContainer.KIND_RECEIVING_TANK, False), (ProductionContainer.KIND_SEPARATOR, True)):
+        for kind, active in ((ProductionContainer.KIND_RECEIVING_TANK, False), (ProductionContainer.KIND_PREHEATING_BOILER, True)):
             with self.subTest(kind=kind, active=active):
                 self.tank.kind = kind
                 self.tank.is_active = active

@@ -49,56 +49,11 @@ const FLOW_NODES = {
     statusTone: 'running',
     throughput: '16 000 л/ч',
     currentFlow: '11 800 л',
-    description: 'Нагрев сырья перед разделением воды и твердых примесей.',
+    description: 'Нагрев сырья перед подачей в цех переработки.',
     metrics: [
       ['В обработке', '11 800 л'],
       ['Температура', '92 °C'],
       ['Загрузка', '74%'],
-    ],
-  },
-  separator: {
-    name: 'Сепаратор',
-    shortName: 'СЕ',
-    stage: 'Разделение',
-    status: 'В работе',
-    statusTone: 'running',
-    throughput: '15 000 л/ч',
-    currentFlow: '11 640 л',
-    description: 'Отделение воды и механических примесей от подготовленной отработки.',
-    metrics: [
-      ['Очищено за смену', '11 640 л'],
-      ['Выход продукта', '93,5%'],
-      ['Текущая загрузка', '78%'],
-    ],
-  },
-  water: {
-    name: 'Техническая вода',
-    shortName: 'В',
-    stage: 'Побочный продукт',
-    status: 'Отводится',
-    statusTone: 'water',
-    throughput: '1 800 л/ч',
-    currentFlow: '760 л',
-    description: 'Отделенная вода направляется в отдельный контур утилизации.',
-    metrics: [
-      ['За смену', '760 л'],
-      ['Доля потока', '6,1%'],
-      ['Состояние линии', 'Норма'],
-    ],
-  },
-  waste: {
-    name: 'Механический мусор',
-    shortName: 'М',
-    stage: 'Отходы',
-    status: 'Собирается',
-    statusTone: 'waste',
-    throughput: '500 л/ч',
-    currentFlow: '50 л',
-    description: 'Твердые примеси собираются для последующей утилизации.',
-    metrics: [
-      ['Эквивалент объема', '50 л'],
-      ['Доля потока', '0,4%'],
-      ['Заполнение сборника', '31%'],
     ],
   },
   chemicalMixer1: {
@@ -109,7 +64,7 @@ const FLOW_NODES = {
     statusTone: 'running',
     throughput: '8 000 л/ч',
     currentFlow: '5 900 л',
-    description: 'Смешивание очищенной отработки с технологическими реагентами.',
+    description: 'Химическая подготовка сырой солярки или веретенки перед финишным смешиванием.',
     metrics: [
       ['Текущая партия', '5 900 л'],
       ['Время цикла', '42 мин'],
@@ -124,7 +79,7 @@ const FLOW_NODES = {
     statusTone: 'ready',
     throughput: '8 000 л/ч',
     currentFlow: '0 л',
-    description: 'Резервная линия смешивания с возможностью подачи в любой цех.',
+    description: 'Подготовка сырой продукции с подачей в финишный миксер.',
     metrics: [
       ['Текущая партия', '0 л'],
       ['Последняя партия', '5 740 л'],
@@ -154,7 +109,7 @@ const FLOW_NODES = {
     statusTone: 'ready',
     throughput: '9 000 л/ч',
     currentFlow: '0 л',
-    description: 'Параллельная линия переработки, принимающая сырье из любого химического миксера.',
+    description: 'Параллельная линия переработки, принимающая сырье из котла первичного прогрева.',
     metrics: [
       ['В обработке', '0 л'],
       ['Последняя партия', '5 620 л'],
@@ -169,7 +124,7 @@ const FLOW_NODES = {
     statusTone: 'running',
     throughput: '10 000 л/ч',
     currentFlow: '21 600 л',
-    description: 'Накопление сырой солярки перед подачей в финишный миксер.',
+    description: 'Накопление сырой солярки перед подачей в химический миксер.',
     metrics: [
       ['Текущий объем', '21 600 л'],
       ['Вместимость', '35 000 л'],
@@ -680,17 +635,6 @@ function buildOilFinishingNodes(nodes, summary) {
     node.metrics.push(...items.map((item) => [t(item.name), formatLiveVolume(item.current_volume_liters)]))
     result[nodeId] = node
   }
-  for (const nodeId of ['water', 'waste']) {
-    const state = summary.separator_outputs?.[nodeId]
-    result[nodeId] = {
-      ...nodes[nodeId], isLive: true, status: t('Учёт отгрузок'),
-      currentFlow: formatLiveVolume(state?.today_liters),
-      throughput: formatLiveVolume(state?.total_liters), capacityCaption: t('всего отгружено'),
-      throughputLabel: t('Всего отгружено'),
-      metrics: [[t('Отгружено сегодня'), formatLiveVolume(state?.today_liters)]],
-      dataNote: t('Отгрузки сепаратора за вычетом компенсированных движений. Это не остаток в накопителе.'),
-    }
-  }
   return result
 }
 
@@ -805,7 +749,7 @@ export function OverviewPage({ onLogout, token, user }) {
   const flowNodes = useMemo(() => {
     const nodes = localizeStaticData(FLOW_NODES, language)
     if (!overviewData) {
-      const liveNodeIds = ['reception', 'storageTank', 'preheater', 'separator', 'water', 'waste',
+      const liveNodeIds = ['reception', 'storageTank', 'preheater',
         'chemicalMixer1', 'chemicalMixer2', 'workshop1', 'workshop2', 'rawDieselTank', 'rawSpindleTank',
         'finishingMixer', 'filter', 'finishedDieselTank', 'finishedSpindleTank',
         'polypropyleneFeed', 'concentrateReactor', 'additiveStation', 'blender1', 'blender2', 'blender3',
@@ -819,7 +763,6 @@ export function OverviewPage({ onLogout, token, user }) {
     const reception = overviewData.reception
     const tanks = overviewData.receiving_tanks
     const boilers = overviewData.preheating_boilers
-    const separators = overviewData.separators
     const chemicalMixers = overviewData.chemical_mixers?.items || []
     const processingWorkshops = overviewData.processing_workshops?.items || []
     const rawDieselTanks = overviewData.raw_diesel_tanks
@@ -877,24 +820,6 @@ export function OverviewPage({ onLogout, token, user }) {
           [t('Заполнение'), `${boilers.fill_percentage}%`],
           [t('Активных котлов'), String(boilers.active_count)],
           [t('Последняя загрузка'), formatLiveDateTime(boilers.last_loading_at)],
-        ],
-        isLive: true,
-      },
-      separator: {
-        ...nodes.separator,
-        name: separators.active_count === 1 ? t('Сепаратор') : t('Сепараторы'),
-        status: Number(separators.current_volume_liters) > 0 ? t('Загружен') : t('Ожидает загрузки'),
-        statusTone: Number(separators.current_volume_liters) > 0 ? 'running' : 'ready',
-        currentFlow: formatLiveVolume(separators.current_volume_liters),
-        throughput: formatLiveVolume(separators.capacity_liters),
-        capacityCaption: t('вместимость'),
-        throughputLabel: t('Общая вместимость'),
-        metrics: [
-          [t('Текущий объем'), formatLiveVolume(separators.current_volume_liters)],
-          [t('Свободно'), formatLiveVolume(separators.free_volume_liters)],
-          [t('Заполнение'), `${separators.fill_percentage}%`],
-          [t('Активных сепараторов'), String(separators.active_count)],
-          [t('Последняя загрузка'), formatLiveDateTime(separators.last_loading_at)],
         ],
         isLive: true,
       },
@@ -969,8 +894,6 @@ export function OverviewPage({ onLogout, token, user }) {
 
             <div className="process-legend" aria-label={t('Легенда схемы')}>
               <span><i className="legend-line legend-line--product" />{t('Основной продукт')}</span>
-              <span><i className="legend-line legend-line--water" />{t('Вода')}</span>
-              <span><i className="legend-line legend-line--waste" />{t('Мусор')}</span>
               <span><i className="legend-status legend-status--running" />{t('В работе')}</span>
               <span><i className="legend-status legend-status--ready" />{t('Готов / ожидает')}</span>
               <small>{t('Жидкие продукты — литры, твердые компоненты — килограммы')}</small>
@@ -988,14 +911,6 @@ export function OverviewPage({ onLogout, token, user }) {
             <ProcessNode compact nodeId="storageTank" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
             <FlowArrow />
             <ProcessNode compact nodeId="preheater" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
-            <FlowArrow />
-            <div className="snake-separator">
-              <ProcessNode compact nodeId="separator" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
-              <div className="separator-outlets">
-                <ProcessOutlet nodeId="water" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
-                <ProcessOutlet nodeId="waste" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
-              </div>
-            </div>
           </div>
 
           <div className="snake-turn snake-turn--right">
@@ -1003,11 +918,11 @@ export function OverviewPage({ onLogout, token, user }) {
           </div>
 
           <div className="snake-row snake-row--reverse">
+            <CompactNodeGroup nodeIds={['chemicalMixer1', 'chemicalMixer2']} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
+            <FlowArrow direction="left" />
             <CompactNodeGroup nodeIds={['rawDieselTank', 'rawSpindleTank']} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
             <FlowArrow direction="left" />
             <CompactNodeGroup nodeIds={['workshop1', 'workshop2']} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
-            <FlowArrow direction="left" />
-            <CompactNodeGroup nodeIds={['chemicalMixer1', 'chemicalMixer2']} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
           </div>
 
           <div className="snake-turn snake-turn--left">

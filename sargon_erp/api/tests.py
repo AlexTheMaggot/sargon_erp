@@ -106,12 +106,6 @@ class ProductionAccountingTests(TestCase):
             system_code='preheating-boiler-10',
             capacity_liters=Decimal('500.000'),
         )
-        self.separator = ProductionContainer.objects.create(
-            kind=ProductionContainer.KIND_SEPARATOR,
-            number=10,
-            system_code='separator-10',
-            capacity_liters=Decimal('500.000'),
-        )
         self.chemical_mixer = ProductionContainer.objects.create(
             kind=ProductionContainer.KIND_CHEMICAL_MIXER,
             number=10,
@@ -302,99 +296,6 @@ class ProductionAccountingTests(TestCase):
         self.assertEqual(self.tank.current_volume_liters, Decimal('100.000'))
         self.assertEqual(self.boiler.current_volume_liters, Decimal('0.000'))
 
-    def test_boiler_to_separator_movement_updates_both_balances(self):
-        self.boiler.current_volume_liters = Decimal('200.000')
-        self.boiler.save(update_fields=['current_volume_liters'])
-        payload = {
-            'source_boiler_id': self.boiler.pk,
-            'destination_separator_id': self.separator.pk,
-            'volume_liters': '75.125',
-            'idempotency_key': 'separator-loading-key',
-        }
-
-        first_response = self.post_json('/api/processing/movements/boiler-to-separator/', payload)
-        second_response = self.post_json('/api/processing/movements/boiler-to-separator/', payload)
-
-        self.assertEqual(first_response.status_code, 201)
-        self.assertEqual(second_response.status_code, 200)
-        self.boiler.refresh_from_db()
-        self.separator.refresh_from_db()
-        self.assertEqual(self.boiler.current_volume_liters, Decimal('124.875'))
-        self.assertEqual(self.separator.current_volume_liters, Decimal('75.125'))
-        self.assertEqual(MaterialMovement.objects.filter(idempotency_key='separator-loading-key').count(), 1)
-
-    def test_separator_output_reduces_balance_and_can_be_compensated(self):
-        self.separator.current_volume_liters = Decimal('120.000')
-        self.separator.save(update_fields=['current_volume_liters'])
-
-        movement_response = self.post_json('/api/processing/movements/separator-output/', {
-            'source_separator_id': self.separator.pk,
-            'output_type': 'water',
-            'volume_liters': '20.125',
-            'idempotency_key': 'separator-output-key',
-        })
-
-        self.assertEqual(movement_response.status_code, 201)
-        self.assertEqual(movement_response.json()['product_name'], MaterialMovement.PRODUCT_TECHNICAL_WATER)
-        self.separator.refresh_from_db()
-        self.assertEqual(self.separator.current_volume_liters, Decimal('99.875'))
-
-        compensation_response = self.post_json(
-            f"/api/processing/movements/{movement_response.json()['id']}/compensate/",
-            {'reason': 'Исправление ошибочной отгрузки'},
-        )
-
-        self.assertEqual(compensation_response.status_code, 201)
-        self.separator.refresh_from_db()
-        self.assertEqual(self.separator.current_volume_liters, Decimal('120.000'))
-
-    def test_separator_output_rejects_fuel(self):
-        self.separator.current_volume_liters = Decimal('120.000')
-        self.separator.save(update_fields=['current_volume_liters'])
-
-        response = self.post_json('/api/processing/movements/separator-output/', {
-            'source_separator_id': self.separator.pk,
-            'output_type': 'fuel',
-            'volume_liters': '20.000',
-            'idempotency_key': 'separator-fuel-output-key',
-        })
-
-        self.assertEqual(response.status_code, 400)
-        self.separator.refresh_from_db()
-        self.assertEqual(self.separator.current_volume_liters, Decimal('120.000'))
-
-    def test_separator_to_chemical_mixer_updates_both_balances(self):
-        self.separator.current_volume_liters = Decimal('200.000')
-        self.separator.save(update_fields=['current_volume_liters'])
-        payload = {
-            'source_separator_id': self.separator.pk,
-            'destination_mixer_id': self.chemical_mixer.pk,
-            'volume_liters': '75.125',
-            'idempotency_key': 'chemical-mixer-loading-key',
-        }
-
-        first_response = self.post_json('/api/processing/movements/separator-to-chemical-mixer/', payload)
-        second_response = self.post_json('/api/processing/movements/separator-to-chemical-mixer/', payload)
-
-        self.assertEqual(first_response.status_code, 201)
-        self.assertEqual(second_response.status_code, 200)
-        self.separator.refresh_from_db()
-        self.chemical_mixer.refresh_from_db()
-        self.assertEqual(self.separator.current_volume_liters, Decimal('124.875'))
-        self.assertEqual(self.chemical_mixer.current_volume_liters, Decimal('75.125'))
-        self.assertEqual(MaterialMovement.objects.filter(idempotency_key='chemical-mixer-loading-key').count(), 1)
-
-        compensation_response = self.post_json(
-            f"/api/processing/movements/{first_response.json()['id']}/compensate/",
-            {'reason': 'Исправление загрузки миксера'},
-        )
-
-        self.assertEqual(compensation_response.status_code, 201)
-        self.separator.refresh_from_db()
-        self.chemical_mixer.refresh_from_db()
-        self.assertEqual(self.separator.current_volume_liters, Decimal('200.000'))
-        self.assertEqual(self.chemical_mixer.current_volume_liters, Decimal('0.000'))
-
     def test_admin_can_create_and_delete_empty_chemical_mixer(self):
         create_response = self.post_json('/api/processing/chemical-mixers/', {
             'number': 11,
@@ -414,24 +315,24 @@ class ProductionAccountingTests(TestCase):
         self.assertEqual(delete_response.status_code, 200)
         self.assertFalse(ProductionContainer.objects.filter(pk=mixer_id).exists())
 
-    def test_chemical_mixer_to_workshop_updates_both_balances_and_compensates(self):
-        self.chemical_mixer.current_volume_liters = Decimal('200.000')
-        self.chemical_mixer.save(update_fields=['current_volume_liters'])
+    def test_boiler_to_workshop_updates_both_balances_and_compensates(self):
+        self.boiler.current_volume_liters = Decimal('200.000')
+        self.boiler.save(update_fields=['current_volume_liters'])
         payload = {
-            'source_mixer_id': self.chemical_mixer.pk,
+            'source_boiler_id': self.boiler.pk,
             'destination_workshop_id': self.processing_workshop.pk,
             'volume_liters': '75.125',
             'idempotency_key': 'processing-workshop-loading-key',
         }
 
-        first_response = self.post_json('/api/processing/movements/chemical-mixer-to-workshop/', payload)
-        second_response = self.post_json('/api/processing/movements/chemical-mixer-to-workshop/', payload)
+        first_response = self.post_json('/api/processing/movements/boiler-to-workshop/', payload)
+        second_response = self.post_json('/api/processing/movements/boiler-to-workshop/', payload)
 
         self.assertEqual(first_response.status_code, 201)
         self.assertEqual(second_response.status_code, 200)
-        self.chemical_mixer.refresh_from_db()
+        self.boiler.refresh_from_db()
         self.processing_workshop.refresh_from_db()
-        self.assertEqual(self.chemical_mixer.current_volume_liters, Decimal('124.875'))
+        self.assertEqual(self.boiler.current_volume_liters, Decimal('124.875'))
         self.assertEqual(self.processing_workshop.current_volume_liters, Decimal('75.125'))
 
         compensation_response = self.post_json(
@@ -440,9 +341,9 @@ class ProductionAccountingTests(TestCase):
         )
 
         self.assertEqual(compensation_response.status_code, 201)
-        self.chemical_mixer.refresh_from_db()
+        self.boiler.refresh_from_db()
         self.processing_workshop.refresh_from_db()
-        self.assertEqual(self.chemical_mixer.current_volume_liters, Decimal('200.000'))
+        self.assertEqual(self.boiler.current_volume_liters, Decimal('200.000'))
         self.assertEqual(self.processing_workshop.current_volume_liters, Decimal('0.000'))
 
     def test_admin_can_create_and_delete_empty_processing_workshop(self):
@@ -567,23 +468,23 @@ class ProductionAccountingTests(TestCase):
 
         tank_response = self.client.get('/api/processing/receiving-tanks/', **self.auth_headers(operator))
         boiler_response = self.client.get('/api/processing/preheating-boilers/', **self.auth_headers(operator))
-        separator_response = self.client.get('/api/processing/separators/', **self.auth_headers(operator))
+        mixer_response = self.client.get('/api/processing/chemical-mixers/', **self.auth_headers(operator))
         movement_response = self.post_json('/api/processing/movements/tank-to-boiler/', {
             'source_tank_id': self.tank.pk,
             'destination_boiler_id': self.boiler.pk,
             'volume_liters': '25.000',
             'idempotency_key': 'boiler-operator-movement',
         }, operator)
-        forbidden_response = self.post_json('/api/processing/movements/boiler-to-separator/', {
+        forbidden_response = self.post_json('/api/processing/movements/boiler-to-workshop/', {
             'source_boiler_id': self.boiler.pk,
-            'destination_separator_id': self.separator.pk,
+            'destination_workshop_id': self.processing_workshop.pk,
             'volume_liters': '10.000',
             'idempotency_key': 'boiler-operator-forbidden-movement',
         }, operator)
 
         self.assertEqual(tank_response.status_code, 200)
         self.assertEqual(boiler_response.status_code, 200)
-        self.assertEqual(separator_response.status_code, 403)
+        self.assertEqual(mixer_response.status_code, 403)
         self.assertEqual(movement_response.status_code, 201)
         self.assertEqual(forbidden_response.status_code, 403)
 
@@ -599,10 +500,9 @@ class ProductionAccountingTests(TestCase):
         self.tank.save(update_fields=['current_volume_liters'])
         self.boiler.current_volume_liters = Decimal('75.125')
         self.boiler.save(update_fields=['current_volume_liters'])
-        self.separator.current_volume_liters = Decimal('25.500')
-        self.separator.save(update_fields=['current_volume_liters'])
         self.chemical_mixer.current_volume_liters = Decimal('50.250')
-        self.chemical_mixer.save(update_fields=['current_volume_liters'])
+        self.chemical_mixer.oil_product = 'diesel'
+        self.chemical_mixer.save(update_fields=['current_volume_liters', 'oil_product'])
         self.processing_workshop.current_volume_liters = Decimal('40.125')
         self.processing_workshop.save(update_fields=['current_volume_liters'])
         self.raw_diesel_tank.current_volume_liters = Decimal('30.500')
@@ -617,7 +517,6 @@ class ProductionAccountingTests(TestCase):
         self.assertEqual(data['reception']['accepted_today_liters'], '125.500')
         self.assertEqual(data['receiving_tanks']['current_volume_liters'], '300.250')
         self.assertEqual(data['preheating_boilers']['current_volume_liters'], '75.125')
-        self.assertEqual(data['separators']['current_volume_liters'], '25.500')
         self.assertEqual(data['chemical_mixers']['current_volume_liters'], '50.250')
         mixer_data = next(item for item in data['chemical_mixers']['items'] if item['id'] == self.chemical_mixer.pk)
         self.assertEqual(mixer_data['current_volume_liters'], '50.250')

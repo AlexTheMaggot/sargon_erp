@@ -3,16 +3,14 @@ import { oilManufacturingConfig } from './oilManufacturing.js'
 
 export const recyclingOperations = [
   { path: '/processing/boiler-loading', label: 'Загрузка котла отработки', moduleCode: 'boiler-loading', group: 'preparation', icon: 'boiler', description: 'Передать масло из приёмного бака в котёл прогрева.' },
-  { path: '/processing/separator-loading', label: 'Загрузка сепаратора', moduleCode: 'separator-loading', group: 'preparation', icon: 'separator', description: 'Подать прогретое масло из котла в сепаратор.' },
-  { path: '/processing/separator-output', label: 'Отгрузка сепаратора', moduleCode: 'separator-output', group: 'preparation', icon: 'outlet', description: 'Зарегистрировать отгрузку воды или технического мусора.' },
-  { path: '/processing/chemical-mixer-loading', label: 'Загрузка химического миксера', moduleCode: 'chemical-mixer-loading', group: 'processing', icon: 'mixer', description: 'Передать очищенное масло из сепаратора в химический миксер.' },
-  { path: '/processing/workshop-loading', label: 'Загрузка в цех переработки', moduleCode: 'workshop-loading', group: 'processing', icon: 'factory', description: 'Направить подготовленное масло из миксера в цех.' },
+  { path: '/processing/workshop-loading', label: 'Загрузка в цех переработки', moduleCode: 'workshop-loading', group: 'processing', icon: 'factory', description: 'Передать прогретое масло из котла в цех переработки.' },
   { path: '/processing/raw-diesel-tank-loading', label: 'Загрузка бака сырой солярки', moduleCode: 'raw-diesel-tank-loading', group: 'processing', icon: 'tank', description: 'Перелить сырую солярку из цеха в отдельный бак.' },
   { path: '/processing/raw-spindle-tank-loading', label: 'Загрузка бака сырой веретенки', moduleCode: 'raw-spindle-tank-loading', group: 'processing', icon: 'tank', description: 'Перелить сырую веретенку из цеха в отдельный бак.' },
   ...Object.entries(oilFinishingForms).map(([code, config]) => ({
     path: `/processing/${code}`, label: config.title, moduleCode: code, group: 'finishing',
     ...({
-      'finishing-mixer-loading': { icon: 'mixer', description: 'Передать сырую солярку или веретенку из бака в финишный миксер.' },
+      'chemical-mixer-loading': { icon: 'mixer', description: 'Передать сырую солярку или веретенку из бака в химический миксер.' },
+      'finishing-mixer-loading': { icon: 'mixer', description: 'Передать масло из химического миксера в финишный миксер.' },
       'finishing-filter-loading': { icon: 'filter', description: 'Передать масло из финишного миксера на фильтрацию.' },
       'finished-product-loading': { icon: 'tank', description: 'Заполнить бак готовой солярки или веретенки после фильтра.' },
     })[code],

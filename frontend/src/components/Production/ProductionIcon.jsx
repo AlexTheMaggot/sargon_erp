@@ -4,8 +4,6 @@ const shapes = {
   canister: <><path d="M7 4h5l3 4h4v13H5V8l2-4ZM8 1h4v3M8 8l1-2h2l2 2M8 12h8v6H8z" /></>,
   cap: <><ellipse cx="12" cy="7" rx="8" ry="3" /><path d="M4 7v9c0 4 16 4 16 0V7M7 11v5m3-4v5m4-5v5m3-6v5" /></>,
   boiler: <><path d="M6 5h12v14H6zM4 19h16M9 2v3m6-3v3M3 10h3m12 0h3" /><path d="M12 10c2 2 3 3 3 4a3 3 0 0 1-6 0c0-1 1-3 3-4Z" /></>,
-  separator: <><path d="M4 4h16l-3 9H7L4 4ZM9 13v7m6-7v7M3 20h8m2 0h8M12 1v3" /><path d="M8 8h8" /></>,
-  outlet: <><path d="M5 3v7c0 4 3 6 7 6h5M14 12l4 4-4 4M9 3v7c0 1 1 2 3 2" /></>,
   mixer: <><path d="M6 7h12v11a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V7ZM12 2v15M9 14l6 3m-6 0 6-3M4 7h16" /></>,
   factory: <><path d="M3 21V10l6 3V7l6 4V3h4l2 18H3ZM7 17h1m3 0h1m4 0h1M16 3h3" /></>,
   tank: <><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 4 16 4 16 0V5M4 12c3 3 13 3 16 0" /></>,

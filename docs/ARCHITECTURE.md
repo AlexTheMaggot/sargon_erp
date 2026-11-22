@@ -105,10 +105,10 @@ MaterialMovement → 0..1 компенсируемое MaterialMovement
   литра; бэкенд пересчитывает их независимо через `Decimal`.
   Изменение приёма, партий и анализов использует общую блокировку строки приёма;
   WebSocket-события регистрируются через `transaction.on_commit()`.
-- `ProductionContainer.kind` различает четырнадцать видов ёмкостей. Общая модель не означает
+- `ProductionContainer.kind` различает тринадцать видов ёмкостей. Общая модель не означает
   взаимозаменяемость типов: каждый маршрут проверяет источник и назначение.
 - Баланс хранится в `current_volume_liters`; история — в `MaterialMovement`.
-- `api/oil_processing.py` реализует общую линию сырые продуктовые баки → финишный миксер → фильтр
+- `api/oil_processing.py` реализует общую линию сырые продуктовые баки → химический миксер → финишный миксер → фильтр
   → раздельные готовые баки. `oil_product` фиксирует продукт в непустом общем
   оборудовании и снимок продукта движения. PostgreSQL transaction-level advisory
   lock `734092601` сериализует операции линии и компенсации, включая пустую линию.
@@ -238,11 +238,11 @@ WarehouseDocumentSequence → номер по типу документа и г�
 | Справочники | `directories/cities/`, `directories/suppliers/` и детали |
 | Приём | `raw-material/receipts/`, `receipts/<id>/batches/`, `raw-material/batches/<id>/` |
 | Лаборатория | `laboratory/analyses/`, `laboratory/analyses/<id>/` |
-| Ёмкости | `processing/receiving-tanks/`, `preheating-boilers/`, `separators/`, `chemical-mixers/`, `workshops/`, `raw-diesel-tanks/`, `raw-spindle-tanks/` — все под `processing/` |
+| Ёмкости | `processing/receiving-tanks/`, `preheating-boilers/`, `chemical-mixers/`, `workshops/`, `raw-diesel-tanks/`, `raw-spindle-tanks/` — все под `processing/` |
 | Деталь ёмкости | `processing/containers/<id>/` |
-| Движения | `processing/movements/tank-to-boiler/`, `boiler-to-separator/`, `separator-output/`, `separator-to-chemical-mixer/`, `chemical-mixer-to-workshop/`, `workshop-to-raw-diesel-tank/`, `workshop-to-raw-spindle-tank/` — все под `processing/movements/` |
+| Движения | `processing/movements/tank-to-boiler/`, `boiler-to-workshop/`, `workshop-to-raw-diesel-tank/`, `workshop-to-raw-spindle-tank/` — все под `processing/movements/` |
 | Финишная очистка | `processing/oil-containers/{finishing-mixers,finishing-filters,finished-diesel-tanks,finished-spindle-tanks}/`: GET/POST; изменение/удаление через общий `processing/containers/<id>/` |
-| Движения финишной очистки | `processing/oil-movements/{finishing-mixer-loading,finishing-filter-loading,finished-product-loading}/`: POST; GET — история соответствующей операции по 10 записей |
+| Движения финишной очистки | `processing/oil-movements/{chemical-mixer-loading,finishing-mixer-loading,finishing-filter-loading,finished-product-loading}/`: POST; GET — история соответствующей операции по 10 записей |
 | Производство масел | `oil-production/operations/{concentrate-loading,oil-blending,oil-tank-loading,oil-filling}/`: GET — справочные данные/история, POST — проведение |
 | Партии масел | `oil-production/batches/<id>/{complete,cancel}/`: POST; отмена только администратором |
 | Оборудование масел | `oil-production/containers/{concentrate-reactors,oil-blenders,finished-oil-tanks}/`: GET/POST; общий `processing/containers/<id>/` для изменения и удаления |
@@ -302,6 +302,20 @@ worker-процессами. WebSocket проверяет доступ при п
 сокета в диагностических отчётах или логах.
 
 ## Целостность, время и миграции
+
+- `0050_chemical_mixer_after_raw_products` включает химические миксеры в общую
+  продуктовую линию и её ограничение `oil_product`. Миграция требует пустых
+  химмиксеров прежнего маршрута; неизвестный продукт не определяется автоматически,
+  остатки и история не стираются. `0051` обновляет только неизменённые встроенные
+  инструкции и стандартные описания модулей. Старые типы движений сохранены для истории.
+
+- `0048_remove_separator` удаляет выведенный этап и его тестовую историю,
+  обновляет неизменённые стандартные инструкции и описание формы загрузки миксера.
+  `0049_remove_separator_schema` отдельно обновляет виды ёмкостей/движений.
+  На этапе `0049` форма `chemical-mixer-loading` сохраняла модуль и URL,
+  принимая загрузки из котла; с `0050` этот прежний API закрыт,
+  химмиксер загружается через `processing/oil-movements/chemical-mixer-loading/`.
+  Складские документы, другие ёмкости и их текущие остатки не пересчитываются.
 
 - `0046_remove_sorbent` очищает связанные тестовые данные, затем
   `0047_remove_sorbent_schema` удаляет схему выведенного этапа. Отдельные транзакции

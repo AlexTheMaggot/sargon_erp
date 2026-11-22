@@ -9,9 +9,13 @@ export const oilContainerConfig = {
 }
 
 export const oilFinishingForms = {
+  'chemical-mixer-loading': {
+    title: 'Загрузка химического миксера',
+    sources: ['raw_diesel_tank', 'raw_spindle_tank'], destinations: ['chemical_mixer'], movementType: 'raw_to_chemical_mixer',
+  },
   'finishing-mixer-loading': {
     title: 'Загрузка финишного миксера',
-    sources: ['raw_diesel_tank', 'raw_spindle_tank'], destinations: ['finishing_mixer'], movementType: 'raw_to_finishing_mixer',
+    sources: ['chemical_mixer'], destinations: ['finishing_mixer'], movementType: 'chemical_to_finishing_mixer',
   },
   'finishing-filter-loading': {
     title: 'Загрузка финишного фильтра',
@@ -24,6 +28,7 @@ export const oilFinishingForms = {
 }
 
 export function oilContainerApiPath(kind) {
+  if (kind === 'chemical_mixer') return '/api/processing/chemical-mixers/'
   if (kind === 'raw_diesel_tank') return '/api/processing/raw-diesel-tanks/'
   if (kind === 'raw_spindle_tank') return '/api/processing/raw-spindle-tanks/'
   const prefix = oilContainerConfig[kind].manufacturing ? '/api/oil-production/containers' : '/api/processing/oil-containers'
