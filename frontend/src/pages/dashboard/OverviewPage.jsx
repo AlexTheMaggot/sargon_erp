@@ -6,8 +6,7 @@ import { DashboardShell } from '../../components/Layout/DashboardShell'
 import { Modal } from '../../components/Modal/Modal'
 import { CANISTER_FLOW_NODES, CANISTER_PRODUCTION_LINES } from '../../constants/canisterProduction'
 import { CanisterProduction } from './CanisterProduction'
-import { reconciliationDifference } from '../../constants/containerReconciliation'
-import { ReconciliationNodeDetails, RecyclingReconciliationSummary } from './ReconciliationOverview'
+import { ReconciliationDeviation, ReconciliationNodeDetails, RecyclingReconciliationSummary } from './ReconciliationOverview'
 
 const OVERVIEW_REFRESH_INTERVAL = 15000
 
@@ -474,7 +473,7 @@ function ProcessNode({ nodeId, selectedNodeId, onSelect, compact = false }) {
       <strong>{node.name}</strong>
       <span className="process-node-reading">{node.currentFlow}</span>
       <span className="process-node-capacity">{node.capacityCaption ? `${node.capacityCaption} ${node.throughput}` : t`до ${node.throughput}`}</span>
-      {node.reconciliation && <span className="process-node-reconciliation">{t('Отклонение')}: {node.measurement ? reconciliationDifference(node.measurement) : t('Нет замера')}</span>}
+      {node.reconciliation && <span className="process-node-reconciliation">{t('Отклонение')}: <ReconciliationDeviation row={node.measurement} /></span>}
     </button>
   )
 }
