@@ -57,9 +57,9 @@ const FLOW_NODES = {
       ['Загрузка', '74%'],
     ],
   },
-  chemicalMixer1: {
-    name: 'Химический миксер №1',
-    shortName: 'Х1',
+  chemicalMixer: {
+    name: 'Химический миксер',
+    shortName: 'ХМ',
     stage: 'Химическая подготовка',
     status: 'В работе',
     statusTone: 'running',
@@ -70,21 +70,6 @@ const FLOW_NODES = {
       ['Текущая партия', '5 900 л'],
       ['Время цикла', '42 мин'],
       ['Готовность', '68%'],
-    ],
-  },
-  chemicalMixer2: {
-    name: 'Химический миксер №2',
-    shortName: 'Х2',
-    stage: 'Химическая подготовка',
-    status: 'Готов',
-    statusTone: 'ready',
-    throughput: '8 000 л/ч',
-    currentFlow: '0 л',
-    description: 'Подготовка сырой продукции с подачей в песочный миксер.',
-    metrics: [
-      ['Текущая партия', '0 л'],
-      ['Последняя партия', '5 740 л'],
-      ['Готовность', '100%'],
     ],
   },
   workshop1: {
@@ -623,6 +608,7 @@ function buildOilFinishingNodes(nodes, summary) {
   if (!summary) return {}
   const result = {}
   for (const [nodeId, kind, singular, plural] of [
+    ['chemicalMixer', 'chemical_mixer', 'Химический миксер', 'Химические миксеры'],
     ['finishingMixer', 'finishing_mixer', 'Песочный миксер', 'Песочные миксеры'],
     ['filter', 'finishing_filter', 'Финишный фильтр', 'Финишные фильтры'],
     ['finishedDieselTank', 'finished_diesel_tank', 'Бак готовой солярки', 'Баки готовой солярки'],
@@ -641,14 +627,12 @@ function buildOilFinishingNodes(nodes, summary) {
   return result
 }
 
-function attachReconciliation(nodes, data, chemicalMixers, workshops) {
+function attachReconciliation(nodes, data, workshops) {
   const stageNodes = [
     ['storageTank', 'receiving_tank'], ['preheater', 'preheating_boiler'],
     ['rawDieselTank', 'raw_diesel_tank'], ['rawSpindleTank', 'raw_spindle_tank'],
-    ['finishingMixer', 'finishing_mixer'], ['filter', 'finishing_filter'],
+    ['chemicalMixer', 'chemical_mixer'], ['finishingMixer', 'finishing_mixer'], ['filter', 'finishing_filter'],
     ['finishedDieselTank', 'finished_diesel_tank'], ['finishedSpindleTank', 'finished_spindle_tank'],
-    ['chemicalMixer1', 'chemical_mixer', chemicalMixers[0]?.id ?? null],
-    ['chemicalMixer2', 'chemical_mixer', chemicalMixers[1]?.id ?? null],
     ['workshop1', 'processing_workshop', workshops[0]?.id ?? null],
     ['workshop2', 'processing_workshop', workshops[1]?.id ?? null],
   ]
@@ -772,7 +756,7 @@ export function OverviewPage({ onLogout, token, user }) {
     const nodes = localizeStaticData(FLOW_NODES, language)
     if (!overviewData) {
       const liveNodeIds = ['reception', 'storageTank', 'preheater',
-        'chemicalMixer1', 'chemicalMixer2', 'workshop1', 'workshop2', 'rawDieselTank', 'rawSpindleTank',
+        'chemicalMixer', 'workshop1', 'workshop2', 'rawDieselTank', 'rawSpindleTank',
         'finishingMixer', 'filter', 'finishedDieselTank', 'finishedSpindleTank',
         'polypropyleneFeed', 'concentrateReactor', 'additiveStation', 'blender1', 'blender2', 'blender3',
         'transmissionOilTank', 'hydraulicOilTank', 'industrialOilTank', 'motorOilTank', 'fillingLine']
@@ -785,14 +769,13 @@ export function OverviewPage({ onLogout, token, user }) {
     const reception = overviewData.reception
     const tanks = overviewData.receiving_tanks
     const boilers = overviewData.preheating_boilers
-    const chemicalMixers = overviewData.chemical_mixers?.items || []
     const processingWorkshops = overviewData.processing_workshops?.items || []
     const rawDieselTanks = overviewData.raw_diesel_tanks
     const rawSpindleTanks = overviewData.raw_spindle_tanks
     const liveNodes = {
       ...nodes,
       ...buildPackagingOverviewNodes(nodes, overviewData.packaging_production),
-      ...buildOilFinishingNodes(nodes, overviewData.oil_finishing),
+      ...buildOilFinishingNodes(nodes, { ...overviewData.oil_finishing, chemical_mixer: overviewData.chemical_mixers }),
       ...buildManufacturingNodes(nodes, overviewData.oil_manufacturing),
       reception: {
         ...nodes.reception,
@@ -845,15 +828,13 @@ export function OverviewPage({ onLogout, token, user }) {
         ],
         isLive: true,
       },
-      chemicalMixer1: buildOverviewContainerNode(nodes.chemicalMixer1, chemicalMixers[0], t('Химический миксер №1')),
-      chemicalMixer2: buildOverviewContainerNode(nodes.chemicalMixer2, chemicalMixers[1], t('Химический миксер №2')),
       workshop1: buildOverviewContainerNode(nodes.workshop1, processingWorkshops[0], t('Цех переработки №1')),
       workshop2: buildOverviewContainerNode(nodes.workshop2, processingWorkshops[1], t('Цех переработки №2')),
       rawDieselTank: buildOverviewTankSummaryNode(nodes.rawDieselTank, rawDieselTanks, t('Бак сырой солярки'), t('Баки сырой солярки')),
       rawSpindleTank: buildOverviewTankSummaryNode(nodes.rawSpindleTank, rawSpindleTanks, t('Бак сырой веретенки'), t('Баки сырой веретенки')),
     }
     return activeTab === 'recycling'
-      ? attachReconciliation(liveNodes, overviewData.reconciliation, chemicalMixers, processingWorkshops)
+      ? attachReconciliation(liveNodes, overviewData.reconciliation, processingWorkshops)
       : liveNodes
   }, [activeTab, overviewData, overviewError, language])
 
@@ -944,7 +925,7 @@ export function OverviewPage({ onLogout, token, user }) {
           </div>
 
           <div className="snake-row snake-row--reverse">
-            <CompactNodeGroup nodeIds={['chemicalMixer1', 'chemicalMixer2']} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
+            <ProcessNode compact nodeId="chemicalMixer" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
             <FlowArrow direction="left" />
             <CompactNodeGroup nodeIds={['rawDieselTank', 'rawSpindleTank']} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
             <FlowArrow direction="left" />

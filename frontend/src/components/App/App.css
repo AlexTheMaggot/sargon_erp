@@ -2777,9 +2777,11 @@ button:disabled {
 
   .snake-turn--right i,
   .snake-turn--left i {
+    top: 7px;
     right: auto;
-    bottom: -5px;
+    bottom: 7px;
     left: 50%;
+    transform: translateX(-50%);
   }
 
   .snake-row--final {
