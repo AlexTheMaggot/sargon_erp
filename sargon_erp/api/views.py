@@ -14,7 +14,9 @@ from django.db import transaction
 from django.db.models import Max
 from django.db.models import Q
 from django.db.models import Sum
+from django.db.models import Value
 from django.db.models import ProtectedError
+from django.db.models.functions import Replace
 from django.http import JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -55,6 +57,7 @@ from .models import ProductionOutputLine
 from .models import ProductionMaterialUsage
 from .models import OilGrade, OilManufacturingBatch
 from .oil_processing import OIL_FINISHING_STEPS, OIL_CONTAINER_PATHS
+from .oil_processing import LEGACY_MIXER_SNAPSHOT_PREFIX, SAND_MIXER_SNAPSHOT_PREFIX, container_snapshot_label
 from .oil_processing import apply_oil_transfer, container_oil_product, lock_oil_line, oil_transfer_error
 
 
@@ -721,8 +724,8 @@ def _serialize_movement(movement):
         'movement_type_label': movement.get_movement_type_display(),
         'status': movement.status,
         'status_label': movement.get_status_display(),
-        'source': movement.source_snapshot,
-        'destination': movement.destination_snapshot,
+        'source': container_snapshot_label(movement.source_snapshot),
+        'destination': container_snapshot_label(movement.destination_snapshot),
         'product_name': movement.product_name,
         'oil_product': movement.oil_product,
         'oil_grade_id': movement.oil_grade_id,
@@ -745,6 +748,9 @@ def _serialize_movement(movement):
 
 
 def _serialize_audit_log(entry):
+    changes = entry.changes
+    if entry.action == 'container_deleted' and isinstance(changes.get('name'), str):
+        changes = {**changes, 'name': container_snapshot_label(changes['name'])}
     return {
         'id': entry.pk,
         'entry_type': 'audit',
@@ -754,7 +760,7 @@ def _serialize_audit_log(entry):
         'result': entry.result,
         'user': entry.user.get_username() if entry.user else '',
         'user_id': entry.user_id,
-        'changes': entry.changes,
+        'changes': changes,
         'created_at': entry.created_at.isoformat(),
     }
 
@@ -2681,6 +2687,13 @@ def processing_journal_view(request):
     volume = _volume_value(request.GET.get('volume')) if request.GET.get('volume') else None
     query = request.GET.get('query', '').strip()
 
+    if source or destination or query:
+        old_prefix = Value(LEGACY_MIXER_SNAPSHOT_PREFIX)
+        new_prefix = Value(SAND_MIXER_SNAPSHOT_PREFIX)
+        movements = movements.alias(
+            source_label=Replace('source_snapshot', old_prefix, new_prefix),
+            destination_label=Replace('destination_snapshot', old_prefix, new_prefix),
+        )
     if date_from:
         movements = movements.filter(moved_at__date__gte=date_from)
         audits = audits.filter(created_at__date__gte=date_from)
@@ -2694,10 +2707,10 @@ def processing_journal_view(request):
         movements = movements.filter(status=status)
         audits = audits.filter(result=status)
     if source:
-        movements = movements.filter(source_snapshot__icontains=source)
+        movements = movements.filter(Q(source_snapshot__icontains=source) | Q(source_label__icontains=source))
         audits = audits.none()
     if destination:
-        movements = movements.filter(destination_snapshot__icontains=destination)
+        movements = movements.filter(Q(destination_snapshot__icontains=destination) | Q(destination_label__icontains=destination))
         audits = audits.none()
     if username:
         movements = movements.filter(created_by__username__icontains=username)
@@ -2713,6 +2726,8 @@ def processing_journal_view(request):
             Q(movement_number__icontains=query)
             | Q(source_snapshot__icontains=query)
             | Q(destination_snapshot__icontains=query)
+            | Q(source_label__icontains=query)
+            | Q(destination_label__icontains=query)
             | Q(created_by__username__icontains=query)
         )
         audits = audits.filter(

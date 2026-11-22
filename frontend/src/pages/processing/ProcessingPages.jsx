@@ -811,7 +811,7 @@ export function ProcessingJournalPage({ onLogout, token, user }) {
               {Object.values(oilFinishingForms).map((config) => <option key={config.movementType} value={config.movementType}>{t(config.title)}</option>)}
               <option value="boiler_to_chemical_mixer">{t('Загрузка химического миксера (прежний маршрут)')}</option>
               <option value="chemical_mixer_to_workshop">{t('Загрузка в цех переработки (прежний маршрут)')}</option>
-              <option value="raw_to_finishing_mixer">{t('Загрузка финишного миксера (прежний маршрут)')}</option>
+              <option value="raw_to_finishing_mixer">{t('Загрузка песочного миксера (прежний маршрут)')}</option>
               {Object.entries(oilManufacturingMovements).map(([code, name]) => <option key={code} value={code}>{t(name)}</option>)}
               <option value="compensation">{t('Компенсация')}</option>
             </select>

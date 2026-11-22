@@ -1,7 +1,7 @@
 export const productionWorkspaceMessages = {
   'Передать прогретое масло из котла в химический миксер.': 'Isitilgan moyni qozondan kimyoviy aralashtirgichga o‘tkazish.',
   'Прогрев, разделение, переработка и очистка масла.': 'Moyni isitish, ajratish, qayta ishlash va tozalash.',
-  'Передать сырую солярку или веретенку из бака в финишный миксер.': 'Xom dizel yoqilg‘isi yoki veretyonka moyini bakdan yakuniy aralashtirgichga o‘tkazish.',
+  'Передать сырую солярку или веретенку из бака в песочный миксер.': 'Xom dizel yoqilg‘isi yoki veretyonka moyini bakdan qumli aralashtirgichga o‘tkazish.',
   'Производство': 'Ishlab chiqarish',
   'Производственные операции': 'Ishlab chiqarish operatsiyalari',
   'Рабочее место производства': 'Ishlab chiqarish ish joyi',
@@ -25,7 +25,7 @@ export const productionWorkspaceMessages = {
   'Направить подготовленное масло из миксера в цех.': 'Tayyorlangan moyni aralashtirgichdan sexga uzatish.',
   'Перелить сырую солярку из цеха в отдельный бак.': 'Xom dizel yoqilg‘isini sexdan alohida bakka o‘tkazish.',
   'Перелить сырую веретенку из цеха в отдельный бак.': 'Xom veretyonka moyini sexdan alohida bakka o‘tkazish.',
-  'Передать масло из финишного миксера на фильтрацию.': 'Moyni yakuniy aralashtirgichdan filtrlashga uzatish.',
+  'Передать масло из песочного миксера на фильтрацию.': 'Moyni qumli aralashtirgichdan filtrlashga uzatish.',
   'Заполнить бак готовой солярки или веретенки после фильтра.': 'Filtrdan keyin tayyor dizel yoqilg‘isi yoki veretyonka moyi bakini to‘ldirish.',
   'Загрузить веретенку и складской полипропилен в реактор.': 'Veretyonka moyi va ombordagi polipropilenni reaktorga yuklash.',
   'Соединить основу и концентрат для выбранной марки масла.': 'Tanlangan moy markasi uchun asos moy va konsentratni aralashtirish.',

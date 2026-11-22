@@ -7,6 +7,16 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import MaterialMovement, ProductionContainer
 
 
+LEGACY_MIXER_SNAPSHOT_PREFIX = 'Финишный миксер №'
+SAND_MIXER_SNAPSHOT_PREFIX = f'{dict(ProductionContainer.KIND_CHOICES)[ProductionContainer.KIND_FINISHING_MIXER]} №'
+
+
+def container_snapshot_label(snapshot):
+    if snapshot.startswith(LEGACY_MIXER_SNAPSHOT_PREFIX):
+        return SAND_MIXER_SNAPSHOT_PREFIX + snapshot.removeprefix(LEGACY_MIXER_SNAPSHOT_PREFIX)
+    return snapshot
+
+
 OIL_FINISHING_STEPS = {
     'chemical-mixer-loading': {
         'title': 'Загрузка химического миксера',
@@ -15,7 +25,7 @@ OIL_FINISHING_STEPS = {
         'movement_type': MaterialMovement.TYPE_RAW_TO_CHEMICAL_MIXER,
     },
     'finishing-mixer-loading': {
-        'title': 'Загрузка финишного миксера',
+        'title': 'Загрузка песочного миксера',
         'sources': (ProductionContainer.KIND_CHEMICAL_MIXER,),
         'destinations': (ProductionContainer.KIND_FINISHING_MIXER,),
         'movement_type': MaterialMovement.TYPE_CHEMICAL_TO_FINISHING_MIXER,

@@ -10,8 +10,8 @@ export const recyclingOperations = [
     path: `/processing/${code}`, label: config.title, moduleCode: code, group: 'finishing',
     ...({
       'chemical-mixer-loading': { icon: 'mixer', description: 'Передать сырую солярку или веретенку из бака в химический миксер.' },
-      'finishing-mixer-loading': { icon: 'mixer', description: 'Передать масло из химического миксера в финишный миксер.' },
-      'finishing-filter-loading': { icon: 'filter', description: 'Передать масло из финишного миксера на фильтрацию.' },
+      'finishing-mixer-loading': { icon: 'mixer', description: 'Передать масло из химического миксера в песочный миксер.' },
+      'finishing-filter-loading': { icon: 'filter', description: 'Передать масло из песочного миксера на фильтрацию.' },
       'finished-product-loading': { icon: 'tank', description: 'Заполнить бак готовой солярки или веретенки после фильтра.' },
     })[code],
   })),

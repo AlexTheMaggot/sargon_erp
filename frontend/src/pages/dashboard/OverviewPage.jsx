@@ -81,7 +81,7 @@ const FLOW_NODES = {
     statusTone: 'ready',
     throughput: '8 000 л/ч',
     currentFlow: '0 л',
-    description: 'Подготовка сырой продукции с подачей в финишный миксер.',
+    description: 'Подготовка сырой продукции с подачей в песочный миксер.',
     metrics: [
       ['Текущая партия', '0 л'],
       ['Последняя партия', '5 740 л'],
@@ -149,8 +149,8 @@ const FLOW_NODES = {
     ],
   },
   finishingMixer: {
-    name: 'Финишный миксер',
-    shortName: 'ФМ',
+    name: 'Песочный миксер',
+    shortName: 'ПМ',
     stage: 'Выравнивание состава',
     status: 'В работе',
     statusTone: 'running',
@@ -624,7 +624,7 @@ function buildOilFinishingNodes(nodes, summary) {
   if (!summary) return {}
   const result = {}
   for (const [nodeId, kind, singular, plural] of [
-    ['finishingMixer', 'finishing_mixer', 'Финишный миксер', 'Финишные миксеры'],
+    ['finishingMixer', 'finishing_mixer', 'Песочный миксер', 'Песочные миксеры'],
     ['filter', 'finishing_filter', 'Финишный фильтр', 'Финишные фильтры'],
     ['finishedDieselTank', 'finished_diesel_tank', 'Бак готовой солярки', 'Баки готовой солярки'],
     ['finishedSpindleTank', 'finished_spindle_tank', 'Бак готовой веретенки', 'Баки готовой веретенки'],

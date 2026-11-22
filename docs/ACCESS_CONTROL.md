@@ -60,8 +60,8 @@ Staff/член административной группы может виде
 | `raw-spindle-tank-loading` | `/processing/raw-spindle-tank-loading` | `view`, `create`: цех → бак сырой веретенки |
 | `canister-loading` | `/production/canister-loading` | `view`, `create`: гранулы и красители со склада в производство канистр |
 | `cap-loading` | `/production/cap-loading` | `view`, `create`: гранулы и красители со склада в производство крышек |
-| `finishing-mixer-loading` | `/processing/finishing-mixer-loading` | `view`, `create`: химмиксер → финишный миксер |
-| `finishing-filter-loading` | `/processing/finishing-filter-loading` | `view`, `create`: финишный миксер → фильтр |
+| `finishing-mixer-loading` | `/processing/finishing-mixer-loading` | `view`, `create`: химмиксер → песочный миксер |
+| `finishing-filter-loading` | `/processing/finishing-filter-loading` | `view`, `create`: песочный миксер → фильтр |
 | `finished-product-loading` | `/processing/finished-product-loading` | `view`, `create`: фильтр → готовый бак соответствующего продукта |
 | `concentrate-loading` | `/oil-production/concentrate-loading` | `view`, `create`: реактор, веретенка и складское списание полипропилена; завершение открытой партии |
 | `oil-blending` | `/oil-production/oil-blending` | `view`, `create`: основа + фактически перелитый концентрат в смеситель, марка масла; завершение партии |
@@ -103,7 +103,7 @@ DELETE → `delete`, если endpoint поддерживает этот мет�
 | Загрузка цеха | Котлы, цеха |
 | Загрузка сырой солярки | Цеха, баки сырой солярки |
 | Загрузка сырой веретенки | Цеха, баки сырой веретенки |
-| Загрузка финишного миксера | Химмиксеры, финишные миксеры |
+| Загрузка песочного миксера | Химмиксеры, песочные миксеры |
 
 Менеджер приёма отдельно читает активные приёмные баки для распределения;
 `?purpose=receipt` выдаёт сокращённые данные, включая свободный объём.

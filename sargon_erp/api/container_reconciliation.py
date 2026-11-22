@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import ContainerMeasurement, ContainerReconciliation, ContainerReconciliationRevision, MaterialMovement, ProductionContainer
-from .oil_processing import lock_oil_line
+from .oil_processing import container_snapshot_label, lock_oil_line
 
 
 MODULE_CODE = 'container-reconciliation'
@@ -65,7 +65,7 @@ def _summary(measurements):
 def _measurement(line):
     return {
         'container_id': line.container_id,
-        'name': line.container_name,
+        'name': container_snapshot_label(line.container_name),
         'revision_id': line.revision_id,
         'measured_at': line.revision.created_at.isoformat(),
         'actual_product': line.actual_product,

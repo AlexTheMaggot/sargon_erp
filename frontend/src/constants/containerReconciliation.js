@@ -11,7 +11,7 @@ export const reconciliationStages = [
   ['raw_diesel_tank', 'Баки сырой солярки'],
   ['raw_spindle_tank', 'Баки сырой веретенки'],
   ['chemical_mixer', 'Химические миксеры'],
-  ['finishing_mixer', 'Финишные миксеры'],
+  ['finishing_mixer', 'Песочные миксеры'],
   ['finishing_filter', 'Финишные фильтры'],
   ['finished_diesel_tank', 'Баки готовой солярки'],
   ['finished_spindle_tank', 'Баки готовой веретенки'],
