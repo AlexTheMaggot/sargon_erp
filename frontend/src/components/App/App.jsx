@@ -20,6 +20,8 @@ import { oilContainerConfig, oilFinishingForms } from '../../constants/oilFinish
 import { oilManufacturingConfig } from '../../constants/oilManufacturing'
 import { OilManufacturingPage } from '../../pages/processing/OilManufacturingPage'
 import { OilGradesPage } from '../../pages/processing/OilGradesPage'
+import { ContainerReconciliationPage } from '../../pages/processing/ContainerReconciliationPage'
+import { reconciliationModule, reconciliationPath } from '../../constants/containerReconciliation'
 import { ProductionWorkspacePage } from '../../pages/production/ProductionWorkspacePage'
 import { productionSections } from '../../constants/productionWorkspace'
 import './App.css'
@@ -166,6 +168,7 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
       <Route path="/processing/raw-diesel-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><RawDieselTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/raw-spindle-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><RawSpindleTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/journal" element={<ProtectedRoute adminOnly token={token} user={user}><ProcessingJournalPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path={reconciliationPath} element={<ProtectedRoute moduleCode={reconciliationModule} token={token} user={user}><ContainerReconciliationPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       {Object.keys(oilFinishingForms).map((step) => <Route key={step} path={`/processing/${step}`} element={<ProtectedRoute moduleCode={step} token={token} user={user}><OilFinishingPage key={step} step={step} onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />)}
       {Object.keys(oilManufacturingConfig).map((step) => <Route key={step} path={`/oil-production/${step}`} element={<ProtectedRoute moduleCode={step} token={token} user={user}><OilManufacturingPage key={step} step={step} onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />)}
       <Route path="/oil-production/grades" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><OilGradesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />

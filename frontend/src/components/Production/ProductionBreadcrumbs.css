@@ -1,19 +1,29 @@
+.production-navigation {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 1180px;
+  margin: 0 auto 20px;
+}
+
 .production-breadcrumbs {
   display: flex;
   align-items: center;
+  flex: 1;
   flex-wrap: wrap;
   gap: 10px;
-  max-width: 1180px;
-  margin: 0 auto 20px;
+  min-width: 0;
   color: #657d70;
   font-size: 14px;
 }
 
-.production-breadcrumbs a {
+.production-breadcrumbs a,
+.production-back {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-height: 44px;
+  max-width: 100%;
   padding: 8px 12px;
   border: 1px solid #c9ded4;
   border-radius: 10px;
@@ -22,20 +32,44 @@
   font-weight: 750;
 }
 
-.production-breadcrumbs a:hover {
+.production-breadcrumbs a:hover,
+.production-back:hover {
   background: #e6f3eb;
 }
 
-.production-breadcrumbs a:focus-visible {
+.production-breadcrumbs a:focus-visible,
+.production-back:focus-visible {
   outline: 3px solid #3b9276;
   outline-offset: 3px;
 }
 
-.production-breadcrumbs svg {
+.production-breadcrumbs svg,
+.production-back svg {
   width: 18px;
   height: 18px;
+  flex-shrink: 0;
+}
+
+.production-back {
+  flex-shrink: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.production-back svg {
+  transform: rotate(180deg);
 }
 
 .production-breadcrumbs [aria-current] {
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .production-navigation {
+    gap: 8px;
+  }
+
+  .production-breadcrumbs {
+    gap: 6px;
+  }
 }

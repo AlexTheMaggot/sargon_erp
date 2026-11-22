@@ -1,4 +1,5 @@
 import { oilContainerConfig } from './oilFinishing'
+import { reconciliationModule, reconciliationPath } from './containerReconciliation'
 import { oilOperations, packagingOperations, recyclingOperations } from './productionWorkspace'
 
 export const navItems = [
@@ -29,6 +30,7 @@ export const navItems = [
       { path: '/warehouse/issues', label: 'Внутренний расход', moduleCode: 'warehouse-accounting' },
       { path: '/warehouse/transfers', label: 'Перемещения', moduleCode: 'warehouse-accounting' },
       { path: '/warehouse/inventory', label: 'Инвентаризация', moduleCode: 'warehouse-accounting' },
+      { path: reconciliationPath, label: 'Сверка остатков', moduleCode: reconciliationModule },
     ],
   },
   {

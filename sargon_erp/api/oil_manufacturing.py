@@ -447,9 +447,13 @@ def compensate_manufacturing_movement(movement, user, reason):
 
 
 def _cancel_batch(batch, user, reason):
+    from .container_reconciliation import RECONCILED_MOVEMENT, movement_is_reconciled
+
     if batch.status != OilManufacturingBatch.STATUS_OPEN or batch.output_liters > 0:
         raise ValueError('Отменить можно только открытую партию без фактических переливов.')
     for movement in batch.incoming_movements.filter(is_compensated=False, compensates__isnull=True).select_related('source_container', 'source_oil_batch', 'oil_grade').order_by('pk'):
+        if movement_is_reconciled(movement):
+            raise ValueError(RECONCILED_MOVEMENT)
         if movement.source_oil_batch_id:
             source_batch = OilManufacturingBatch.objects.select_for_update().get(pk=movement.source_oil_batch_id)
             if source_batch.status != OilManufacturingBatch.STATUS_OPEN or source_batch.output_liters < movement.volume_liters:

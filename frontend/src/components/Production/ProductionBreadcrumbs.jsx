@@ -4,9 +4,14 @@ import { ProductionIcon } from './ProductionIcon'
 import './ProductionBreadcrumbs.css'
 
 export function ProductionBreadcrumbs({ section, title }) {
-  return <nav className="production-breadcrumbs" aria-label={t('Навигация производства')}>
-    <Link to="/production"><ProductionIcon name="grid" />{t('Все направления')}</Link>
-    {section && <><span aria-hidden="true">/</span><Link to={`/production/${section.id}`}>{t(section.title)}</Link></>}
-    <span aria-hidden="true">/</span><span aria-current="page">{title}</span>
-  </nav>
+  const backPath = section ? `/production/${section.id}` : '/production'
+
+  return <div className="production-navigation">
+    <nav className="production-breadcrumbs" aria-label={t('Навигация производства')}>
+      <Link to="/production"><ProductionIcon name="grid" />{t('Все направления')}</Link>
+      {section && <><span aria-hidden="true">/</span><Link to={`/production/${section.id}`}>{t(section.title)}</Link></>}
+      <span aria-hidden="true">/</span><span aria-current="page">{title}</span>
+    </nav>
+    <Link className="production-back" to={backPath}><ProductionIcon name="arrow" />{t('Назад')}</Link>
+  </div>
 }

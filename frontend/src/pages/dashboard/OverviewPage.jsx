@@ -6,6 +6,8 @@ import { DashboardShell } from '../../components/Layout/DashboardShell'
 import { Modal } from '../../components/Modal/Modal'
 import { CANISTER_FLOW_NODES, CANISTER_PRODUCTION_LINES } from '../../constants/canisterProduction'
 import { CanisterProduction } from './CanisterProduction'
+import { reconciliationDifference } from '../../constants/containerReconciliation'
+import { ReconciliationNodeDetails, RecyclingReconciliationSummary } from './ReconciliationOverview'
 
 const OVERVIEW_REFRESH_INTERVAL = 15000
 
@@ -472,6 +474,7 @@ function ProcessNode({ nodeId, selectedNodeId, onSelect, compact = false }) {
       <strong>{node.name}</strong>
       <span className="process-node-reading">{node.currentFlow}</span>
       <span className="process-node-capacity">{node.capacityCaption ? `${node.capacityCaption} ${node.throughput}` : t`до ${node.throughput}`}</span>
+      {node.reconciliation && <span className="process-node-reconciliation">{t('Отклонение')}: {node.measurement ? reconciliationDifference(node.measurement) : t('Нет замера')}</span>}
     </button>
   )
 }
@@ -575,6 +578,7 @@ function ProcessDetails({ nodeId }) {
           </div>
         ))}
       </dl>
+      <ReconciliationNodeDetails stage={node.reconciliation} />
       <p className="process-data-note">{node.dataNote || (node.isLive ? t('Актуальные данные производственного учёта') : t('Демонстрационные данные · узел подготовлен для подключения к API'))}</p>
     </aside>
   )
@@ -636,6 +640,25 @@ function buildOilFinishingNodes(nodes, summary) {
     result[nodeId] = node
   }
   return result
+}
+
+function attachReconciliation(nodes, data, chemicalMixers, workshops) {
+  const stageNodes = [
+    ['storageTank', 'receiving_tank'], ['preheater', 'preheating_boiler'],
+    ['rawDieselTank', 'raw_diesel_tank'], ['rawSpindleTank', 'raw_spindle_tank'],
+    ['finishingMixer', 'finishing_mixer'], ['filter', 'finishing_filter'],
+    ['finishedDieselTank', 'finished_diesel_tank'], ['finishedSpindleTank', 'finished_spindle_tank'],
+    ['chemicalMixer1', 'chemical_mixer', chemicalMixers[0]?.id ?? null],
+    ['chemicalMixer2', 'chemical_mixer', chemicalMixers[1]?.id ?? null],
+    ['workshop1', 'processing_workshop', workshops[0]?.id ?? null],
+    ['workshop2', 'processing_workshop', workshops[1]?.id ?? null],
+  ]
+  for (const [nodeId, kind, containerId] of stageNodes) {
+    const stage = data?.stages[kind] || { summary: null, containers: [] }
+    const measurement = containerId === undefined ? stage.summary : stage.containers.find((container) => container.id === containerId)?.measurement
+    nodes[nodeId] = { ...nodes[nodeId], reconciliation: stage, measurement }
+  }
+  return nodes
 }
 
 function buildManufacturingNodes(nodes, summary) {
@@ -767,7 +790,7 @@ export function OverviewPage({ onLogout, token, user }) {
     const processingWorkshops = overviewData.processing_workshops?.items || []
     const rawDieselTanks = overviewData.raw_diesel_tanks
     const rawSpindleTanks = overviewData.raw_spindle_tanks
-    return {
+    const liveNodes = {
       ...nodes,
       ...buildPackagingOverviewNodes(nodes, overviewData.packaging_production),
       ...buildOilFinishingNodes(nodes, overviewData.oil_finishing),
@@ -830,7 +853,10 @@ export function OverviewPage({ onLogout, token, user }) {
       rawDieselTank: buildOverviewTankSummaryNode(nodes.rawDieselTank, rawDieselTanks, t('Бак сырой солярки'), t('Баки сырой солярки')),
       rawSpindleTank: buildOverviewTankSummaryNode(nodes.rawSpindleTank, rawSpindleTanks, t('Бак сырой веретенки'), t('Баки сырой веретенки')),
     }
-  }, [overviewData, overviewError, language])
+    return activeTab === 'recycling'
+      ? attachReconciliation(liveNodes, overviewData.reconciliation, chemicalMixers, processingWorkshops)
+      : liveNodes
+  }, [activeTab, overviewData, overviewError, language])
 
   const selectTab = (tabId) => {
     setActiveTab(tabId)
@@ -892,6 +918,7 @@ export function OverviewPage({ onLogout, token, user }) {
 
             {overviewError && <p className="process-live-error">{t('Не удалось обновить реальные показатели: ')}{t(overviewError)}</p>}
 
+            {overviewData && <RecyclingReconciliationSummary summary={overviewData.reconciliation?.latest} />}
             <div className="process-legend" aria-label={t('Легенда схемы')}>
               <span><i className="legend-line legend-line--product" />{t('Основной продукт')}</span>
               <span><i className="legend-status legend-status--running" />{t('В работе')}</span>

@@ -48,6 +48,9 @@ export function DashboardShell({ children, title, onLogout, user }) {
   const workspaceMode = usesProductionWorkspace(user)
   const operationSection = productionSectionForPath(location.pathname)
   const isWorkspacePage = location.pathname === '/production' || productionSections.some((section) => location.pathname === `/production/${section.id}`)
+  const showProductionNavigation = !isWorkspacePage && (
+    workspaceMode || (operationSection && canViewModule(user, 'production-workspace'))
+  )
 
   function handleLogoutClick() {
     setIsMenuOpen(false)
@@ -138,7 +141,7 @@ export function DashboardShell({ children, title, onLogout, user }) {
         <button className="secondary-button" type="button" onClick={handleLogoutClick}>{t('Выйти')}</button>
       </nav>
 
-      {workspaceMode && !isWorkspacePage && <ProductionBreadcrumbs section={operationSection} title={title} />}
+      {showProductionNavigation && <ProductionBreadcrumbs section={operationSection} title={title} />}
       {children}
     </main>
   )

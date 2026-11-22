@@ -1,0 +1,109 @@
+.reconciliation-page,
+.reconciliation-message {
+  max-width: 1180px;
+  margin: 0 auto 20px;
+}
+
+.reconciliation-page {
+  display: grid;
+  gap: 20px;
+}
+
+.reconciliation-success {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #e6f3eb;
+  color: #174e38;
+}
+
+.reconciliation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.reconciliation-page h2,
+.reconciliation-heading p {
+  margin: 0;
+}
+
+.reconciliation-history-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: #17654c;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+#reconciliation-history {
+  scroll-margin-top: 20px;
+}
+
+.reconciliation-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.reconciliation-stage {
+  margin-top: 18px;
+}
+
+.reconciliation-stage h3 {
+  margin: 0;
+  padding: 10px 14px;
+  background: #eaf4ee;
+  border-radius: 10px;
+  color: #1a503b;
+}
+
+.reconciliation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 260px);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #dfebe4;
+}
+
+.reconciliation-row small,
+.reconciliation-inputs label > span {
+  display: block;
+  margin-top: 4px;
+}
+
+.reconciliation-inputs input,
+.reconciliation-inputs select {
+  width: 100%;
+}
+
+.reconciliation-fields .form-actions {
+  align-items: center;
+  margin-top: 18px;
+}
+
+.reconciliation-history-item {
+  padding: 14px 0;
+  border-bottom: 1px solid #dfebe4;
+}
+
+.reconciliation-revision {
+  margin: 10px 0;
+}
+
+.reconciliation-revision summary {
+  cursor: pointer;
+}
+
+.reconciliation-revision li > span {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  .reconciliation-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

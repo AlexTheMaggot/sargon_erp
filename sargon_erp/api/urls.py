@@ -1,4 +1,5 @@
 from django.urls import path
+from .container_reconciliation import container_reconciliations_view
 
 from .views import login_view
 from .views import login_options_view
@@ -102,6 +103,8 @@ urlpatterns = [
     path('processing/movements/workshop-to-raw-spindle-tank/', workshop_to_raw_spindle_tank_movements_view, name='processing-workshop-to-raw-spindle-tank'),
     path('processing/movements/<int:movement_id>/compensate/', compensate_movement_view, name='processing-movement-compensate'),
     path('processing/journal/', processing_journal_view, name='processing-journal'),
+    path('processing/container-reconciliations/', container_reconciliations_view, name='container-reconciliations'),
+    path('processing/container-reconciliations/<int:reconciliation_id>/', container_reconciliations_view, name='container-reconciliation-detail'),
     path('processing/oil-containers/<slug:container_path>/', oil_containers_view, name='processing-oil-containers'),
     path('processing/oil-movements/<slug:step>/', oil_movements_view, name='processing-oil-movements'),
     path('oil-production/grades/', grades_view, name='oil-grades'),

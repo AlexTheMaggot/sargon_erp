@@ -1,0 +1,36 @@
+.recycling-reconciliation {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 14px;
+  margin: 0 0 14px;
+  padding: 14px 18px;
+  border: 1px solid #d3e2d9;
+  border-radius: 12px;
+  background: #f9fcfa;
+  color: #234b39;
+}
+
+.recycling-reconciliation h2,
+.reconciliation-node-details h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.recycling-reconciliation strong,
+.reconciliation-node-details li span,
+.reconciliation-node-details li small {
+  display: block;
+}
+
+.reconciliation-node-details ul {
+  display: grid;
+  gap: 8px;
+  padding-left: 20px;
+}
+
+.process-node-reconciliation {
+  margin-top: 4px;
+  color: #315d47;
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}

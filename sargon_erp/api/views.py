@@ -631,7 +631,10 @@ def _container_code(kind, number):
 
 
 def _container_has_movements(container):
-    return container.incoming_movements.exists() or container.outgoing_movements.exists() or container.oil_batches.exists()
+    return (
+        container.incoming_movements.exists() or container.outgoing_movements.exists()
+        or container.oil_batches.exists() or container.measurements.exists()
+    )
 
 
 def _serialize_container(container, user, raw_material_options=False):
@@ -1048,6 +1051,8 @@ def _complete_receipt(receipt_id, user, distributions, batch_quantities=None):
 
 
 def _compensate_movement(movement_id, user, reason):
+    from .container_reconciliation import RECONCILED_MOVEMENT, movement_is_reconciled
+
     with transaction.atomic():
         lock_oil_line()
         movement = (
@@ -1061,11 +1066,13 @@ def _compensate_movement(movement_id, user, reason):
             return None, 'Compensation reason is required.'
         if movement.movement_type in (MaterialMovement.TYPE_BOILER_TO_CHEMICAL_MIXER, MaterialMovement.TYPE_CHEMICAL_MIXER_TO_WORKSHOP):
             return None, 'Отмена движения прежнего маршрута недоступна после переноса химического миксера.'
+        container_ids = sorted(filter(None, [movement.source_container_id, movement.destination_container_id]))
+        if movement_is_reconciled(movement):
+            return None, RECONCILED_MOVEMENT
         if movement.movement_type in MaterialMovement.OIL_MANUFACTURING_TYPES:
             from .oil_manufacturing import compensate_manufacturing_movement
             return compensate_manufacturing_movement(movement, user, reason)
 
-        container_ids = sorted(filter(None, [movement.source_container_id, movement.destination_container_id]))
         containers = {
             container.pk: container
             for container in ProductionContainer.objects.select_for_update().filter(pk__in=container_ids).order_by('pk')
@@ -1796,6 +1803,7 @@ def raw_material_receipt_detail_view(request, receipt_id):
                 f'Удаление приёма #{receipt.pk}.',
             )
             if compensation_error:
+                transaction.set_rollback(True)
                 return JsonResponse({'detail': compensation_error}, status=423)
             _audit_operation('receipt_deleted', 'raw_material_receipt', receipt.pk, user)
             deleted_receipt_id = receipt.pk
@@ -1933,6 +1941,7 @@ def raw_material_batch_detail_view(request, batch_id):
                 f'Удаление партии #{batch.sequence_number} приёма #{batch.receipt_id}.',
             )
             if compensation_error:
+                transaction.set_rollback(True)
                 return JsonResponse({'detail': compensation_error}, status=423)
             receipt_id = batch.receipt_id
             deleted_batch_id = batch.pk
@@ -2299,7 +2308,7 @@ def tank_to_boiler_movements_view(request):
     with transaction.atomic():
         containers = {
             container.pk: container
-            for container in ProductionContainer.objects.select_for_update().filter(pk__in=sorted([source_id, destination_id]))
+            for container in ProductionContainer.objects.select_for_update().filter(pk__in=[source_id, destination_id]).order_by('pk')
         }
         source = containers.get(source_id)
         destination = containers.get(destination_id)
@@ -2530,8 +2539,8 @@ def _workshop_to_raw_tank_movement_view(request, module_code, destination_kind, 
         containers = {
             container.pk: container
             for container in ProductionContainer.objects.select_for_update().filter(
-                pk__in=sorted([source_id, destination_id]),
-            )
+                pk__in=[source_id, destination_id],
+            ).order_by('pk')
         }
         source = containers.get(source_id)
         destination = containers.get(destination_id)
@@ -2736,6 +2745,7 @@ def processing_journal_view(request):
 
 @require_GET
 def production_overview_view(request):
+    from .container_reconciliation import reconciliation_overview
     from .oil_processing import oil_overview
     from .oil_manufacturing import manufacturing_overview
     _, error = _require_processing_permission(request, MODULE_DASHBOARD, PERMISSION_VIEW)
@@ -2813,6 +2823,7 @@ def production_overview_view(request):
         },
         'packaging_production': _packaging_production_overview(),
         'oil_finishing': oil_overview(),
+        'reconciliation': reconciliation_overview(),
         'oil_manufacturing': manufacturing_overview(),
         'updated_at': timezone.now().isoformat(),
     })

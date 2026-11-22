@@ -76,7 +76,7 @@ Supplier 1 → N RawMaterialReceipt
 полномочий; старт — рабочее место производства. Миграция `0043` сохраняет старый доступ к обзору
 прочих существующих групп явными привязками, не назначает новый административный статус.
 
-`productionWorkspace.js` — общий каталог 21 производственной операции для старого
+`productionWorkspace.js` — общий каталог производственных операций для старого
 меню и новых карточек. `/production` показывает три направления: переработка масла,
 производство масла, канистры/крышки; категории показывают только разрешённые формы.
 Это навигационная страница, не производственная сводка и не новый API данных.
@@ -84,6 +84,10 @@ Supplier 1 → N RawMaterialReceipt
 существующие адреса форм и серверные проверки. `production-workspace:view`
 включает компактное меню для неадминистратора и может стать стартом любой группы;
 миграция `0044` первоначально назначает его только начальнику смены.
+Справа от хлебных крошек общая кнопка «Назад» ведёт из формы к карточкам её
+направления, из направления — к `/production`, независимо от истории браузера.
+Она доступна и администратору; остальные пользователи видят навигацию форм
+только при доступе к рабочему месту. Права выполнения операций не меняются.
 
 ### Приём и производство
 
@@ -108,6 +112,10 @@ MaterialMovement → 0..1 компенсируемое MaterialMovement
 - `ProductionContainer.kind` различает тринадцать видов ёмкостей. Общая модель не означает
   взаимозаменяемость типов: каждый маршрут проверяет источник и назначение.
 - Баланс хранится в `current_volume_liters`; история — в `MaterialMovement`.
+- `ContainerReconciliation` объединяет версии обхода; `ContainerMeasurement`
+  хранит изменённые строки версии. Сверка блокирует только запись на время
+  транзакции, проверяет версию карточки и движения между замерами. Складские
+  документы не создаются. `0052` добавляет таблицы, `0053` — модуль и группу.
 - `api/oil_processing.py` реализует общую линию сырые продуктовые баки → химический миксер → финишный миксер → фильтр
   → раздельные готовые баки. `oil_product` фиксирует продукт в непустом общем
   оборудовании и снимок продукта движения. PostgreSQL transaction-level advisory
@@ -240,6 +248,7 @@ WarehouseDocumentSequence → номер по типу документа и г�
 | Лаборатория | `laboratory/analyses/`, `laboratory/analyses/<id>/` |
 | Ёмкости | `processing/receiving-tanks/`, `preheating-boilers/`, `chemical-mixers/`, `workshops/`, `raw-diesel-tanks/`, `raw-spindle-tanks/` — все под `processing/` |
 | Деталь ёмкости | `processing/containers/<id>/` |
+| Сверка ёмкостей | `processing/container-reconciliations/`: GET — ёмкости и история, POST — новая сверка или версия; GET `<id>/` — подробности |
 | Движения | `processing/movements/tank-to-boiler/`, `boiler-to-workshop/`, `workshop-to-raw-diesel-tank/`, `workshop-to-raw-spindle-tank/` — все под `processing/movements/` |
 | Финишная очистка | `processing/oil-containers/{finishing-mixers,finishing-filters,finished-diesel-tanks,finished-spindle-tanks}/`: GET/POST; изменение/удаление через общий `processing/containers/<id>/` |
 | Движения финишной очистки | `processing/oil-movements/{chemical-mixer-loading,finishing-mixer-loading,finishing-filter-loading,finished-product-loading}/`: POST; GET — история соответствующей операции по 10 записей |

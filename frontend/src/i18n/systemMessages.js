@@ -10,6 +10,8 @@ export const systemMessages = {
   container_created: ['Ёмкость создана', 'Sig‘im yaratildi'],
   container_updated: ['Ёмкость изменена', 'Sig‘im o‘zgartirildi'],
   container_deleted: ['Ёмкость удалена', 'Sig‘im o‘chirildi'],
+  container_reconciled: ['Сверка остатков сохранена', 'Qoldiqlarni solishtirish saqlandi'],
+  container_reconciliation: ['Сверка остатков', 'Qoldiqlarni solishtirish'],
   movement_created: ['Движение создано', 'Harakat yaratildi'],
   movement_rejected: ['Движение отклонено', 'Harakat rad etildi'],
   movement_compensated: ['Движение компенсировано', 'Teskari harakat yaratildi'],

@@ -193,6 +193,11 @@ class ProductionContainer(models.Model):
     KIND_FINISHED_OIL_TANK = 'finished_oil_tank'
     OIL_BATCH_KINDS = (KIND_CONCENTRATE_REACTOR, KIND_OIL_BLENDER)
     SHARED_OIL_KINDS = (KIND_CHEMICAL_MIXER, KIND_FINISHING_MIXER, KIND_FINISHING_FILTER)
+    RECYCLING_KINDS = (
+        KIND_RECEIVING_TANK, KIND_PREHEATING_BOILER, KIND_PROCESSING_WORKSHOP,
+        KIND_RAW_DIESEL_TANK, KIND_RAW_SPINDLE_TANK, *SHARED_OIL_KINDS,
+        KIND_FINISHED_DIESEL_TANK, KIND_FINISHED_SPINDLE_TANK,
+    )
     OIL_PRODUCTS = [('diesel', 'Солярка'), ('spindle', 'Веретенка')]
     KIND_CHOICES = [
         (KIND_RECEIVING_TANK, 'Приёмный бак'),
@@ -257,6 +262,45 @@ class ProductionContainer(models.Model):
 
     def __str__(self):
         return self.display_name
+
+
+class ContainerReconciliation(models.Model):
+    created_at = models.DateTimeField(default=timezone.now)
+
+
+class ContainerReconciliationRevision(models.Model):
+    reconciliation = models.ForeignKey(ContainerReconciliation, on_delete=models.PROTECT, related_name='revisions')
+    number = models.PositiveIntegerField()
+    created_at = models.DateTimeField(default=timezone.now)
+    created_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True)
+    operator_name = models.CharField(max_length=150)
+    eligible_count = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['reconciliation', 'number'], name='unique_container_reconciliation_revision'),
+        ]
+
+
+class ContainerMeasurement(models.Model):
+    revision = models.ForeignKey(ContainerReconciliationRevision, on_delete=models.PROTECT, related_name='measurements')
+    container = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, related_name='measurements')
+    container_name = models.CharField(max_length=120)
+    expected_liters = models.DecimalField(max_digits=14, decimal_places=3)
+    previous_liters = models.DecimalField(max_digits=14, decimal_places=3)
+    actual_liters = models.DecimalField(max_digits=14, decimal_places=3)
+    previous_product = models.CharField(max_length=10, blank=True)
+    actual_product = models.CharField(max_length=10, blank=True)
+    movement_watermark = models.PositiveBigIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['revision', 'container'], name='unique_container_measurement_in_revision'),
+            models.CheckConstraint(
+                condition=models.Q(expected_liters__gte=0, previous_liters__gte=0, actual_liters__gte=0),
+                name='container_measurement_volumes_nonnegative',
+            ),
+        ]
 
 
 class MaterialMovement(models.Model):
