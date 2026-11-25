@@ -5,6 +5,8 @@ import { apiRequest } from '../../api/client'
 import { DashboardShell } from '../../components/Layout/DashboardShell'
 import { Modal } from '../../components/Modal/Modal'
 import { CANISTER_FLOW_NODES, CANISTER_PRODUCTION_LINES } from '../../constants/canisterProduction'
+import { receiverStatuses } from '../../constants/reactorReceivers'
+import { formatDateTime, formatReceiver } from '../processing/processingFormat'
 import { CanisterProduction } from './CanisterProduction'
 import { ReconciliationDeviation, ReconciliationNodeDetails, RecyclingReconciliationSummary } from './ReconciliationOverview'
 
@@ -50,7 +52,7 @@ const FLOW_NODES = {
     statusTone: 'running',
     throughput: '16 000 л/ч',
     currentFlow: '11 800 л',
-    description: 'Нагрев сырья перед подачей в цех переработки.',
+    description: 'Нагрев сырья перед подачей в реактор переработки.',
     metrics: [
       ['В обработке', '11 800 л'],
       ['Температура', '92 °C'],
@@ -72,35 +74,19 @@ const FLOW_NODES = {
       ['Готовность', '68%'],
     ],
   },
-  workshop1: {
-    name: 'Цех переработки №1',
-    shortName: 'Ц1',
+  reactors: {
+    name: 'Реакторы переработки',
+    shortName: 'Р',
     stage: 'Реакторная обработка',
-    status: 'В работе',
-    statusTone: 'running',
-    throughput: '9 000 л/ч',
-    currentFlow: '5 900 л',
-    description: 'Основная переработка подготовленного продукта с гибкой маршрутизацией выхода.',
-    metrics: [
-      ['В обработке', '5 900 л'],
-      ['Время до выпуска', '1 ч 18 мин'],
-      ['Загрузка', '66%'],
-    ],
-  },
-  workshop2: {
-    name: 'Цех переработки №2',
-    shortName: 'Ц2',
-    stage: 'Реакторная обработка',
-    status: 'Ожидает',
     statusTone: 'ready',
-    throughput: '9 000 л/ч',
-    currentFlow: '0 л',
-    description: 'Параллельная линия переработки, принимающая сырье из котла первичного прогрева.',
-    metrics: [
-      ['В обработке', '0 л'],
-      ['Последняя партия', '5 620 л'],
-      ['Готовность', '100%'],
-    ],
+    description: 'Показаны последние фактические замеры реакторов. Движения не изменяют эти показания.',
+  },
+  receivers: {
+    name: 'Ресиверы реакторов',
+    shortName: 'РС',
+    stage: 'Раздельный выход',
+    statusTone: 'ready',
+    description: '№1 — солярка, №2–4 — веретёнка. Остатки не рассчитываются; литры фиксируются при полном сливе.',
   },
   rawDieselTank: {
     name: 'Бак сырой солярки',
@@ -131,6 +117,12 @@ const FLOW_NODES = {
       ['Вместимость', '30 000 л'],
       ['Заполнение', '50%'],
     ],
+  },
+  nigrolTank: {
+    name: 'Бак нигрола',
+    shortName: 'НГ',
+    stage: 'Хранение нигрола',
+    description: 'Нигрол поступает напрямую из реактора, минуя охладитель и ресиверы.',
   },
   finishingMixer: {
     name: 'Песочный миксер',
@@ -417,6 +409,38 @@ function buildOverviewContainerNode(baseNode, container, defaultName) {
   }
 }
 
+function buildReactorNodes(nodes, reactors) {
+  const first = reactors[0]
+  const measured = reactors.filter((item) => item.measured_at)
+  const runs = reactors.flatMap((item) => item.receivers.map((slot) => ({
+    number: slot.number, reactor_name: item.name, ...slot.run,
+  })))
+  const describeMeasurement = (item) => item.measured_at
+    ? `${formatLiveVolume(item.measured_liters)} · ${formatDateTime(item.measured_at)}`
+    : t('Нет замера')
+  return {
+    reactors: {
+      ...nodes.reactors,
+      name: reactors.length === 1 ? t(first.name) : nodes.reactors.name,
+      status: t(reactors.length ? 'Последний фактический замер' : 'Не настроен'),
+      currentFlow: reactors.length === 1 ? describeMeasurement(first) : t`Замерено ${measured.length} из ${reactors.length}`,
+      metrics: reactors.map((item) => [t(item.name), describeMeasurement(item)]),
+      isLive: true,
+    },
+    receivers: {
+      ...nodes.receivers,
+      status: t(reactors.length ? 'Учёт включён' : 'Не настроен'),
+      currentFlow: t`Готово к сливу: ${runs.filter((run) => run.status === 'waiting').length}`,
+      metrics: runs.map((run) => [formatReceiver(run), [
+        t(receiverStatuses[run.status || 'drained']),
+        run.opened_at && `${t('Открыт')}: ${formatDateTime(run.opened_at, true)}`,
+        run.closed_at && `${t('Закрыт')}: ${formatDateTime(run.closed_at, true)}`,
+      ].filter(Boolean).join(' · ')]),
+      isLive: true,
+    },
+  }
+}
+
 function buildOverviewTankSummaryNode(baseNode, summary, singularName, pluralName) {
   const hasVolume = Number(summary?.current_volume_liters) > 0
   const activeCount = Number(summary?.active_count || 0)
@@ -457,7 +481,7 @@ function ProcessNode({ nodeId, selectedNodeId, onSelect, compact = false }) {
       <span className="process-node-stage">{node.stage}</span>
       <strong>{node.name}</strong>
       <span className="process-node-reading">{node.currentFlow}</span>
-      <span className="process-node-capacity">{node.capacityCaption ? `${node.capacityCaption} ${node.throughput}` : t`до ${node.throughput}`}</span>
+      {node.throughput && <span className="process-node-capacity">{node.capacityCaption ? `${node.capacityCaption} ${node.throughput}` : t`до ${node.throughput}`}</span>}
       {node.reconciliation && <span className="process-node-reconciliation">{t('Отклонение')}: <ReconciliationDeviation row={node.measurement} /></span>}
     </button>
   )
@@ -551,10 +575,10 @@ function ProcessDetails({ nodeId }) {
       </div>
       <p className="process-details-description">{node.description}</p>
       <dl>
-        <div>
+        {node.throughput && <div>
           <dt>{node.throughputLabel || t('Пропускная способность')}</dt>
           <dd>{node.throughput}</dd>
-        </div>
+        </div>}
         {node.metrics.map(([label, value]) => (
           <div key={label}>
             <dt>{label}</dt>
@@ -604,11 +628,12 @@ function buildPackagingOverviewNodes(nodes, summary) {
   return result
 }
 
-function buildOilFinishingNodes(nodes, summary) {
+function buildRecyclingEquipmentNodes(nodes, summary) {
   if (!summary) return {}
   const result = {}
   for (const [nodeId, kind, singular, plural] of [
     ['chemicalMixer', 'chemical_mixer', 'Химический миксер', 'Химические миксеры'],
+    ['nigrolTank', 'nigrol_tank', 'Бак нигрола', 'Баки нигрола'],
     ['finishingMixer', 'finishing_mixer', 'Песочный миксер', 'Песочные миксеры'],
     ['filter', 'finishing_filter', 'Финишный фильтр', 'Финишные фильтры'],
     ['finishedDieselTank', 'finished_diesel_tank', 'Бак готовой солярки', 'Баки готовой солярки'],
@@ -627,19 +652,17 @@ function buildOilFinishingNodes(nodes, summary) {
   return result
 }
 
-function attachReconciliation(nodes, data, workshops) {
+function attachReconciliation(nodes, data) {
   const stageNodes = [
     ['storageTank', 'receiving_tank'], ['preheater', 'preheating_boiler'],
     ['rawDieselTank', 'raw_diesel_tank'], ['rawSpindleTank', 'raw_spindle_tank'],
+    ['nigrolTank', 'nigrol_tank'],
     ['chemicalMixer', 'chemical_mixer'], ['finishingMixer', 'finishing_mixer'], ['filter', 'finishing_filter'],
     ['finishedDieselTank', 'finished_diesel_tank'], ['finishedSpindleTank', 'finished_spindle_tank'],
-    ['workshop1', 'processing_workshop', workshops[0]?.id ?? null],
-    ['workshop2', 'processing_workshop', workshops[1]?.id ?? null],
   ]
-  for (const [nodeId, kind, containerId] of stageNodes) {
+  for (const [nodeId, kind] of stageNodes) {
     const stage = data?.stages[kind] || { summary: null, containers: [] }
-    const measurement = containerId === undefined ? stage.summary : stage.containers.find((container) => container.id === containerId)?.measurement
-    nodes[nodeId] = { ...nodes[nodeId], reconciliation: stage, measurement }
+    nodes[nodeId] = { ...nodes[nodeId], reconciliation: stage, measurement: stage.summary }
   }
   return nodes
 }
@@ -756,7 +779,7 @@ export function OverviewPage({ onLogout, token, user }) {
     const nodes = localizeStaticData(FLOW_NODES, language)
     if (!overviewData) {
       const liveNodeIds = ['reception', 'storageTank', 'preheater',
-        'chemicalMixer', 'workshop1', 'workshop2', 'rawDieselTank', 'rawSpindleTank',
+        'chemicalMixer', 'reactors', 'receivers', 'rawDieselTank', 'rawSpindleTank', 'nigrolTank',
         'finishingMixer', 'filter', 'finishedDieselTank', 'finishedSpindleTank',
         'polypropyleneFeed', 'concentrateReactor', 'additiveStation', 'blender1', 'blender2', 'blender3',
         'transmissionOilTank', 'hydraulicOilTank', 'industrialOilTank', 'motorOilTank', 'fillingLine']
@@ -769,14 +792,18 @@ export function OverviewPage({ onLogout, token, user }) {
     const reception = overviewData.reception
     const tanks = overviewData.receiving_tanks
     const boilers = overviewData.preheating_boilers
-    const processingWorkshops = overviewData.processing_workshops?.items || []
     const rawDieselTanks = overviewData.raw_diesel_tanks
     const rawSpindleTanks = overviewData.raw_spindle_tanks
     const liveNodes = {
       ...nodes,
       ...buildPackagingOverviewNodes(nodes, overviewData.packaging_production),
-      ...buildOilFinishingNodes(nodes, { ...overviewData.oil_finishing, chemical_mixer: overviewData.chemical_mixers }),
+      ...buildRecyclingEquipmentNodes(nodes, {
+        ...overviewData.oil_finishing,
+        chemical_mixer: overviewData.chemical_mixers,
+        nigrol_tank: overviewData.nigrol_tanks,
+      }),
       ...buildManufacturingNodes(nodes, overviewData.oil_manufacturing),
+      ...buildReactorNodes(nodes, overviewData.processing_reactors?.items || []),
       reception: {
         ...nodes.reception,
         status: reception.open_receipt_count > 0 ? t('Прием идет') : t('Нет активных приемов'),
@@ -828,13 +855,11 @@ export function OverviewPage({ onLogout, token, user }) {
         ],
         isLive: true,
       },
-      workshop1: buildOverviewContainerNode(nodes.workshop1, processingWorkshops[0], t('Цех переработки №1')),
-      workshop2: buildOverviewContainerNode(nodes.workshop2, processingWorkshops[1], t('Цех переработки №2')),
       rawDieselTank: buildOverviewTankSummaryNode(nodes.rawDieselTank, rawDieselTanks, t('Бак сырой солярки'), t('Баки сырой солярки')),
       rawSpindleTank: buildOverviewTankSummaryNode(nodes.rawSpindleTank, rawSpindleTanks, t('Бак сырой веретенки'), t('Баки сырой веретенки')),
     }
     return activeTab === 'recycling'
-      ? attachReconciliation(liveNodes, overviewData.reconciliation, processingWorkshops)
+      ? attachReconciliation(liveNodes, overviewData.reconciliation)
       : liveNodes
   }, [activeTab, overviewData, overviewError, language])
 
@@ -924,17 +949,28 @@ export function OverviewPage({ onLogout, token, user }) {
             <i />
           </div>
 
+          <div className="snake-row recycling-reactor-fork">
+            <div className="recycling-reactor-node">
+              <ProcessNode compact nodeId="reactors" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
+            </div>
+            <div className="recycling-nigrol-link"><FlowArrow direction="left" /></div>
+            <div className="recycling-nigrol-branch">
+              <ProcessNode compact nodeId="nigrolTank" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
+            </div>
+            <div className="snake-turn recycling-cooling">
+              <i aria-hidden="true" /><span>{t('Охладитель')}</span>
+            </div>
+          </div>
+
           <div className="snake-row snake-row--reverse">
             <ProcessNode compact nodeId="chemicalMixer" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
             <FlowArrow direction="left" />
             <CompactNodeGroup nodeIds={['rawDieselTank', 'rawSpindleTank']} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
             <FlowArrow direction="left" />
-            <CompactNodeGroup nodeIds={['workshop1', 'workshop2']} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
+            <ProcessNode compact nodeId="receivers" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
           </div>
 
-          <div className="snake-turn snake-turn--left">
-            <i />
-          </div>
+          <div className="snake-turn recycling-chemical-turn" aria-hidden="true"><i /></div>
 
           <div className="snake-row snake-row--forward snake-row--final">
             <ProcessNode compact nodeId="finishingMixer" selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />

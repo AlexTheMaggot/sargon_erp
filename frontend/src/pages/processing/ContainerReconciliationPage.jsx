@@ -13,14 +13,16 @@ function ReconciliationHistory({ detail }) {
   const { summary, latest_revision: latest } = detail
   return <div className="reconciliation-history">
     <p>{t`Сверено ${summary.measured_count} из ${latest.eligible_count} ёмкостей`}</p>
-    <p>{t('Балансовое отклонение')}: <strong>{reconciliationDifference(summary)}</strong></p>
-    <p>{t('Суммарное расхождение')}: <strong>{reconciliationPercent(summary.absolute_deviation_percent)} · {reconciliationLiters(summary.absolute_difference_liters)}</strong></p>
+    {summary.comparable_count > 0 && <>
+      <p>{t('Балансовое отклонение')}: <strong>{reconciliationDifference(summary)}</strong></p>
+      <p>{t('Суммарное расхождение')}: <strong>{reconciliationPercent(summary.absolute_deviation_percent)} · {reconciliationLiters(summary.absolute_difference_liters)}</strong></p>
+    </>}
     {detail.revisions.map((revision) => <details className="reconciliation-revision" key={revision.id}>
       <summary>{t`Версия ${revision.number}`} · {dateTime(revision.created_at)} · {revision.operator}</summary>
       <ul>
         {revision.measurements.map((row) => <li key={row.container_id}>
           <strong>{t(row.name)}</strong>
-          <span>{t('По учёту')}: {reconciliationLiters(row.expected_liters)} · {t('Фактически')}: {reconciliationLiters(row.actual_liters)} · {reconciliationDifference(row)}</span>
+          <span>{t('Фактически')}: {reconciliationLiters(row.actual_liters)}{row.expected_liters != null && <> · {t('По учёту')}: {reconciliationLiters(row.expected_liters)} · {reconciliationDifference(row)}</>}</span>
         </li>)}
       </ul>
     </details>)}
@@ -155,8 +157,13 @@ export function ContainerReconciliationPage({ onLogout, token, user }) {
                   return <div className="reconciliation-row" key={container.id}>
                     <div>
                       <strong>{t(container.name)}</strong>
-                      <small>{t('По учёту')}: {reconciliationLiters(container.current_liters)} · {t('Вместимость')}: {reconciliationLiters(container.capacity_liters)}</small>
-                      {last && <small>{t('Сохранённый замер')}: {reconciliationLiters(last.actual_liters)} · {reconciliationDifference(last)}</small>}
+                      <small>
+                        {container.measurement_only
+                          ? <>{t('Последний фактический замер')}: {container.last_measured_at ? `${reconciliationLiters(container.last_actual_liters)} · ${dateTime(container.last_measured_at)}` : t('Нет замера')}</>
+                          : <>{t('По учёту')}: {reconciliationLiters(container.current_liters)}</>}
+                        {' · '}{t('Вместимость')}: {reconciliationLiters(container.capacity_liters)}
+                      </small>
+                      {last && <small>{t('Сохранённый замер')}: {reconciliationLiters(last.actual_liters)}{!container.measurement_only && ` · ${reconciliationDifference(last)}`}</small>}
                       {!canCorrect && <small>{t('Этот замер уже нельзя исправить. Для нового замера начните новую сверку.')}</small>}
                     </div>
                     <div className="reconciliation-inputs">

@@ -184,6 +184,7 @@ class ProductionContainer(models.Model):
     KIND_PROCESSING_WORKSHOP = 'processing_workshop'
     KIND_RAW_DIESEL_TANK = 'raw_diesel_tank'
     KIND_RAW_SPINDLE_TANK = 'raw_spindle_tank'
+    KIND_NIGROL_TANK = 'nigrol_tank'
     KIND_FINISHING_MIXER = 'finishing_mixer'
     KIND_FINISHING_FILTER = 'finishing_filter'
     KIND_FINISHED_DIESEL_TANK = 'finished_diesel_tank'
@@ -195,7 +196,7 @@ class ProductionContainer(models.Model):
     SHARED_OIL_KINDS = (KIND_CHEMICAL_MIXER, KIND_FINISHING_MIXER, KIND_FINISHING_FILTER)
     RECYCLING_KINDS = (
         KIND_RECEIVING_TANK, KIND_PREHEATING_BOILER, KIND_PROCESSING_WORKSHOP,
-        KIND_RAW_DIESEL_TANK, KIND_RAW_SPINDLE_TANK, *SHARED_OIL_KINDS,
+        KIND_RAW_DIESEL_TANK, KIND_RAW_SPINDLE_TANK, KIND_NIGROL_TANK, *SHARED_OIL_KINDS,
         KIND_FINISHED_DIESEL_TANK, KIND_FINISHED_SPINDLE_TANK,
     )
     OIL_PRODUCTS = [('diesel', 'Солярка'), ('spindle', 'Веретенка')]
@@ -203,9 +204,10 @@ class ProductionContainer(models.Model):
         (KIND_RECEIVING_TANK, 'Приёмный бак'),
         (KIND_PREHEATING_BOILER, 'Котёл первичного прогрева'),
         (KIND_CHEMICAL_MIXER, 'Химический миксер'),
-        (KIND_PROCESSING_WORKSHOP, 'Цех переработки'),
+        (KIND_PROCESSING_WORKSHOP, 'Реактор переработки'),
         (KIND_RAW_DIESEL_TANK, 'Бак сырой солярки'),
         (KIND_RAW_SPINDLE_TANK, 'Бак сырой веретенки'),
+        (KIND_NIGROL_TANK, 'Бак нигрола'),
         (KIND_FINISHING_MIXER, 'Песочный миксер'),
         (KIND_FINISHING_FILTER, 'Финишный фильтр'),
         (KIND_FINISHED_DIESEL_TANK, 'Бак готовой солярки'),
@@ -286,7 +288,7 @@ class ContainerMeasurement(models.Model):
     revision = models.ForeignKey(ContainerReconciliationRevision, on_delete=models.PROTECT, related_name='measurements')
     container = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, related_name='measurements')
     container_name = models.CharField(max_length=120)
-    expected_liters = models.DecimalField(max_digits=14, decimal_places=3)
+    expected_liters = models.DecimalField(max_digits=14, decimal_places=3, null=True)
     previous_liters = models.DecimalField(max_digits=14, decimal_places=3)
     actual_liters = models.DecimalField(max_digits=14, decimal_places=3)
     previous_product = models.CharField(max_length=10, blank=True)
@@ -307,12 +309,19 @@ class MaterialMovement(models.Model):
     TYPE_RECEIPT_TO_TANK = 'receipt_to_tank'
     TYPE_TANK_TO_BOILER = 'tank_to_boiler'
     TYPE_BOILER_TO_WORKSHOP = 'boiler_to_workshop'
+    TYPE_BOILER_TO_REACTOR = 'boiler_to_reactor'
+    TYPE_RECEIVER_TO_RAW_DIESEL_TANK = 'receiver_to_raw_diesel_tank'
+    TYPE_RECEIVER_TO_RAW_SPINDLE_TANK = 'receiver_to_raw_spindle_tank'
+    TYPE_REACTOR_TO_NIGROL_TANK = 'reactor_to_nigrol_tank'
+    REACTOR_OUTLET_TYPES = (TYPE_RECEIVER_TO_RAW_DIESEL_TANK, TYPE_RECEIVER_TO_RAW_SPINDLE_TANK, TYPE_REACTOR_TO_NIGROL_TANK)
+    LEGACY_WORKSHOP_TYPES = ('boiler_to_workshop', 'workshop_to_raw_diesel_tank', 'workshop_to_raw_spindle_tank', 'workshop_to_nigrol_tank')
     TYPE_RAW_TO_CHEMICAL_MIXER = 'raw_to_chemical_mixer'
     TYPE_CHEMICAL_TO_FINISHING_MIXER = 'chemical_to_finishing_mixer'
     TYPE_BOILER_TO_CHEMICAL_MIXER = 'boiler_to_chemical_mixer'
     TYPE_CHEMICAL_MIXER_TO_WORKSHOP = 'chemical_mixer_to_workshop'
     TYPE_WORKSHOP_TO_RAW_DIESEL_TANK = 'workshop_to_raw_diesel_tank'
     TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK = 'workshop_to_raw_spindle_tank'
+    TYPE_WORKSHOP_TO_NIGROL_TANK = 'workshop_to_nigrol_tank'
     TYPE_RAW_TO_FINISHING_MIXER = 'raw_to_finishing_mixer'
     TYPE_MIXER_TO_FILTER = 'mixer_to_filter'
     TYPE_FILTER_TO_FINISHED_TANK = 'filter_to_finished_tank'
@@ -328,12 +337,17 @@ class MaterialMovement(models.Model):
         (TYPE_RECEIPT_TO_TANK, 'Поступление из приёмки'),
         (TYPE_TANK_TO_BOILER, 'Загрузка котла'),
         (TYPE_BOILER_TO_WORKSHOP, 'Загрузка в цех переработки'),
+        (TYPE_BOILER_TO_REACTOR, 'Загрузка реактора переработки'),
+        (TYPE_RECEIVER_TO_RAW_DIESEL_TANK, 'Слив солярки из ресивера'),
+        (TYPE_RECEIVER_TO_RAW_SPINDLE_TANK, 'Слив веретенки из ресивера'),
+        (TYPE_REACTOR_TO_NIGROL_TANK, 'Отгрузка нигрола из реактора'),
         (TYPE_RAW_TO_CHEMICAL_MIXER, 'Загрузка химического миксера'),
         (TYPE_CHEMICAL_TO_FINISHING_MIXER, 'Загрузка песочного миксера'),
         (TYPE_BOILER_TO_CHEMICAL_MIXER, 'Загрузка химического миксера (прежний маршрут)'),
         (TYPE_CHEMICAL_MIXER_TO_WORKSHOP, 'Загрузка в цех переработки (прежний маршрут)'),
         (TYPE_WORKSHOP_TO_RAW_DIESEL_TANK, 'Загрузка бака сырой солярки'),
         (TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK, 'Загрузка бака сырой веретенки'),
+        (TYPE_WORKSHOP_TO_NIGROL_TANK, 'Отгрузка нигрола'),
         (TYPE_RAW_TO_FINISHING_MIXER, 'Загрузка песочного миксера (прежний маршрут)'),
         (TYPE_MIXER_TO_FILTER, 'Загрузка финишного фильтра'),
         (TYPE_FILTER_TO_FINISHED_TANK, 'Загрузка бака готовой продукции'),
@@ -371,6 +385,7 @@ class MaterialMovement(models.Model):
     oil_product = models.CharField(max_length=10, choices=ProductionContainer.OIL_PRODUCTS, blank=True, default='')
     source_oil_batch = models.ForeignKey('OilManufacturingBatch', on_delete=models.PROTECT, null=True, blank=True, related_name='outgoing_movements')
     destination_oil_batch = models.ForeignKey('OilManufacturingBatch', on_delete=models.PROTECT, null=True, blank=True, related_name='incoming_movements')
+    receiver_run = models.ForeignKey('ReceiverRun', on_delete=models.PROTECT, null=True, blank=True, related_name='discharges')
     oil_grade = models.ForeignKey(OilGrade, on_delete=models.PROTECT, null=True, blank=True, related_name='movements')
     volume_liters = models.DecimalField(max_digits=14, decimal_places=3)
     moved_at = models.DateTimeField(default=timezone.now)
@@ -420,11 +435,47 @@ class MaterialMovement(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(condition=models.Q(volume_liters__gt=0), name='material_movement_volume_positive'),
+            models.UniqueConstraint(
+                fields=['receiver_run'], condition=models.Q(is_compensated=False, receiver_run__isnull=False),
+                name='one_active_discharge_per_receiver_run',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(movement_type__in=['receiver_to_raw_diesel_tank', 'receiver_to_raw_spindle_tank'],
+                             receiver_run__isnull=False, source_container__isnull=True, destination_container__isnull=False)
+                    | (~models.Q(movement_type__in=['receiver_to_raw_diesel_tank', 'receiver_to_raw_spindle_tank'])
+                       & models.Q(receiver_run__isnull=True))
+                ),
+                name='receiver_discharge_requires_run',
+            ),
         ]
         ordering = ['-moved_at', '-id']
 
     def __str__(self):
         return self.movement_number
+
+
+class ReceiverRun(models.Model):
+    reactor = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, related_name='receiver_runs')
+    loading = models.ForeignKey(MaterialMovement, on_delete=models.PROTECT, related_name='receiver_runs_started')
+    number = models.PositiveSmallIntegerField()
+    opened_at = models.DateTimeField(default=timezone.now)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    opened_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, related_name='opened_receiver_runs')
+    closed_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True, related_name='closed_receiver_runs')
+    open_key = models.CharField(max_length=80, unique=True)
+    close_key = models.CharField(max_length=80, unique=True, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(number__range=(1, 4)), name='receiver_number_in_range'),
+            models.UniqueConstraint(fields=['reactor'], condition=models.Q(closed_at__isnull=True), name='one_open_receiver_per_reactor'),
+            models.CheckConstraint(
+                condition=(models.Q(closed_at__isnull=True, close_key__isnull=True)
+                           | models.Q(closed_at__gte=models.F('opened_at'), closed_at__isnull=False, close_key__isnull=False)),
+                name='receiver_close_after_open',
+            ),
+        ]
 
 
 class OilManufacturingBatch(models.Model):

@@ -315,7 +315,7 @@ class ProductionAccountingTests(TestCase):
         self.assertEqual(delete_response.status_code, 200)
         self.assertFalse(ProductionContainer.objects.filter(pk=mixer_id).exists())
 
-    def test_boiler_to_workshop_updates_both_balances_and_compensates(self):
+    def test_boiler_to_reactor_updates_only_boiler_balance_and_compensates(self):
         self.boiler.current_volume_liters = Decimal('200.000')
         self.boiler.save(update_fields=['current_volume_liters'])
         payload = {
@@ -333,7 +333,7 @@ class ProductionAccountingTests(TestCase):
         self.boiler.refresh_from_db()
         self.processing_workshop.refresh_from_db()
         self.assertEqual(self.boiler.current_volume_liters, Decimal('124.875'))
-        self.assertEqual(self.processing_workshop.current_volume_liters, Decimal('75.125'))
+        self.assertEqual(self.processing_workshop.current_volume_liters, Decimal('0.000'))
 
         compensation_response = self.post_json(
             f"/api/processing/movements/{first_response.json()['id']}/compensate/",
@@ -365,44 +365,17 @@ class ProductionAccountingTests(TestCase):
         self.assertEqual(delete_response.status_code, 200)
         self.assertFalse(ProductionContainer.objects.filter(pk=workshop_id).exists())
 
-    def test_workshop_loads_raw_diesel_and_spindle_tanks_independently(self):
-        self.processing_workshop.current_volume_liters = Decimal('200.000')
-        self.processing_workshop.save(update_fields=['current_volume_liters'])
-
-        diesel_response = self.post_json('/api/processing/movements/workshop-to-raw-diesel-tank/', {
-            'source_workshop_id': self.processing_workshop.pk,
-            'destination_tank_id': self.raw_diesel_tank.pk,
-            'volume_liters': '60.125',
-            'idempotency_key': 'raw-diesel-loading-key',
-        })
-        spindle_response = self.post_json('/api/processing/movements/workshop-to-raw-spindle-tank/', {
-            'source_workshop_id': self.processing_workshop.pk,
-            'destination_tank_id': self.raw_spindle_tank.pk,
-            'volume_liters': '40.000',
-            'idempotency_key': 'raw-spindle-loading-key',
-        })
-
-        self.assertEqual(diesel_response.status_code, 201)
-        self.assertEqual(spindle_response.status_code, 201)
-        self.assertEqual(diesel_response.json()['product_name'], 'Сырая солярка')
-        self.assertEqual(spindle_response.json()['product_name'], 'Сырая веретенка')
-        self.processing_workshop.refresh_from_db()
-        self.raw_diesel_tank.refresh_from_db()
-        self.raw_spindle_tank.refresh_from_db()
-        self.assertEqual(self.processing_workshop.current_volume_liters, Decimal('99.875'))
-        self.assertEqual(self.raw_diesel_tank.current_volume_liters, Decimal('60.125'))
-        self.assertEqual(self.raw_spindle_tank.current_volume_liters, Decimal('40.000'))
-
-        compensation_response = self.post_json(
-            f"/api/processing/movements/{diesel_response.json()['id']}/compensate/",
-            {'reason': 'Исправление загрузки бака солярки'},
-        )
-
-        self.assertEqual(compensation_response.status_code, 201)
-        self.processing_workshop.refresh_from_db()
-        self.raw_diesel_tank.refresh_from_db()
-        self.assertEqual(self.processing_workshop.current_volume_liters, Decimal('160.000'))
-        self.assertEqual(self.raw_diesel_tank.current_volume_liters, Decimal('0.000'))
+    def test_raw_product_tanks_require_discharge_from_receiver(self):
+        for product, tank in (('diesel', self.raw_diesel_tank), ('spindle', self.raw_spindle_tank)):
+            response = self.post_json(f'/api/processing/movements/workshop-to-raw-{product}-tank/', {
+                'source_workshop_id': self.processing_workshop.pk,
+                'destination_tank_id': tank.pk,
+                'volume_liters': '10',
+                'idempotency_key': f'old-direct-{product}-loading',
+            })
+            self.assertEqual(response.status_code, 400)
+            tank.refresh_from_db()
+            self.assertEqual(tank.current_volume_liters, 0)
 
     def test_admin_can_create_separate_raw_product_tanks(self):
         diesel_response = self.post_json('/api/processing/raw-diesel-tanks/', {
@@ -521,12 +494,11 @@ class ProductionAccountingTests(TestCase):
         mixer_data = next(item for item in data['chemical_mixers']['items'] if item['id'] == self.chemical_mixer.pk)
         self.assertEqual(mixer_data['current_volume_liters'], '50.250')
         self.assertEqual(mixer_data['free_volume_liters'], '449.750')
-        self.assertEqual(data['processing_workshops']['current_volume_liters'], '40.125')
-        workshop_data = next(
-            item for item in data['processing_workshops']['items'] if item['id'] == self.processing_workshop.pk
+        reactor_data = next(
+            item for item in data['processing_reactors']['items'] if item['id'] == self.processing_workshop.pk
         )
-        self.assertEqual(workshop_data['current_volume_liters'], '40.125')
-        self.assertEqual(workshop_data['free_volume_liters'], '459.875')
+        self.assertIsNone(reactor_data['measured_liters'])
+        self.assertEqual(reactor_data['capacity_liters'], '500.000')
         self.assertEqual(data['raw_diesel_tanks']['current_volume_liters'], '30.500')
         self.assertEqual(data['raw_spindle_tanks']['current_volume_liters'], '20.250')
 

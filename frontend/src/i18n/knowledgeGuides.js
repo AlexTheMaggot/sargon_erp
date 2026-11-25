@@ -89,6 +89,54 @@ const originalKnowledgeGuides = [
   },
 ]
 
+const reactorGuideReplacements = [
+  [
+    'баками, котлами, цехами, баками сырой продукции',
+    'баками, котлами, реакторами, ресиверами, баками сырой продукции',
+    'baklar, qozonlar, sexlar, xom mahsulot baklari',
+    'baklar, qozonlar, reaktorlar, resiverlar, xom mahsulot baklari',
+  ],
+  [
+    'цехов переработки, баков сырой солярки и сырой веретенки',
+    'реакторов, ресиверов, баков нигрола, сырой солярки и сырой веретенки',
+    'qayta ishlash sexlari, xom dizel yoqilg‘isi va xom veretyonka moyi baklari',
+    'reaktorlar, resiverlar, nigrol, xom dizel yoqilg‘isi va xom veretyonka moyi baklari',
+  ],
+  [
+    '## Статичные участки\n\nСледующие за баками сырой продукции этапы и схема производства масел пока представлены статично. Не используйте их демонстрационные показатели как фактические остатки.',
+    '## Реактор и ресиверы\n\nДля реактора виден последний фактический замер с датой. Для ресиверов видны состояния и время открытия и закрытия, а не остатки в литрах.',
+    '## Statik qismlar\n\nXom mahsulot baklaridan keyingi bosqichlar va moy ishlab chiqarish sxemasi hozircha statik. Ularning namoyish ko‘rsatkichlarini haqiqiy qoldiq sifatida ishlatmang.',
+    '## Reaktor va resiverlar\n\nReaktorning oxirgi haqiqiy o‘lchovi sana bilan ko‘rsatiladi. Resiverlar uchun litrda qoldiq emas, holat va ochilish hamda yopilish vaqti ko‘rsatiladi.',
+  ],
+  [
+    '→ цех переработки → бак сырой солярки или бак сырой веретенки',
+    '→ реактор → охладитель → ресивер → бак сырой солярки или бак сырой веретенки',
+    '→ qayta ishlash sexi → xom dizel yoqilg‘isi yoki xom veretyonka moyi baki',
+    '→ reaktor → sovitgich → resiver → xom dizel yoqilg‘isi yoki xom veretyonka moyi baki',
+  ],
+  [
+    'Каждая ёмкость хранит свой остаток, а движение оформляется тогда, когда фактически происходит передача масла.',
+    'Движение оформляется при фактической передаче масла. Нигрол отгружается напрямую из реактора в отдельный бак.',
+    'Har bir sig‘im o‘z qoldig‘ini saqlaydi, harakat esa moy amalda uzatilganda rasmiylashtiriladi.',
+    'Harakat moy amalda uzatilganda rasmiylashtiriladi. Nigrol reaktordan bevosita alohida bakka o‘tkaziladi.',
+  ],
+  [
+    'Система уменьшит остаток источника и увеличит остаток получателя в одной операции. Нельзя передать больше имеющегося объёма или превысить вместимость получателя. Для сырой солярки и сырой веретенки используются разные формы, баки и истории движения.',
+    'В форме «Ресиверы реактора» подтверждайте открытие и закрытие: после загрузки откройте №1, затем №2 → №3 → №4. До новой загрузки повторяйте №2 → №3 → №4. Закрытый ресивер слейте целиком в один подходящий бак и укажите фактические литры. №1 — сырая солярка, остальные — сырая веретёнка. Остаток реактора указывается фактическим замером при сверке; остатки ресиверов не рассчитываются.',
+    'Tizim bir amalda manba qoldig‘ini kamaytiradi va qabul qiluvchi qoldig‘ini oshiradi. Mavjud hajmdan ortiq uzatish yoki qabul qiluvchi sig‘imini oshirish mumkin emas. Xom dizel yoqilg‘isi va xom veretyonka moyi uchun alohida shakllar, baklar va harakat tarixi ishlatiladi.',
+    '«Reaktor resiverlari» shaklida ochilish va yopilishni tasdiqlang: yuklashdan keyin №1, so‘ng №2 → №3 → №4 resiverlarini oching. Keyingi yuklashgacha №2 → №3 → №4 ketma-ketligini takrorlang. Yopilgan resiverni bitta mos bakka to‘liq bo‘shating va haqiqiy litrlarni kiriting. №1 — xom dizel yoqilg‘isi, qolganlari — xom veretyonka moyi. Reaktor qoldig‘i solishtirishda haqiqiy o‘lchov bilan kiritiladi, resiver qoldiqlari hisoblanmaydi.',
+  ],
+]
+
+function updateReactorGuide(guide) {
+  let { sourceContent, content } = guide
+  for (const [oldSource, newSource, oldTranslation, newTranslation] of reactorGuideReplacements) {
+    sourceContent = sourceContent.replace(oldSource, newSource)
+    content = content.replace(oldTranslation, newTranslation)
+  }
+  return { ...guide, sourceContent, content }
+}
+
 export const knowledgeGuides = originalKnowledgeGuides.map((guide) => guide.sourceTitle === 'Проведение анализа и принятие решения' ? {
   ...guide,
   sourceContent: guide.sourceContent.replace(
@@ -99,4 +147,4 @@ export const knowledgeGuides = originalKnowledgeGuides.map((guide) => guide.sour
     'Tasdiqlash uchun barcha ko‘rsatkichlarni to‘ldiring.',
     'Tasdiqlash uchun zichlik va joriy haroratni kiriting. Chaqnash harorati va suv miqdori ixtiyoriy; bo‘sh qiymatlar nolga almashtirilmaydi.',
   ),
-} : guide)
+} : updateReactorGuide(guide))

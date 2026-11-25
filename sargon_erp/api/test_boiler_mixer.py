@@ -48,24 +48,24 @@ class BoilerWorkshopTests(BoilerWorkshopFixture, TestCase):
         self.assertEqual(self.workshop.current_volume_liters, 0)
         self.assertFalse(MaterialMovement.objects.exists())
 
-    def test_direct_loading_records_balances_product_and_overview(self):
+    def test_loading_records_boiler_balance_without_inventing_reactor_measurement(self):
         response = self.send()
         self.assertEqual(response.status_code, 201, response.content)
         self.boiler.refresh_from_db()
         self.workshop.refresh_from_db()
         self.assertEqual(self.boiler.current_volume_liters, Decimal('124.875'))
-        self.assertEqual(self.workshop.current_volume_liters, Decimal('75.125'))
+        self.assertEqual(self.workshop.current_volume_liters, 0)
         movement = MaterialMovement.objects.get()
-        self.assertEqual(movement.movement_type, 'boiler_to_workshop')
+        self.assertEqual(movement.movement_type, 'boiler_to_reactor')
         self.assertEqual(movement.product_name, 'Прогретое отработанное масло')
         self.assertEqual(movement.created_by, self.admin)
         self.assertEqual(movement.source_volume_before, 200)
         self.assertEqual(movement.source_volume_after, Decimal('124.875'))
-        self.assertEqual(movement.destination_volume_after, Decimal('75.125'))
+        self.assertIsNone(movement.destination_volume_after)
         data = self.client.get('/api/dashboard/overview/', **self.headers).json()
-        item = next(item for item in data['processing_workshops']['items'] if item['id'] == self.workshop.pk)
-        self.assertEqual(item['current_volume_liters'], '75.125')
-        self.assertTrue(item['last_loading_at'])
+        item = next(item for item in data['processing_reactors']['items'] if item['id'] == self.workshop.pk)
+        self.assertIsNone(item['measured_liters'])
+        self.assertIsNone(item['measured_at'])
         self.assertNotIn('separators', data)
         self.assertNotIn('separator_outputs', data['oil_finishing'])
 
@@ -108,7 +108,7 @@ class BoilerWorkshopTests(BoilerWorkshopFixture, TestCase):
             volume_liters=1, idempotency_key='other-operation',
         )
         self.assertEqual(self.send(self.payload(idempotency_key=other.idempotency_key)).status_code, 409)
-        self.assertEqual(MaterialMovement.objects.filter(movement_type='boiler_to_workshop').count(), 1)
+        self.assertEqual(MaterialMovement.objects.filter(movement_type='boiler_to_reactor').count(), 1)
 
     def test_compensation_restores_balances(self):
         movement_id = self.send().json()['id']
@@ -159,8 +159,10 @@ class ConcurrentBoilerWorkshopTests(BoilerWorkshopFixture, TransactionTestCase):
         with ThreadPoolExecutor(max_workers=len(payloads)) as executor:
             return sorted(executor.map(send, payloads))
 
-    def test_parallel_loadings_do_not_overflow_mixer(self):
-        self.assertEqual(self.parallel([self.payload(), self.payload()]), [201, 400])
+    def test_parallel_loadings_cannot_overdraw_boiler(self):
+        self.boiler.current_volume_liters = 100
+        self.boiler.save(update_fields=['current_volume_liters'])
+        self.assertEqual(self.parallel([self.payload(), self.payload(destination_workshop_id=self.other_workshop.pk)]), [201, 400])
         self.assertEqual(MaterialMovement.objects.count(), 1)
 
     def test_parallel_duplicate_is_posted_once(self):

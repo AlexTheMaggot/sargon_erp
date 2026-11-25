@@ -9,12 +9,13 @@ const containerPaths = {
   processing_workshop: '/api/processing/workshops/',
   raw_diesel_tank: '/api/processing/raw-diesel-tanks/',
   raw_spindle_tank: '/api/processing/raw-spindle-tanks/',
+  nigrol_tank: '/api/processing/nigrol-tanks/',
   ...Object.fromEntries(Object.keys(oilContainerConfig).map((kind) => [kind, oilContainerApiPath(kind)])),
 }
 
 const allContainerKinds = Object.keys(containerPaths)
 
-export function useProcessingCrud(token, { containerKinds = allContainerKinds, loadJournal = false, loadOilGrades = false } = {}) {
+export function useProcessingCrud(token, { containerKinds = allContainerKinds, loadJournal = false, loadOilGrades = false, receiverOutlet } = {}) {
   const [receivingTanks, setReceivingTanks] = useState([])
   const [boilers, setBoilers] = useState([])
   const [chemicalMixers, setChemicalMixers] = useState([])
@@ -23,16 +24,17 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
   const [rawSpindleTanks, setRawSpindleTanks] = useState([])
   const [oilContainers, setOilContainers] = useState({})
   const [oilGrades, setOilGrades] = useState([])
+  const [receiverRuns, setReceiverRuns] = useState([])
   const [journal, setJournal] = useState({ items: [], total: 0, page: 1, page_count: 1 })
   const [error, setError] = useState('')
   const containerKindsKey = [...containerKinds].sort().join(',')
 
   const loadContainers = useCallback(async () => {
     const requestedKinds = containerKindsKey ? containerKindsKey.split(',') : []
-    const responses = await Promise.all(requestedKinds.map(async (kind) => [
-      kind,
-      await apiRequest(containerPaths[kind], token),
-    ]))
+    const [responses, receivers] = await Promise.all([
+      Promise.all(requestedKinds.map(async (kind) => [kind, await apiRequest(containerPaths[kind], token)])),
+      receiverOutlet ? apiRequest(`/api/processing/movements/${receiverOutlet}/`, token) : null,
+    ])
     const dataByKind = Object.fromEntries(responses)
     setOilContainers(Object.fromEntries(Object.entries(dataByKind).map(([kind, data]) => [kind, data.items])))
 
@@ -42,7 +44,8 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
     if (dataByKind.processing_workshop) setProcessingWorkshops(dataByKind.processing_workshop.items)
     if (dataByKind.raw_diesel_tank) setRawDieselTanks(dataByKind.raw_diesel_tank.items)
     if (dataByKind.raw_spindle_tank) setRawSpindleTanks(dataByKind.raw_spindle_tank.items)
-  }, [containerKindsKey, token])
+    if (receivers) setReceiverRuns(receivers.items)
+  }, [containerKindsKey, receiverOutlet, token])
 
   const fetchJournal = useCallback(async (filters = {}, page = 1) => {
     const searchParams = new URLSearchParams({ page: String(page), page_size: '10' })
@@ -154,15 +157,8 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
     }))
   }
 
-  function createRawDieselTankLoading(form) {
-    return runOperation(() => apiRequest('/api/processing/movements/workshop-to-raw-diesel-tank/', token, {
-      method: 'POST',
-      body: JSON.stringify(form),
-    }))
-  }
-
-  function createRawSpindleTankLoading(form) {
-    return runOperation(() => apiRequest('/api/processing/movements/workshop-to-raw-spindle-tank/', token, {
+  function createWorkshopTankLoading(endpoint, form) {
+    return runOperation(() => apiRequest(`/api/processing/movements/${endpoint}/`, token, {
       method: 'POST',
       body: JSON.stringify(form),
     }))
@@ -179,10 +175,9 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
     boilers,
     chemicalMixers,
     compensateMovement,
-    createRawDieselTankLoading,
-    createRawSpindleTankLoading,
     createTankToBoilerMovement,
     createWorkshopLoading,
+    createWorkshopTankLoading,
     deleteContainer,
     error,
     fetchJournal,
@@ -192,6 +187,7 @@ export function useProcessingCrud(token, { containerKinds = allContainerKinds, l
     processingWorkshops,
     rawDieselTanks,
     rawSpindleTanks,
+    receiverRuns,
     receivingTanks,
     saveContainer,
   }

@@ -25,7 +25,7 @@ export function RecyclingReconciliationSummary({ summary }) {
       {summary ? <span>{dateTime(summary.created_at)} · {t`Сверено ${summary.measured_count} из ${summary.eligible_count} ёмкостей`}</span>
         : <span>{t('Сверок ещё не было.')}</span>}
     </div>
-    {summary && <>
+    {summary?.comparable_count > 0 && <>
       <div><span>{t('Балансовое отклонение')}</span><strong><ReconciliationDeviation row={summary} /></strong></div>
       <div><span>{t('Суммарное расхождение')}</span><strong><ReconciliationDeviation row={summary} absolute /></strong></div>
     </>}

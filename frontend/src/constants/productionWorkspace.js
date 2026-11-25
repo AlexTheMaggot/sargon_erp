@@ -1,11 +1,13 @@
 import { oilFinishingForms } from './oilFinishing.js'
 import { oilManufacturingConfig } from './oilManufacturing.js'
+import { workshopTankTransfers } from './workshopTankTransfers.js'
+import { receiverModule, receiverPath } from './reactorReceivers.js'
 
 export const recyclingOperations = [
   { path: '/processing/boiler-loading', label: 'Загрузка котла отработки', moduleCode: 'boiler-loading', group: 'preparation', icon: 'boiler', description: 'Передать масло из приёмного бака в котёл прогрева.' },
-  { path: '/processing/workshop-loading', label: 'Загрузка в цех переработки', moduleCode: 'workshop-loading', group: 'processing', icon: 'factory', description: 'Передать прогретое масло из котла в цех переработки.' },
-  { path: '/processing/raw-diesel-tank-loading', label: 'Загрузка бака сырой солярки', moduleCode: 'raw-diesel-tank-loading', group: 'processing', icon: 'tank', description: 'Перелить сырую солярку из цеха в отдельный бак.' },
-  { path: '/processing/raw-spindle-tank-loading', label: 'Загрузка бака сырой веретенки', moduleCode: 'raw-spindle-tank-loading', group: 'processing', icon: 'tank', description: 'Перелить сырую веретенку из цеха в отдельный бак.' },
+  { path: '/processing/workshop-loading', label: 'Загрузка реактора переработки', moduleCode: 'workshop-loading', group: 'processing', icon: 'factory', description: 'Передать прогретое масло из котла в реактор переработки.' },
+  { path: receiverPath, label: 'Ресиверы реактора', moduleCode: receiverModule, group: 'processing', icon: 'tank', description: 'Отметить открытие и закрытие ресиверов и перейти к сливу.' },
+  ...workshopTankTransfers.map((operation) => ({ ...operation, group: 'processing', icon: 'tank' })),
   ...Object.entries(oilFinishingForms).map(([code, config]) => ({
     path: `/processing/${code}`, label: config.title, moduleCode: code, group: 'finishing',
     ...({

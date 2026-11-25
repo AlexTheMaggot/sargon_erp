@@ -59,6 +59,8 @@ from .models import OilGrade, OilManufacturingBatch
 from .oil_processing import OIL_FINISHING_STEPS, OIL_CONTAINER_PATHS
 from .oil_processing import LEGACY_MIXER_SNAPSHOT_PREFIX, SAND_MIXER_SNAPSHOT_PREFIX, container_snapshot_label
 from .oil_processing import apply_oil_transfer, container_oil_product, lock_oil_line, oil_transfer_error
+from .reactor_processing import MODULE_CODE as MODULE_REACTOR_RECEIVERS
+from .reactor_processing import last_reactor_measurement, reactor_has_pending_receivers, reactor_outlet_view, reactors_overview
 
 
 MODULE_ACCESS = 'access'
@@ -72,6 +74,7 @@ MODULE_CHEMICAL_MIXER_LOADING = 'chemical-mixer-loading'
 MODULE_WORKSHOP_LOADING = 'workshop-loading'
 MODULE_RAW_DIESEL_TANK_LOADING = 'raw-diesel-tank-loading'
 MODULE_RAW_SPINDLE_TANK_LOADING = 'raw-spindle-tank-loading'
+MODULE_NIGROL_LOADING = 'nigrol-loading'
 MODULE_WAREHOUSE_ACCOUNTING = 'warehouse-accounting'
 MODULE_WAREHOUSE_SETTINGS = 'warehouse-settings'
 MODULE_KNOWLEDGE_BASE = 'knowledge-base'
@@ -86,6 +89,8 @@ PROCESSING_FORM_MODULE_CODES = {
     MODULE_WORKSHOP_LOADING,
     MODULE_RAW_DIESEL_TANK_LOADING,
     MODULE_RAW_SPINDLE_TANK_LOADING,
+    MODULE_NIGROL_LOADING,
+    MODULE_REACTOR_RECEIVERS,
 }
 PROCESSING_FORM_MODULE_CODES.update(OIL_FINISHING_STEPS)
 PROCESSING_FORM_MODULE_CODES.update(('concentrate-loading', 'oil-blending', 'oil-tank-loading', 'oil-filling'))
@@ -565,11 +570,11 @@ def _can_view_processing_container(user, kind):
         ProductionContainer.KIND_CHEMICAL_MIXER: [MODULE_CHEMICAL_MIXER_LOADING],
         ProductionContainer.KIND_PROCESSING_WORKSHOP: [
             MODULE_WORKSHOP_LOADING,
-            MODULE_RAW_DIESEL_TANK_LOADING,
-            MODULE_RAW_SPINDLE_TANK_LOADING,
+            MODULE_NIGROL_LOADING,
         ],
         ProductionContainer.KIND_RAW_DIESEL_TANK: [MODULE_RAW_DIESEL_TANK_LOADING],
         ProductionContainer.KIND_RAW_SPINDLE_TANK: [MODULE_RAW_SPINDLE_TANK_LOADING],
+        ProductionContainer.KIND_NIGROL_TANK: [MODULE_NIGROL_LOADING],
     }
     for code, config in OIL_FINISHING_STEPS.items():
         if kind in config['sources'] + config['destinations']:
@@ -671,6 +676,12 @@ def _serialize_container(container, user, raw_material_options=False):
         })
     if container.kind == ProductionContainer.KIND_FINISHED_OIL_TANK:
         base.update({'capacity_liters': str(container.capacity_liters), 'free_volume_liters': str(free_volume)})
+    if container.kind in (ProductionContainer.KIND_RAW_DIESEL_TANK, ProductionContainer.KIND_RAW_SPINDLE_TANK, ProductionContainer.KIND_NIGROL_TANK):
+        base.update({
+            'capacity_liters': str(container.capacity_liters), 'free_volume_liters': str(free_volume),
+        })
+    if container.kind == ProductionContainer.KIND_NIGROL_TANK:
+        base['product_name'] = 'Нигрол'
     base['oil_product'] = container_oil_product(container)
     if container.kind in OIL_CONTAINER_PATHS.values():
         base['capacity_liters'] = str(container.capacity_liters)
@@ -698,9 +709,10 @@ def _serialize_container(container, user, raw_material_options=False):
         loading_types = {
             ProductionContainer.KIND_PREHEATING_BOILER: MaterialMovement.TYPE_TANK_TO_BOILER,
             ProductionContainer.KIND_CHEMICAL_MIXER: MaterialMovement.TYPE_RAW_TO_CHEMICAL_MIXER,
-            ProductionContainer.KIND_PROCESSING_WORKSHOP: MaterialMovement.TYPE_BOILER_TO_WORKSHOP,
-            ProductionContainer.KIND_RAW_DIESEL_TANK: MaterialMovement.TYPE_WORKSHOP_TO_RAW_DIESEL_TANK,
-            ProductionContainer.KIND_RAW_SPINDLE_TANK: MaterialMovement.TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK,
+            ProductionContainer.KIND_PROCESSING_WORKSHOP: MaterialMovement.TYPE_BOILER_TO_REACTOR,
+            ProductionContainer.KIND_RAW_DIESEL_TANK: MaterialMovement.TYPE_RECEIVER_TO_RAW_DIESEL_TANK,
+            ProductionContainer.KIND_RAW_SPINDLE_TANK: MaterialMovement.TYPE_RECEIVER_TO_RAW_SPINDLE_TANK,
+            ProductionContainer.KIND_NIGROL_TANK: MaterialMovement.TYPE_REACTOR_TO_NIGROL_TANK,
         }
         for config in OIL_FINISHING_STEPS.values():
             for kind in config['destinations']:
@@ -712,6 +724,14 @@ def _serialize_container(container, user, raw_material_options=False):
                     movement_type=loading_types[container.kind],
                 ).select_related('created_by').order_by('-moved_at', '-id')[:10]
             ]
+    if container.kind == ProductionContainer.KIND_PROCESSING_WORKSHOP:
+        measurement = last_reactor_measurement(container)
+        base.update({
+            'current_volume_liters': None, 'free_volume_liters': None, 'fill_percentage': None,
+            'capacity_liters': str(container.capacity_liters), 'can_receive': container.is_active,
+            'measured_liters': str(measurement.actual_liters) if measurement else None,
+            'measured_at': measurement.revision.created_at.isoformat() if measurement else None,
+        })
     return base
 
 
@@ -729,6 +749,7 @@ def _serialize_movement(movement):
         'product_name': movement.product_name,
         'oil_product': movement.oil_product,
         'oil_grade_id': movement.oil_grade_id,
+        'receiver_run_id': movement.receiver_run_id,
         'volume_liters': str(movement.volume_liters),
         'moved_at': movement.moved_at.isoformat(),
         'created_at': movement.created_at.isoformat(),
@@ -743,7 +764,8 @@ def _serialize_movement(movement):
         'reason': movement.reason,
         'is_compensated': movement.is_compensated,
         'compensates_id': movement.compensates_id,
-        'can_compensate': not movement.is_compensated and movement.compensates_id is None,
+        'can_compensate': (not movement.is_compensated and movement.compensates_id is None
+                           and movement.movement_type not in MaterialMovement.LEGACY_WORKSHOP_TYPES),
     }
 
 
@@ -1072,6 +1094,8 @@ def _compensate_movement(movement_id, user, reason):
             return None, 'Compensation reason is required.'
         if movement.movement_type in (MaterialMovement.TYPE_BOILER_TO_CHEMICAL_MIXER, MaterialMovement.TYPE_CHEMICAL_MIXER_TO_WORKSHOP):
             return None, 'Отмена движения прежнего маршрута недоступна после переноса химического миксера.'
+        if movement.movement_type in MaterialMovement.LEGACY_WORKSHOP_TYPES:
+            return None, 'Отмена старых движений цеха недоступна после перехода на реакторы и ресиверы.'
         container_ids = sorted(filter(None, [movement.source_container_id, movement.destination_container_id]))
         if movement_is_reconciled(movement):
             return None, RECONCILED_MOVEMENT
@@ -1112,12 +1136,32 @@ def _compensate_movement(movement_id, user, reason):
             destination.save(update_fields=['current_volume_liters', 'updated_at'])
             compensation_source = destination
             compensation_destination = None
-        elif movement.movement_type in (
-            MaterialMovement.TYPE_TANK_TO_BOILER,
-            MaterialMovement.TYPE_BOILER_TO_WORKSHOP,
-            MaterialMovement.TYPE_WORKSHOP_TO_RAW_DIESEL_TANK,
-            MaterialMovement.TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK,
-        ):
+        elif movement.movement_type == MaterialMovement.TYPE_BOILER_TO_REACTOR:
+            if movement.receiver_runs_started.exists():
+                return None, 'Нельзя отменить загрузку, по которой уже открывали ресивер.'
+            if source is None or destination is None or source.current_volume_liters + movement.volume_liters > source.capacity_liters:
+                return None, 'Compensation would overflow the receiving tank.'
+            compensation_destination_before = source.current_volume_liters
+            compensation_destination_after = compensation_destination_before + movement.volume_liters
+            source.current_volume_liters = compensation_destination_after
+            source.save(update_fields=['current_volume_liters', 'updated_at'])
+            destination.save(update_fields=['updated_at'])
+            compensation_source, compensation_destination = destination, source
+        elif movement.movement_type in MaterialMovement.REACTOR_OUTLET_TYPES:
+            if movement.receiver_run_id:
+                run = movement.receiver_run
+                if not run.reactor.is_active or run.reactor.receiver_runs.filter(number=run.number, pk__gt=run.pk).exists():
+                    return None, 'Нельзя отменить слив, если ресивер уже открывался снова или реактор отключён.'
+            if destination is None or destination.current_volume_liters < movement.volume_liters:
+                return None, 'Compensation would create a negative boiler balance.'
+            compensation_source_before = destination.current_volume_liters
+            compensation_source_after = compensation_source_before - movement.volume_liters
+            destination.current_volume_liters = compensation_source_after
+            destination.save(update_fields=['current_volume_liters', 'updated_at'])
+            if source:
+                source.save(update_fields=['updated_at'])
+            compensation_source, compensation_destination = destination, source
+        elif movement.movement_type == MaterialMovement.TYPE_TANK_TO_BOILER:
             if destination is None or destination.current_volume_liters < movement.volume_liters:
                 return None, 'Compensation would create a negative boiler balance.'
             if source is None or source.current_volume_liters + movement.volume_liters > source.capacity_liters:
@@ -2183,6 +2227,11 @@ def raw_spindle_tanks_view(request):
 
 
 @csrf_exempt
+def nigrol_tanks_view(request):
+    return _production_containers_view(request, ProductionContainer.KIND_NIGROL_TANK)
+
+
+@csrf_exempt
 @transaction.atomic
 def production_container_detail_view(request, container_id):
     user, error = _require_admin(request)
@@ -2220,6 +2269,8 @@ def production_container_detail_view(request, container_id):
             return JsonResponse({'detail': 'Вместимость не может быть меньше текущего объёма.'}, status=400)
         if not is_active and container.current_volume_liters > 0:
             return JsonResponse({'detail': 'Filled container cannot be deactivated.'}, status=400)
+        if not is_active and container.kind == ProductionContainer.KIND_PROCESSING_WORKSHOP and reactor_has_pending_receivers(container.pk):
+            return JsonResponse({'detail': 'Перед отключением реактора закройте и слейте его ресиверы.'}, status=400)
         batch = container.oil_batches.filter(status=OilManufacturingBatch.STATUS_OPEN).first()
         if batch and (not is_active or capacity < max(batch.input_liters, batch.output_liters)):
             return JsonResponse({'detail': 'Нельзя отключить оборудование с открытой партией или уменьшить его вместимость ниже загрузки и выхода.'}, status=400)
@@ -2390,9 +2441,9 @@ def tank_to_boiler_movements_view(request):
         return JsonResponse(_serialize_movement(movement), status=201)
 
 
-def _workshop_loading_replay(movement, user, source_id, destination_id, volume):
+def _processing_movement_replay(movement, user, movement_type, source_id, destination_id, volume):
     if (movement.created_by_id != user.pk
-            or movement.movement_type != MaterialMovement.TYPE_BOILER_TO_WORKSHOP
+            or movement.movement_type != movement_type
             or movement.source_container_id != source_id or movement.destination_container_id != destination_id
             or movement.volume_liters != volume):
         return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
@@ -2401,6 +2452,7 @@ def _workshop_loading_replay(movement, user, source_id, destination_id, volume):
 
 @csrf_exempt
 def boiler_to_workshop_movements_view(request):
+    movement_type = MaterialMovement.TYPE_BOILER_TO_REACTOR
     user, error = _require_processing_permission(request, MODULE_WORKSHOP_LOADING, PERMISSION_CREATE)
     if error:
         return error
@@ -2431,9 +2483,10 @@ def boiler_to_workshop_movements_view(request):
 
     existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
     if existing:
-        return _workshop_loading_replay(existing, user, source_id, destination_id, volume)
+        return _processing_movement_replay(existing, user, movement_type, source_id, destination_id, volume)
 
     with transaction.atomic():
+        lock_oil_line()
         containers = {
             container.pk: container
             for container in ProductionContainer.objects.select_for_update().filter(
@@ -2444,7 +2497,7 @@ def boiler_to_workshop_movements_view(request):
         destination = containers.get(destination_id)
         existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
         if existing:
-            return _workshop_loading_replay(existing, user, source_id, destination_id, volume)
+            return _processing_movement_replay(existing, user, movement_type, source_id, destination_id, volume)
         if source is None or source.kind != ProductionContainer.KIND_PREHEATING_BOILER or not source.is_active:
             return JsonResponse({'detail': 'Active preheating boiler does not exist.'}, status=400)
         if destination is None or destination.kind != ProductionContainer.KIND_PROCESSING_WORKSHOP or not destination.is_active:
@@ -2459,7 +2512,7 @@ def boiler_to_workshop_movements_view(request):
                 OperationAuditLog.RESULT_REJECTED,
             )
             return JsonResponse({'detail': 'Insufficient preheating boiler volume.'}, status=400)
-        if destination.current_volume_liters + volume > destination.capacity_liters:
+        if volume > destination.capacity_liters:
             _audit_operation(
                 'movement_rejected',
                 'material_movement',
@@ -2468,17 +2521,15 @@ def boiler_to_workshop_movements_view(request):
                 {'reason': 'processing_workshop_overflow', 'destination_id': destination_id, 'volume_liters': str(volume)},
                 OperationAuditLog.RESULT_REJECTED,
             )
-            return JsonResponse({'detail': 'Processing workshop capacity would be exceeded.'}, status=400)
+            return JsonResponse({'detail': 'Объём движения превышает вместимость реактора.'}, status=400)
 
         source_before = source.current_volume_liters
-        destination_before = destination.current_volume_liters
         source_after = source_before - volume
-        destination_after = destination_before + volume
         try:
             with transaction.atomic():
                 movement = MaterialMovement.objects.create(
                     movement_number=_movement_number(),
-                    movement_type=MaterialMovement.TYPE_BOILER_TO_WORKSHOP,
+                    movement_type=movement_type,
                     source_container=source,
                     destination_container=destination,
                     product_name='Прогретое отработанное масло',
@@ -2489,20 +2540,17 @@ def boiler_to_workshop_movements_view(request):
                     destination_snapshot=destination.display_name,
                     source_volume_before=source_before,
                     source_volume_after=source_after,
-                    destination_volume_before=destination_before,
-                    destination_volume_after=destination_after,
-                    system_description='Ручная загрузка цеха переработки из котла первичного прогрева.',
+                    system_description='Загрузка реактора переработки из котла первичного прогрева.',
                 )
         except IntegrityError:
             existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
             if existing:
-                return _workshop_loading_replay(existing, user, source_id, destination_id, volume)
+                return _processing_movement_replay(existing, user, movement_type, source_id, destination_id, volume)
             return JsonResponse({'detail': 'Movement could not be created.'}, status=409)
 
         source.current_volume_liters = source_after
-        destination.current_volume_liters = destination_after
         source.save(update_fields=['current_volume_liters', 'updated_at'])
-        destination.save(update_fields=['current_volume_liters', 'updated_at'])
+        destination.save(update_fields=['updated_at'])
         _audit_operation(
             'movement_created',
             'material_movement',
@@ -2513,139 +2561,27 @@ def boiler_to_workshop_movements_view(request):
         return JsonResponse(_serialize_movement(movement), status=201)
 
 
-def _workshop_to_raw_tank_movement_view(request, module_code, destination_kind, movement_type, product_name):
-    user, error = _require_processing_permission(request, module_code, PERMISSION_CREATE)
-    if error:
-        return error
-    if request.method != 'POST':
-        return _method_not_allowed()
-
-    body = _json_body(request)
-    if body is None:
-        return _invalid_json_body()
-    try:
-        source_id = int(body.get('source_workshop_id'))
-        destination_id = int(body.get('destination_tank_id'))
-    except (TypeError, ValueError):
-        return JsonResponse({'detail': 'Source processing workshop and destination tank are required.'}, status=400)
-    volume = _volume_value(body.get('volume_liters'))
-    idempotency_key = str(body.get('idempotency_key') or '').strip()
-    if volume is None:
-        return JsonResponse({'detail': 'Volume must be positive and contain up to three decimal places.'}, status=400)
-    if not idempotency_key or len(idempotency_key) > 80:
-        return JsonResponse({'detail': 'Valid idempotency key is required.'}, status=400)
-
-    existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-    if existing:
-        if existing.created_by_id != user.pk:
-            return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
-        return JsonResponse(_serialize_movement(existing))
-
-    with transaction.atomic():
-        containers = {
-            container.pk: container
-            for container in ProductionContainer.objects.select_for_update().filter(
-                pk__in=[source_id, destination_id],
-            ).order_by('pk')
-        }
-        source = containers.get(source_id)
-        destination = containers.get(destination_id)
-        existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-        if existing:
-            if existing.created_by_id != user.pk:
-                return JsonResponse({'detail': 'Idempotency key is already used.'}, status=409)
-            return JsonResponse(_serialize_movement(existing))
-        if source is None or source.kind != ProductionContainer.KIND_PROCESSING_WORKSHOP or not source.is_active:
-            return JsonResponse({'detail': 'Active processing workshop does not exist.'}, status=400)
-        if destination is None or destination.kind != destination_kind or not destination.is_active:
-            return JsonResponse({'detail': 'Active destination tank does not exist.'}, status=400)
-        if source.current_volume_liters < volume:
-            _audit_operation(
-                'movement_rejected',
-                'material_movement',
-                '',
-                user,
-                {'reason': 'insufficient_processing_workshop_volume', 'source_id': source_id, 'volume_liters': str(volume)},
-                OperationAuditLog.RESULT_REJECTED,
-            )
-            return JsonResponse({'detail': 'Insufficient processing workshop volume.'}, status=400)
-        if destination.current_volume_liters + volume > destination.capacity_liters:
-            _audit_operation(
-                'movement_rejected',
-                'material_movement',
-                '',
-                user,
-                {'reason': 'raw_product_tank_overflow', 'destination_id': destination_id, 'volume_liters': str(volume)},
-                OperationAuditLog.RESULT_REJECTED,
-            )
-            return JsonResponse({'detail': 'Destination tank capacity would be exceeded.'}, status=400)
-
-        source_before = source.current_volume_liters
-        destination_before = destination.current_volume_liters
-        source_after = source_before - volume
-        destination_after = destination_before + volume
-        try:
-            with transaction.atomic():
-                movement = MaterialMovement.objects.create(
-                    movement_number=_movement_number(),
-                    movement_type=movement_type,
-                    source_container=source,
-                    destination_container=destination,
-                    product_name=product_name,
-                    volume_liters=volume,
-                    created_by=user,
-                    idempotency_key=idempotency_key,
-                    source_snapshot=source.display_name,
-                    destination_snapshot=destination.display_name,
-                    source_volume_before=source_before,
-                    source_volume_after=source_after,
-                    destination_volume_before=destination_before,
-                    destination_volume_after=destination_after,
-                    system_description=f'Ручная загрузка из цеха переработки: {product_name}.',
-                )
-        except IntegrityError:
-            existing = MaterialMovement.objects.filter(idempotency_key=idempotency_key).first()
-            if existing and existing.created_by_id == user.pk:
-                return JsonResponse(_serialize_movement(existing))
-            return JsonResponse({'detail': 'Movement could not be created.'}, status=409)
-
-        source.current_volume_liters = source_after
-        destination.current_volume_liters = destination_after
-        source.save(update_fields=['current_volume_liters', 'updated_at'])
-        destination.save(update_fields=['current_volume_liters', 'updated_at'])
-        _audit_operation(
-            'movement_created',
-            'material_movement',
-            movement.pk,
-            user,
-            {
-                'movement_number': movement.movement_number,
-                'product_name': product_name,
-                'volume_liters': str(volume),
-            },
-        )
-        return JsonResponse(_serialize_movement(movement), status=201)
-
-
 @csrf_exempt
 def workshop_to_raw_diesel_tank_movements_view(request):
-    return _workshop_to_raw_tank_movement_view(
-        request,
-        MODULE_RAW_DIESEL_TANK_LOADING,
-        ProductionContainer.KIND_RAW_DIESEL_TANK,
-        MaterialMovement.TYPE_WORKSHOP_TO_RAW_DIESEL_TANK,
-        'Сырая солярка',
+    return reactor_outlet_view(
+        request, MODULE_RAW_DIESEL_TANK_LOADING, ProductionContainer.KIND_RAW_DIESEL_TANK,
+        MaterialMovement.TYPE_RECEIVER_TO_RAW_DIESEL_TANK, 'Сырая солярка', (1,),
     )
 
 
 @csrf_exempt
 def workshop_to_raw_spindle_tank_movements_view(request):
-    return _workshop_to_raw_tank_movement_view(
-        request,
-        MODULE_RAW_SPINDLE_TANK_LOADING,
-        ProductionContainer.KIND_RAW_SPINDLE_TANK,
-        MaterialMovement.TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK,
-        'Сырая веретенка',
+    return reactor_outlet_view(
+        request, MODULE_RAW_SPINDLE_TANK_LOADING, ProductionContainer.KIND_RAW_SPINDLE_TANK,
+        MaterialMovement.TYPE_RECEIVER_TO_RAW_SPINDLE_TANK, 'Сырая веретенка', (2, 3, 4),
+    )
+
+
+@csrf_exempt
+def workshop_to_nigrol_tank_movements_view(request):
+    return reactor_outlet_view(
+        request, MODULE_NIGROL_LOADING, ProductionContainer.KIND_NIGROL_TANK,
+        MaterialMovement.TYPE_REACTOR_TO_NIGROL_TANK, 'Нигрол',
     )
 
 
@@ -2781,13 +2717,12 @@ def production_overview_view(request):
         ProductionContainer.KIND_CHEMICAL_MIXER,
         MaterialMovement.TYPE_RAW_TO_CHEMICAL_MIXER,
     )
-    processing_workshops = _overview_container_totals(ProductionContainer.KIND_PROCESSING_WORKSHOP)
-    processing_workshop_items = _overview_container_items(
-        ProductionContainer.KIND_PROCESSING_WORKSHOP,
-        MaterialMovement.TYPE_BOILER_TO_WORKSHOP,
-    )
     raw_diesel_tanks = _overview_container_totals(ProductionContainer.KIND_RAW_DIESEL_TANK)
     raw_spindle_tanks = _overview_container_totals(ProductionContainer.KIND_RAW_SPINDLE_TANK)
+    nigrol_tanks = _overview_container_totals(ProductionContainer.KIND_NIGROL_TANK)
+    nigrol_tank_items = _overview_container_items(
+        ProductionContainer.KIND_NIGROL_TANK, MaterialMovement.TYPE_REACTOR_TO_NIGROL_TANK,
+    )
     last_tank_movement = MaterialMovement.objects.filter(
         destination_container__kind=ProductionContainer.KIND_RECEIVING_TANK,
     ).order_by('-moved_at', '-id').first()
@@ -2795,10 +2730,10 @@ def production_overview_view(request):
         movement_type=MaterialMovement.TYPE_TANK_TO_BOILER,
     ).order_by('-moved_at', '-id').first()
     last_raw_diesel_loading = MaterialMovement.objects.filter(
-        movement_type=MaterialMovement.TYPE_WORKSHOP_TO_RAW_DIESEL_TANK,
+        movement_type__in=(MaterialMovement.TYPE_RECEIVER_TO_RAW_DIESEL_TANK, MaterialMovement.TYPE_WORKSHOP_TO_RAW_DIESEL_TANK),
     ).order_by('-moved_at', '-id').first()
     last_raw_spindle_loading = MaterialMovement.objects.filter(
-        movement_type=MaterialMovement.TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK,
+        movement_type__in=(MaterialMovement.TYPE_RECEIVER_TO_RAW_SPINDLE_TANK, MaterialMovement.TYPE_WORKSHOP_TO_RAW_SPINDLE_TANK),
     ).order_by('-moved_at', '-id').first()
 
     return JsonResponse({
@@ -2824,10 +2759,7 @@ def production_overview_view(request):
             **chemical_mixers,
             'items': chemical_mixer_items,
         },
-        'processing_workshops': {
-            **processing_workshops,
-            'items': processing_workshop_items,
-        },
+        'processing_reactors': {'items': reactors_overview()},
         'raw_diesel_tanks': {
             **raw_diesel_tanks,
             'last_loading_at': last_raw_diesel_loading.moved_at.isoformat() if last_raw_diesel_loading else '',
@@ -2836,6 +2768,7 @@ def production_overview_view(request):
             **raw_spindle_tanks,
             'last_loading_at': last_raw_spindle_loading.moved_at.isoformat() if last_raw_spindle_loading else '',
         },
+        'nigrol_tanks': {**nigrol_tanks, 'items': nigrol_tank_items},
         'packaging_production': _packaging_production_overview(),
         'oil_finishing': oil_overview(),
         'reconciliation': reconciliation_overview(),

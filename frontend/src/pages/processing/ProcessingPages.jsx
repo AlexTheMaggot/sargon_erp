@@ -1,4 +1,5 @@
-import { getLocale, t } from '../../i18n/core'
+import { t } from '../../i18n/core'
+import { useSearchParams } from 'react-router'
 import { localizeAuditEntry } from '../../i18n/audit'
 import { useState } from 'react'
 import { DashboardShell } from '../../components/Layout/DashboardShell'
@@ -8,6 +9,8 @@ import { useListControls } from '../../hooks/useListControls'
 import { useProcessingCrud } from '../../hooks/useProcessingCrud'
 import { oilContainerConfig, oilFinishingForms } from '../../constants/oilFinishing'
 import { oilManufacturingMovements } from '../../constants/oilManufacturing'
+import { workshopTankTransfers } from '../../constants/workshopTankTransfers'
+import { createIdempotencyKey, formatDateTime, formatReceiver, formatVolume } from './processingFormat'
 
 const emptyContainerForm = {
   id: null,
@@ -31,7 +34,7 @@ const emptyJournalFilters = {
   volume: '',
 }
 
-function ProcessingPageHeader({ description, title }) {
+export function ProcessingPageHeader({ description, title }) {
   return (
     <section className="page-title access-page-title">
       <p className="auth-eyebrow">{t('Переработка отработанного масла')}</p>
@@ -39,30 +42,6 @@ function ProcessingPageHeader({ description, title }) {
       <p>{description}</p>
     </section>
   )
-}
-
-function formatDateTime(value) {
-  if (!value) {
-    return '—'
-  }
-  return new Intl.DateTimeFormat(getLocale(), {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
-}
-
-function formatVolume(value) {
-  if (value === '' || value === null || value === undefined) {
-    return '—'
-  }
-  return t`${Number(value).toLocaleString(getLocale(), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} л`
-}
-
-function createIdempotencyKey() {
-  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
 function ContainerPage({ kind, onLogout, token, user }) {
@@ -86,8 +65,8 @@ function ContainerPage({ kind, onLogout, token, user }) {
     },
     processing_workshop: {
       containers: processingWorkshops,
-      description: t('Учёт вместимости, текущего объёма и доступности цехов переработки.'),
-      title: t('Цеха переработки'),
+      description: t('Реакторы переработки и их последние фактические замеры. У каждого реактора четыре ресивера.'),
+      title: t('Реакторы переработки'),
     },
     raw_diesel_tank: {
       containers: rawDieselTanks,
@@ -98,6 +77,11 @@ function ContainerPage({ kind, onLogout, token, user }) {
       containers: rawSpindleTanks,
       description: t('Учёт вместимости, текущего объёма и доступности баков сырой веретенки.'),
       title: t('Баки сырой веретенки'),
+    },
+    nigrol_tank: {
+      containers: oilContainers.nigrol_tank || [],
+      description: t('Учёт вместимости баков и остатков нигрола, поступившего из реакторов.'),
+      title: t('Баки нигрола'),
     },
   }[kind] || {
     containers: oilContainers[kind] || [],
@@ -177,7 +161,9 @@ function ContainerPage({ kind, onLogout, token, user }) {
               <div className={`entity-row processing-container-row ${!item.is_active ? 'disabled-row' : ''}`} key={item.id}>
                 <div>
                   <strong>{t(item.name)}</strong>
-                  {item.volume_known === false ? <>
+                  {kind === 'processing_workshop' ? (
+                    <span>{t('Последний фактический замер')}: {item.measured_at ? `${formatVolume(item.measured_liters)} · ${formatDateTime(item.measured_at)}` : t('Нет замера')}</span>
+                  ) : item.volume_known === false ? <>
                     <span>{item.active_batch ? item.active_batch.number : t('Нет открытой партии')}</span>
                     {item.active_batch && <span>{t('Загружено жидких компонентов')}: {formatVolume(item.active_batch.input_liters)} · {t('Перелито по замеру')}: {formatVolume(item.active_batch.output_liters)}</span>}
                   </> : <span>{t('Текущий объём: ')}{formatVolume(item.current_volume_liters)}</span>}
@@ -185,8 +171,8 @@ function ContainerPage({ kind, onLogout, token, user }) {
                   {item.oil_product && <span>{t(item.oil_product === 'diesel' ? 'Солярка' : 'Веретенка')}</span>}
                   {isAdmin && (
                     <>
-                      <span>{t('Вместимость: ')}{formatVolume(item.capacity_liters)}{item.volume_known !== false && <>{t(' · Свободно: ')}{formatVolume(item.free_volume_liters)}</>}</span>
-                      <span>{item.volume_known !== false && <>{t('Заполнение: ')}{item.fill_percentage}{t('% · Последнее движение: ')}</>}{item.volume_known === false && <>{t('Последнее движение')}: </>}{formatDateTime(item.last_movement_at)}</span>
+                      <span>{t('Вместимость: ')}{formatVolume(item.capacity_liters)}{item.fill_percentage != null && <>{t(' · Свободно: ')}{formatVolume(item.free_volume_liters)}</>}</span>
+                      <span>{item.fill_percentage != null && <>{t('Заполнение: ')}{item.fill_percentage}% · </>}{t('Последнее движение')}: {formatDateTime(item.last_movement_at)}</span>
                       <span>{item.is_active ? t('Активна') : t('Деактивирована')}</span>
                       {!isTankPage && Boolean(item.recent_loadings?.length) && (
                         <span>{t('Последние загрузки: ')}{item.recent_loadings.map((movement) => `${formatDateTime(movement.moved_at)} — ${formatVolume(movement.volume_liters)}`).join('; ')}</span>
@@ -269,6 +255,10 @@ export function RawDieselTanksPage(props) {
 
 export function RawSpindleTanksPage(props) {
   return <ContainerPage {...props} kind="raw_spindle_tank" />
+}
+
+export function NigrolTanksPage(props) {
+  return <ContainerPage {...props} kind="nigrol_tank" />
 }
 
 export function BoilerLoadingPage({ onLogout, token, user }) {
@@ -438,20 +428,18 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
   }))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [createdMovement, setCreatedMovement] = useState(null)
+  const canCreate = Boolean(user?.is_admin || user?.access?.['workshop-loading']?.includes('create'))
   const availableBoilers = boilers.filter((boiler) => boiler.is_active && Number(boiler.current_volume_liters) > 0)
   const availableWorkshops = processingWorkshops.filter((workshop) => workshop.is_active && workshop.can_receive)
   const selectedBoiler = boilers.find((boiler) => String(boiler.id) === String(form.source_boiler_id))
   const selectedWorkshop = processingWorkshops.find((workshop) => String(workshop.id) === String(form.destination_workshop_id))
   const volume = Number(form.volume_liters)
   const sourceVolume = Number(selectedBoiler?.current_volume_liters || 0)
-  const destinationVolume = Number(selectedWorkshop?.current_volume_liters || 0)
-  const destinationFreeVolume = selectedWorkshop?.free_volume_liters === undefined
-    ? null
-    : Number(selectedWorkshop.free_volume_liters)
+  const destinationCapacity = Number(selectedWorkshop?.capacity_liters)
   const hasPositiveVolume = Number.isFinite(volume) && volume > 0
   const exceedsSource = hasPositiveVolume && volume > sourceVolume
-  const exceedsDestination = hasPositiveVolume && destinationFreeVolume !== null && volume > destinationFreeVolume
-  const canSubmit = Boolean(selectedBoiler && selectedWorkshop && hasPositiveVolume && !exceedsSource && !exceedsDestination && !isSubmitting)
+  const exceedsDestination = hasPositiveVolume && volume > destinationCapacity
+  const canSubmit = Boolean(canCreate && selectedBoiler && selectedWorkshop && hasPositiveVolume && !exceedsSource && !exceedsDestination && !isSubmitting)
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -474,10 +462,10 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
   }
 
   return (
-    <DashboardShell title={t('Загрузка в цех переработки')} onLogout={onLogout} user={user}>
+    <DashboardShell title={t('Загрузка реактора переработки')} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
-        title={t('Загрузка в цех переработки')}
-        description={t('Регистрация движения прогретого отработанного масла из котла первичного прогрева в цех переработки.')}
+        title={t('Загрузка реактора переработки')}
+        description={t('Загрузите масло из котла. После загрузки первым открывается ресивер №1.')}
       />
 
       {error && <p className="access-error">{t(error)}</p>}
@@ -487,7 +475,7 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
           <div className="panel-heading">
             <div>
               <p className="auth-eyebrow">{t('Новое движение')}</p>
-              <h3>{t('Выберите котёл, цех и объём')}</h3>
+              <h3>{t('Выберите котёл, реактор и объём')}</h3>
             </div>
           </div>
 
@@ -503,11 +491,11 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
             </label>
 
             <label>
-              <span>{t('Цех переработки')}</span>
+              <span>{t('Реактор переработки')}</span>
               <select required value={form.destination_workshop_id} onChange={(event) => setForm({ ...form, destination_workshop_id: event.target.value })}>
-                <option value="">{t('Выберите цех переработки')}</option>
+                <option value="">{t('Выберите реактор')}</option>
                 {availableWorkshops.map((workshop) => (
-                  <option key={workshop.id} value={workshop.id}>{t(workshop.name)}{t(' · сейчас ')}{formatVolume(workshop.current_volume_liters)}</option>
+                  <option key={workshop.id} value={workshop.id}>{t(workshop.name)}</option>
                 ))}
               </select>
             </label>
@@ -526,9 +514,9 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
             </label>
 
             {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного котла.')}</p>}
-            {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место цеха переработки.')}</p>}
+            {exceedsDestination && <p className="access-error">{t('Объём движения превышает вместимость реактора.')}</p>}
             {!availableBoilers.length && <p className="empty-state">{t('Нет активных котлов с доступным маслом.')}</p>}
-            {!availableWorkshops.length && <p className="empty-state">{t('Нет активных цехов переработки, доступных для загрузки.')}</p>}
+            {!availableWorkshops.length && <p className="empty-state">{t('Нет активных реакторов переработки.')}</p>}
 
             <div className="form-actions">
               <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить движение')}</button>
@@ -562,10 +550,10 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
               </div>
               <span aria-hidden="true" className="movement-preview-arrow">→</span>
               <div>
-                <span>{t('Цех переработки')}</span>
+                <span>{t('Реактор переработки')}</span>
                 <strong>{t(selectedWorkshop?.name) || t('Не выбран')}</strong>
-                <small>{t('Сейчас: ')}{formatVolume(selectedWorkshop?.current_volume_liters)}</small>
-                <small>{t('Будет: ')}{selectedWorkshop && hasPositiveVolume ? formatVolume(destinationVolume + volume) : '—'}</small>
+                <small>{t('Последний фактический замер')}: {formatVolume(selectedWorkshop?.measured_liters)}</small>
+                {selectedWorkshop?.measured_at && <small>{formatDateTime(selectedWorkshop.measured_at)}</small>}
               </div>
             </div>
           </article>
@@ -585,44 +573,40 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
   )
 }
 
-function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
-  const {
-    createRawDieselTankLoading,
-    createRawSpindleTankLoading,
-    error,
-    processingWorkshops,
-    rawDieselTanks,
-    rawSpindleTanks,
-  } = useProcessingCrud(token, {
-    containerKinds: ['processing_workshop', productType === 'diesel' ? 'raw_diesel_tank' : 'raw_spindle_tank'],
+export function WorkshopTankLoadingPage({ config, onLogout, token, user }) {
+  const { createWorkshopTankLoading, error, oilContainers, processingWorkshops, receiverRuns } = useProcessingCrud(token, {
+    containerKinds: config.receiver ? [config.kind] : ['processing_workshop', config.kind],
+    receiverOutlet: config.receiver ? config.endpoint : undefined,
   })
-  const isDiesel = productType === 'diesel'
-  const tanks = isDiesel ? rawDieselTanks : rawSpindleTanks
-  const createMovement = isDiesel ? createRawDieselTankLoading : createRawSpindleTankLoading
-  const title = isDiesel ? t('Загрузка бака сырой солярки') : t('Загрузка бака сырой веретенки')
-  const productName = isDiesel ? t('Сырая солярка') : t('Сырая веретенка')
+  const [searchParams] = useSearchParams()
+  const sourceField = config.receiver ? 'receiver_run_id' : 'source_workshop_id'
+  const sourceLabel = t(config.receiver ? 'Закрытый ресивер' : 'Реактор переработки')
+  const tanks = oilContainers[config.kind] || []
+  const title = t(config.label)
+  const productName = t(config.productName)
+  const canCreate = Boolean(user?.is_admin || user?.access?.[config.moduleCode]?.includes('create'))
   const [form, setForm] = useState(() => ({
-    source_workshop_id: '',
+    [sourceField]: config.receiver ? searchParams.get('receiver') || '' : '',
     destination_tank_id: '',
     volume_liters: '',
     idempotency_key: createIdempotencyKey(),
   }))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [createdMovement, setCreatedMovement] = useState(null)
-  const availableWorkshops = processingWorkshops.filter((workshop) => workshop.is_active && Number(workshop.current_volume_liters) > 0)
+  const sources = config.receiver ? receiverRuns : processingWorkshops.filter((workshop) => workshop.is_active)
+  const sourceName = (source) => config.receiver ? formatReceiver(source) : t(source.name)
   const availableTanks = tanks.filter((tank) => tank.is_active && tank.can_receive)
-  const selectedWorkshop = processingWorkshops.find((workshop) => String(workshop.id) === String(form.source_workshop_id))
+  const selectedSource = sources.find((item) => String(item.id) === form[sourceField])
   const selectedTank = tanks.find((tank) => String(tank.id) === String(form.destination_tank_id))
   const volume = Number(form.volume_liters)
-  const sourceVolume = Number(selectedWorkshop?.current_volume_liters || 0)
   const destinationVolume = Number(selectedTank?.current_volume_liters || 0)
   const destinationFreeVolume = selectedTank?.free_volume_liters === undefined
     ? null
     : Number(selectedTank.free_volume_liters)
   const hasPositiveVolume = Number.isFinite(volume) && volume > 0
-  const exceedsSource = hasPositiveVolume && volume > sourceVolume
+  const exceedsSource = !config.receiver && hasPositiveVolume && volume > Number(selectedSource?.capacity_liters)
   const exceedsDestination = hasPositiveVolume && destinationFreeVolume !== null && volume > destinationFreeVolume
-  const canSubmit = Boolean(selectedWorkshop && selectedTank && hasPositiveVolume && !exceedsSource && !exceedsDestination && !isSubmitting)
+  const canSubmit = Boolean(canCreate && selectedSource && selectedTank?.can_receive && hasPositiveVolume && !exceedsSource && !exceedsDestination && !isSubmitting)
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -632,7 +616,7 @@ function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
 
     setIsSubmitting(true)
     setCreatedMovement(null)
-    const movement = await createMovement(form)
+    const movement = await createWorkshopTankLoading(config.endpoint, form)
     setIsSubmitting(false)
     if (movement?.id) {
       setCreatedMovement(movement)
@@ -648,7 +632,7 @@ function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
     <DashboardShell title={title} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
         title={title}
-        description={t`Регистрация движения продукта «${productName}» из цеха переработки в отдельный бак.`}
+        description={t(config.description)}
       />
 
       {error && <p className="access-error">{t(error)}</p>}
@@ -658,23 +642,21 @@ function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
           <div className="panel-heading">
             <div>
               <p className="auth-eyebrow">{t('Новое движение')}</p>
-              <h3>{t('Выберите цех, бак и объём')}</h3>
+              <h3>{t('Выберите источник, бак и объём')}</h3>
             </div>
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
             <label>
-              <span>{t('Цех переработки')}</span>
-              <select required value={form.source_workshop_id} onChange={(event) => setForm({ ...form, source_workshop_id: event.target.value })}>
-                <option value="">{t('Выберите цех переработки')}</option>
-                {availableWorkshops.map((workshop) => (
-                  <option key={workshop.id} value={workshop.id}>{t(workshop.name)}{t(' · доступно ')}{formatVolume(workshop.current_volume_liters)}</option>
-                ))}
+              <span>{sourceLabel}</span>
+              <select required value={selectedSource ? form[sourceField] : ''} onChange={(event) => setForm({ ...form, [sourceField]: event.target.value })}>
+                <option value="">{t(config.receiver ? 'Выберите закрытый ресивер' : 'Выберите реактор')}</option>
+                {sources.map((item) => <option key={item.id} value={item.id}>{sourceName(item)}</option>)}
               </select>
             </label>
 
             <label>
-              <span>{isDiesel ? t('Бак сырой солярки') : t('Бак сырой веретенки')}</span>
+              <span>{t(config.tankLabel)}</span>
               <select required value={form.destination_tank_id} onChange={(event) => setForm({ ...form, destination_tank_id: event.target.value })}>
                 <option value="">{t('Выберите бак')}</option>
                 {availableTanks.map((tank) => (
@@ -696,20 +678,20 @@ function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
               />
             </label>
 
-            {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного цеха.')}</p>}
+            {exceedsSource && <p className="access-error">{t('Объём движения превышает вместимость реактора.')}</p>}
             {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место выбранного бака.')}</p>}
-            {!availableWorkshops.length && <p className="empty-state">{t('Нет активных цехов с доступным продуктом.')}</p>}
+            {!sources.length && <p className="empty-state">{t(config.receiver ? 'Нет закрытых ресиверов, готовых к сливу.' : 'Нет активных реакторов переработки.')}</p>}
             {!availableTanks.length && <p className="empty-state">{t('Нет активных баков, доступных для загрузки.')}</p>}
 
             <div className="form-actions">
-              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить движение')}</button>
+              <button disabled={!canSubmit} type="submit">{isSubmitting ? t('Выполняется...') : t(config.receiver ? 'Подтвердить полный слив' : 'Подтвердить движение')}</button>
               <button
                 className="secondary-button"
                 type="button"
                 onClick={() => {
                   setCreatedMovement(null)
                   setForm({
-                    source_workshop_id: '',
+                    [sourceField]: '',
                     destination_tank_id: '',
                     volume_liters: '',
                     idempotency_key: createIdempotencyKey(),
@@ -726,10 +708,9 @@ function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
             <h3>{t('После движения')}</h3>
             <div className="movement-preview-grid">
               <div>
-                <span>{t('Цех переработки')}</span>
-                <strong>{t(selectedWorkshop?.name) || t('Не выбран')}</strong>
-                <small>{t('Сейчас: ')}{formatVolume(selectedWorkshop?.current_volume_liters)}</small>
-                <small>{t('Останется: ')}{selectedWorkshop && hasPositiveVolume && !exceedsSource ? formatVolume(sourceVolume - volume) : '—'}</small>
+                <span>{sourceLabel}</span>
+                <strong>{selectedSource ? sourceName(selectedSource) : t('Не выбран')}</strong>
+                {config.receiver && selectedSource && <small>{t('Закрыт')}: {formatDateTime(selectedSource.closed_at, true)}</small>}
               </div>
               <span aria-hidden="true" className="movement-preview-arrow">→</span>
               <div>
@@ -754,14 +735,6 @@ function RawProductTankLoadingPage({ onLogout, productType, token, user }) {
       </section>
     </DashboardShell>
   )
-}
-
-export function RawDieselTankLoadingPage(props) {
-  return <RawProductTankLoadingPage {...props} productType="diesel" />
-}
-
-export function RawSpindleTankLoadingPage(props) {
-  return <RawProductTankLoadingPage {...props} productType="spindle" />
 }
 
 export function ProcessingJournalPage({ onLogout, token, user }) {
@@ -806,8 +779,11 @@ export function ProcessingJournalPage({ onLogout, token, user }) {
               <option value="receipt_to_tank">{t('Поступление из приёмки')}</option>
               <option value="tank_to_boiler">{t('Загрузка котла')}</option>
               <option value="boiler_to_workshop">{t('Загрузка в цех переработки')}</option>
+              <option value="boiler_to_reactor">{t('Загрузка реактора переработки')}</option>
+              {workshopTankTransfers.map((config) => <option key={config.movementType} value={config.movementType}>{t(config.label)}</option>)}
               <option value="workshop_to_raw_diesel_tank">{t('Загрузка бака сырой солярки')}</option>
               <option value="workshop_to_raw_spindle_tank">{t('Загрузка бака сырой веретенки')}</option>
+              <option value="workshop_to_nigrol_tank">{t('Отгрузка нигрола (прежний маршрут)')}</option>
               {Object.values(oilFinishingForms).map((config) => <option key={config.movementType} value={config.movementType}>{t(config.title)}</option>)}
               <option value="boiler_to_chemical_mixer">{t('Загрузка химического миксера (прежний маршрут)')}</option>
               <option value="chemical_mixer_to_workshop">{t('Загрузка в цех переработки (прежний маршрут)')}</option>

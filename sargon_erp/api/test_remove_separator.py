@@ -13,7 +13,7 @@ class RemoveSeparatorMigrationTests(TransactionTestCase):
 
     def tearDown(self):
         self.model('ProductionContainer').objects.filter(kind='chemical_mixer').update(current_volume_liters=0)
-        MigrationExecutor(connection).migrate([('api', '0055_remove_second_chemical_mixer')])
+        MigrationExecutor(connection).migrate([('api', '0057_reactor_receivers')])
         super().tearDown()
 
     def model(self, name):

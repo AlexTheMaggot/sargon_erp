@@ -41,9 +41,10 @@ def _movement_watermarks(container_ids):
 
 
 def _summary(measurements):
-    expected = sum((line.expected_liters for line in measurements), Decimal('0.000'))
-    difference = sum((line.actual_liters - line.expected_liters for line in measurements), Decimal('0.000'))
-    absolute = sum((abs(line.actual_liters - line.expected_liters) for line in measurements), Decimal('0.000'))
+    comparable = [line for line in measurements if line.expected_liters is not None]
+    expected = sum((line.expected_liters for line in comparable), Decimal('0.000'))
+    difference = sum((line.actual_liters - line.expected_liters for line in comparable), Decimal('0.000'))
+    absolute = sum((abs(line.actual_liters - line.expected_liters) for line in comparable), Decimal('0.000'))
 
     def percentage(volume):
         if not expected:
@@ -59,11 +60,12 @@ def _summary(measurements):
         'deviation_percent': percentage(difference),
         'absolute_deviation_percent': percentage(absolute),
         'measured_count': len(measurements),
+        'comparable_count': len(comparable),
     }
 
 
 def _measurement(line):
-    return {
+    measured = {
         'container_id': line.container_id,
         'name': container_snapshot_label(line.container_name),
         'revision_id': line.revision_id,
@@ -73,6 +75,9 @@ def _measurement(line):
         'previous_liters': str(line.previous_liters),
         **_summary([line]),
     }
+    if line.expected_liters is None:
+        measured.update(expected_liters=None, actual_liters=str(line.actual_liters), difference_liters=None)
+    return measured
 
 
 def _revision(revision):
@@ -86,16 +91,24 @@ def _revision(revision):
 
 
 def _references():
+    equipment = list(_equipment())
+    reactor_kind = ProductionContainer.KIND_PROCESSING_WORKSHOP
+    actual = {line.container_id: line for line in _latest_measurements(ContainerMeasurement.objects.filter(
+        container_id__in=[item.pk for item in equipment if item.kind == reactor_kind],
+    )).select_related('revision')}
     return [{
         'id': container.pk,
         'name': container.display_name,
         'kind': container.kind,
-        'current_liters': str(container.current_volume_liters),
+        'current_liters': str(container.current_volume_liters) if container.kind != reactor_kind else None,
+        'last_actual_liters': str(actual[container.pk].actual_liters) if container.pk in actual else None,
+        'last_measured_at': actual[container.pk].revision.created_at.isoformat() if container.pk in actual else None,
+        'measurement_only': container.kind == reactor_kind,
         'capacity_liters': str(container.capacity_liters),
         'shared': container.kind in SHARED_KINDS,
         'oil_product': container.oil_product,
         'version': container.updated_at.isoformat(),
-    } for container in _equipment()]
+    } for container in equipment]
 
 
 def _detail(reconciliation):
@@ -193,6 +206,8 @@ def _save(reconciliation_id, base_revision_id, submissions, user):
         if reconciliation and not previous and last and last.revision.reconciliation_id > reconciliation.pk:
             return _json_error('После этого замера были движения или новая сверка. Введите новый фактический замер.', 409)
         expected = previous.expected_liters if previous else container.current_volume_liters
+        if container.kind == ProductionContainer.KIND_PROCESSING_WORKSHOP:
+            expected = None
         if container.kind in SHARED_KINDS and actual > 0:
             existing_product = container.oil_product
             product = product or existing_product

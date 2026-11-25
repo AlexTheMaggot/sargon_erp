@@ -109,9 +109,10 @@ MaterialMovement → 0..1 компенсируемое MaterialMovement
   литра; бэкенд пересчитывает их независимо через `Decimal`.
   Изменение приёма, партий и анализов использует общую блокировку строки приёма;
   WebSocket-события регистрируются через `transaction.on_commit()`.
-- `ProductionContainer.kind` различает тринадцать видов ёмкостей. Общая модель не означает
+- `ProductionContainer.kind` различает четырнадцать видов ёмкостей. Общая модель не означает
   взаимозаменяемость типов: каждый маршрут проверяет источник и назначение.
-- Баланс хранится в `current_volume_liters`; история — в `MaterialMovement`.
+- Баланс большинства ёмкостей хранится в `current_volume_liters`; история — в
+  `MaterialMovement`. Для реактора отображается только последний `ContainerMeasurement`.
 - `ContainerReconciliation` объединяет версии обхода; `ContainerMeasurement`
   хранит изменённые строки версии. Сверка блокирует только запись на время
   транзакции, проверяет версию карточки и движения между замерами. Складские
@@ -128,6 +129,18 @@ MaterialMovement → 0..1 компенсируемое MaterialMovement
   компенсации, замеры и записи журнала. Другие остатки не пересчитываются.
   Перед применением миксер должен быть пуст; откат миграции не восстанавливает историю.
   На «Обзоре» химическая подготовка показана одной карточкой с реальными данными.
+- `0056` добавляет вид ёмкости и движения для терминальной ветки «цех → бак
+  нигрола», а также модуль операции. Баки не создаются автоматически. Сверка
+  включает этот вид ёмкостей, обзор передаёт данные в `nigrol_tanks`.
+- `0057` использует прежние `processing_workshop` как реакторы без переноса
+  записей, изменения номеров или переписывания прежних движений.
+  `api/reactor_processing.py` ведёт по четыре фиксированных номера ресиверов
+  на реактор. `ReceiverRun` хранит отметки с привязкой к последней загрузке.
+  Слив связан с записью через `MaterialMovement.receiver_run`, не через
+  искусственную ёмкость. Сервер сериализует операции и компенсации; база
+  запрещает два одновременных открытия и два действующих слива одной записи.
+  Новые замеры реактора имеют `expected_liters=null` и исключены из расчёта
+  отклонений. `processing_reactors` передаёт последние замеры и статусы на «Обзор».
 - История хранит пользователя, время, объём, связи и текстовые снимки названий,
   остатки до/после, ключ идемпотентности и сведения о компенсации.
 - `OperationAuditLog` отдельно хранит действия и некоторые отклонённые операции.
@@ -253,10 +266,11 @@ WarehouseDocumentSequence → номер по типу документа и г�
 | Справочники | `directories/cities/`, `directories/suppliers/` и детали |
 | Приём | `raw-material/receipts/`, `receipts/<id>/batches/`, `raw-material/batches/<id>/` |
 | Лаборатория | `laboratory/analyses/`, `laboratory/analyses/<id>/` |
-| Ёмкости | `processing/receiving-tanks/`, `preheating-boilers/`, `chemical-mixers/`, `workshops/`, `raw-diesel-tanks/`, `raw-spindle-tanks/` — все под `processing/` |
+| Ёмкости | `receiving-tanks/`, `preheating-boilers/`, `chemical-mixers/`, `workshops/`, `raw-diesel-tanks/`, `raw-spindle-tanks/`, `nigrol-tanks/` — все под `processing/` |
 | Деталь ёмкости | `processing/containers/<id>/` |
 | Сверка ёмкостей | `processing/container-reconciliations/`: GET — ёмкости и история, POST — новая сверка или версия; GET `<id>/` — подробности |
-| Движения | `processing/movements/tank-to-boiler/`, `boiler-to-workshop/`, `workshop-to-raw-diesel-tank/`, `workshop-to-raw-spindle-tank/` — все под `processing/movements/` |
+| Ресиверы реактора | `processing/receiver-runs/`: GET — очередь, состояния и история; POST — подтверждение открытия/закрытия. В прежних маршрутах загрузки сырых баков GET возвращает закрытые ресиверы нужного продукта, POST принимает `receiver_run_id` |
+| Движения | `tank-to-boiler/`, `boiler-to-workshop/`, `workshop-to-raw-diesel-tank/`, `workshop-to-raw-spindle-tank/`, `workshop-to-nigrol-tank/` — все под `processing/movements/` |
 | Финишная очистка | `processing/oil-containers/{finishing-mixers,finishing-filters,finished-diesel-tanks,finished-spindle-tanks}/`: GET/POST; изменение/удаление через общий `processing/containers/<id>/` |
 | Движения финишной очистки | `processing/oil-movements/{chemical-mixer-loading,finishing-mixer-loading,finishing-filter-loading,finished-product-loading}/`: POST; GET — история соответствующей операции по 10 записей |
 | Производство масел | `oil-production/operations/{concentrate-loading,oil-blending,oil-tank-loading,oil-filling}/`: GET — справочные данные/история, POST — проведение |
@@ -281,14 +295,13 @@ WarehouseDocumentSequence → номер по типу документа и г�
 
 - HTTP использует `Authorization: Bearer <JWT>`; фронтенд хранит JWT в `localStorage`.
 - Вход возвращает токен и пользователя с `access`, `is_admin`, `start_path`.
-- Поле логина связано с нативным `datalist`: при открытии страницы входа
+- Логин выбирается в нативном `select`: при открытии страницы входа
   `GET /api/auth/login-options/` без авторизации возвращает весь отсортированный
   список логинов активных пользователей (`items`: массив строк). Другие поля
   пользователя не выдаются. Список хранится только в состоянии страницы, не
   в `localStorage`; ответ имеет `Cache-Control: no-store`, запрос — `cache: no-store`.
-  История успешных входов больше не используется. Ошибка загрузки не мешает
-  ручному вводу и входу; создание/отключение пользователя отражается после
-  повторного открытия или перезагрузки страницы входа.
+  История успешных входов не используется. Ручного ввода нет. Пока логин не выбран,
+  форма не отправляется. При ошибке или пустом списке загрузку можно повторить.
 - `/auth/me/` используется при восстановлении сессии. Refresh-токенов и серверного
   отзыва токена при выходе сейчас нет: выход удаляет локальное состояние.
 - Не обещайте немедленный отзыв уже выданного JWT при смене пароля/отключении

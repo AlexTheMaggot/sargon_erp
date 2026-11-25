@@ -128,6 +128,17 @@ h1 {
   margin-top: 28px;
 }
 
+.auth-form label {
+  min-width: 0;
+}
+
+.login-options-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .login-options-hint {
   margin: 0;
   color: #486457;
@@ -2313,17 +2324,57 @@ button:disabled {
 }
 
 .snake-turn--right i {
-  right: 12.5%;
-}
-
-.snake-turn--left i {
-  top: 8px;
-  bottom: 8px;
-  left: 12.5%;
+  right: calc((100% - 180px) * 0.2015);
 }
 
 .snake-row--final {
   padding-top: 4px;
+}
+
+.recycling-reactor-node {
+  grid-area: 1 / 5;
+}
+
+.recycling-nigrol-link {
+  grid-area: 1 / 4;
+}
+
+.recycling-nigrol-branch {
+  grid-area: 1 / 3;
+}
+
+.recycling-cooling {
+  grid-area: 2 / 5;
+  height: 70px;
+  align-content: center;
+  text-align: center;
+}
+
+.recycling-cooling span {
+  position: relative;
+  display: inline-block;
+  border-radius: 6px;
+  background: #edf7f1;
+  padding: 4px 7px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.recycling-cooling i,
+.recycling-chemical-turn i {
+  top: 6px;
+  bottom: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.recycling-chemical-turn i {
+  left: calc((100% - 180px) * 0.14925);
+}
+
+.recycling-reactor-node > .process-node,
+.recycling-nigrol-branch > .process-node {
+  width: 100%;
 }
 
 .oil-production-section {
@@ -2736,6 +2787,29 @@ button:disabled {
     width: min(100%, 520px);
   }
 
+  .recycling-reactor-fork {
+    display: grid;
+    grid-template-columns: minmax(36px, 1fr) minmax(0, 2fr);
+    grid-template-areas:
+      "reactor reactor"
+      "cooling nigrol-link"
+      "cooling nigrol";
+    width: min(100%, 520px);
+    margin: 0 auto 12px;
+  }
+
+  .recycling-reactor-node { grid-area: reactor; }
+  .recycling-nigrol-link { grid-area: nigrol-link; }
+  .recycling-nigrol-branch { grid-area: nigrol; }
+  .snake-turn.recycling-cooling {
+    grid-area: cooling;
+    align-self: stretch;
+    height: auto;
+  }
+
+  .recycling-chemical-turn i {
+    left: 50%;
+  }
 
   .process-snake .process-arrow {
     width: 100%;
@@ -2775,8 +2849,7 @@ button:disabled {
     height: 54px;
   }
 
-  .snake-turn--right i,
-  .snake-turn--left i {
+  .snake-turn--right i {
     top: 7px;
     right: auto;
     bottom: 7px;

@@ -25,6 +25,7 @@ class ShiftSupervisorTests(TestCase):
         operations = {
             'boiler-loading', 'chemical-mixer-loading', 'workshop-loading',
             'raw-diesel-tank-loading', 'raw-spindle-tank-loading', 'finishing-mixer-loading',
+            'nigrol-loading', 'reactor-receivers',
             'finishing-filter-loading', 'finished-product-loading',
             'canister-loading', 'cap-loading', 'canister-output', 'cap-output',
         }
@@ -46,6 +47,8 @@ class ShiftSupervisorTests(TestCase):
             '/api/processing/receiving-tanks/', '/api/processing/preheating-boilers/',
             '/api/processing/chemical-mixers/',
             '/api/processing/workshops/', '/api/processing/raw-diesel-tanks/', '/api/processing/raw-spindle-tanks/',
+            '/api/processing/nigrol-tanks/',
+            '/api/processing/receiver-runs/',
             *(f'/api/processing/oil-containers/{path}/' for path in OIL_CONTAINER_PATHS),
             *(f'/api/processing/oil-movements/{step}/' for step in OIL_FINISHING_STEPS),
             *(f'/api/oil-production/operations/{step}/' for step in MANUFACTURING_STEPS),
@@ -56,6 +59,8 @@ class ShiftSupervisorTests(TestCase):
             '/api/processing/movements/tank-to-boiler/',
             '/api/processing/movements/boiler-to-workshop/',
             '/api/processing/movements/workshop-to-raw-diesel-tank/', '/api/processing/movements/workshop-to-raw-spindle-tank/',
+            '/api/processing/movements/workshop-to-nigrol-tank/',
+            '/api/processing/receiver-runs/',
             *(f'/api/processing/oil-movements/{step}/' for step in OIL_FINISHING_STEPS),
             *(f'/api/oil-production/operations/{step}/' for step in MANUFACTURING_STEPS),
         ):
@@ -74,6 +79,7 @@ class ShiftSupervisorTests(TestCase):
                 self.assertEqual(self.client.get(path, **self.headers).status_code, 403)
         for path in (
             '/api/processing/receiving-tanks/', '/api/processing/oil-containers/finishing-mixers/',
+            '/api/processing/nigrol-tanks/',
             '/api/processing/movements/1/compensate/',
         ):
             with self.subTest(path=path):

@@ -1,5 +1,6 @@
 from django.urls import path
 from .container_reconciliation import container_reconciliations_view
+from .reactor_processing import reactor_receivers_view
 
 from .views import login_view
 from .views import login_options_view
@@ -36,8 +37,10 @@ from .views import boiler_to_workshop_movements_view
 from .views import processing_workshops_view
 from .views import raw_diesel_tanks_view
 from .views import raw_spindle_tanks_view
+from .views import nigrol_tanks_view
 from .views import workshop_to_raw_diesel_tank_movements_view
 from .views import workshop_to_raw_spindle_tank_movements_view
+from .views import workshop_to_nigrol_tank_movements_view
 from .views import inventory_categories_view
 from .views import inventory_category_detail_view
 from .views import units_of_measure_view
@@ -94,13 +97,16 @@ urlpatterns = [
     path('processing/preheating-boilers/', preheating_boilers_view, name='processing-preheating-boilers'),
     path('processing/chemical-mixers/', chemical_mixers_view, name='processing-chemical-mixers'),
     path('processing/workshops/', processing_workshops_view, name='processing-workshops'),
+    path('processing/receiver-runs/', reactor_receivers_view, name='processing-receiver-runs'),
     path('processing/raw-diesel-tanks/', raw_diesel_tanks_view, name='processing-raw-diesel-tanks'),
     path('processing/raw-spindle-tanks/', raw_spindle_tanks_view, name='processing-raw-spindle-tanks'),
+    path('processing/nigrol-tanks/', nigrol_tanks_view, name='processing-nigrol-tanks'),
     path('processing/containers/<int:container_id>/', production_container_detail_view, name='processing-container-detail'),
     path('processing/movements/tank-to-boiler/', tank_to_boiler_movements_view, name='processing-tank-to-boiler'),
     path('processing/movements/boiler-to-workshop/', boiler_to_workshop_movements_view, name='processing-boiler-to-workshop'),
     path('processing/movements/workshop-to-raw-diesel-tank/', workshop_to_raw_diesel_tank_movements_view, name='processing-workshop-to-raw-diesel-tank'),
     path('processing/movements/workshop-to-raw-spindle-tank/', workshop_to_raw_spindle_tank_movements_view, name='processing-workshop-to-raw-spindle-tank'),
+    path('processing/movements/workshop-to-nigrol-tank/', workshop_to_nigrol_tank_movements_view, name='processing-workshop-to-nigrol-tank'),
     path('processing/movements/<int:movement_id>/compensate/', compensate_movement_view, name='processing-movement-compensate'),
     path('processing/journal/', processing_journal_view, name='processing-journal'),
     path('processing/container-reconciliations/', container_reconciliations_view, name='container-reconciliations'),

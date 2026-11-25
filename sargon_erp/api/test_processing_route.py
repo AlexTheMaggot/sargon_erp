@@ -40,13 +40,28 @@ class ProcessingRouteTests(TestCase):
                 for path, source_field, source_kind, destination_field, destination_kind in (
                     ('tank-to-boiler', 'source_tank_id', 'receiving_tank', 'destination_boiler_id', 'preheating_boiler'),
                     ('boiler-to-workshop', 'source_boiler_id', 'preheating_boiler', 'destination_workshop_id', 'processing_workshop'),
-                    (f'workshop-to-raw-{product}-tank', 'source_workshop_id', 'processing_workshop', 'destination_tank_id', f'raw_{product}_tank'),
                 ):
                     response = self.post(f'movements/{path}', {
                         source_field: self.containers[source_kind].pk,
                         destination_field: self.containers[destination_kind].pk,
                     })
                     self.assertEqual(response.status_code, 201, response.content)
+                loading_id = response.json()['id']
+                reactor_id = self.containers['processing_workshop'].pk
+                for number in range(1, 2 if product == 'diesel' else 3):
+                    opened = self.post('receiver-runs', {
+                        'reactor_id': reactor_id, 'number': number, 'loading_id': loading_id, 'action': 'open',
+                    })
+                    self.assertEqual(opened.status_code, 201, opened.content)
+                    run_id = opened.json()['id']
+                    closed = self.post('receiver-runs', {
+                        'reactor_id': reactor_id, 'number': number, 'run_id': run_id, 'action': 'close',
+                    })
+                    self.assertEqual(closed.status_code, 200, closed.content)
+                transfer = self.post(f'movements/workshop-to-raw-{product}-tank', {
+                    'receiver_run_id': run_id, 'destination_tank_id': self.containers[f'raw_{product}_tank'].pk,
+                })
+                self.assertEqual(transfer.status_code, 201, transfer.content)
                 for step, source, destination in (
                     ('chemical-mixer-loading', f'raw_{product}_tank', 'chemical_mixer'),
                     ('finishing-mixer-loading', 'chemical_mixer', 'finishing_mixer'),
@@ -115,7 +130,7 @@ class ProcessingRouteMigrationTests(TransactionTestCase):
 
     def tearDown(self):
         self.old_apps.get_model('api', 'ProductionContainer').objects.filter(kind='chemical_mixer').update(current_volume_liters=0)
-        MigrationExecutor(connection).migrate([('api', '0055_remove_second_chemical_mixer')])
+        MigrationExecutor(connection).migrate([('api', '0057_reactor_receivers')])
         super().tearDown()
 
     def test_nonempty_legacy_mixers_block_migration_without_changing_balances(self):

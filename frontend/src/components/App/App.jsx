@@ -10,7 +10,10 @@ import { AccessGroupsPage, AccessModulesPage, AccessPermissionsPage, AccessUsers
 import { OverviewPage } from '../../pages/dashboard/OverviewPage'
 import { CitiesPage, SuppliersPage } from '../../pages/directories/DirectoryPages'
 import { LaboratoryAnalysesPage, RawMaterialReceiptsPage } from '../../pages/operations/OperationsPages'
-import { BoilerLoadingPage, ChemicalMixersPage, PreheatingBoilersPage, ProcessingJournalPage, ProcessingWorkshopsPage, RawDieselTankLoadingPage, RawDieselTanksPage, RawSpindleTankLoadingPage, RawSpindleTanksPage, ReceivingTanksPage, WorkshopLoadingPage } from '../../pages/processing/ProcessingPages'
+import { BoilerLoadingPage, ChemicalMixersPage, NigrolTanksPage, PreheatingBoilersPage, ProcessingJournalPage, ProcessingWorkshopsPage, RawDieselTanksPage, RawSpindleTanksPage, ReceivingTanksPage, WorkshopLoadingPage, WorkshopTankLoadingPage } from '../../pages/processing/ProcessingPages'
+import { workshopTankTransfers } from '../../constants/workshopTankTransfers'
+import { receiverModule, receiverPath } from '../../constants/reactorReceivers'
+import { ReactorReceiversPage } from '../../pages/processing/ReactorReceiversPage'
 import { WarehouseCategoriesPage, WarehouseInventoryPage, WarehouseIssuesPage, WarehouseItemsPage, WarehouseOverviewPage, WarehouseReceiptsPage, WarehousesPage, WarehouseTransfersPage, WarehouseUnitsPage } from '../../pages/warehouse/WarehousePages'
 import { ProductionLoadingPage } from '../../pages/warehouse/ProductionLoadingPage'
 import { ProductionOutputPage } from '../../pages/warehouse/ProductionOutputPage'
@@ -43,13 +46,16 @@ function hasModuleAccess(user, moduleCode) {
 function LoginPage({ onLogin }) {
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
-  const { logins, error: loginOptionsError } = useLoginOptions()
+  const { logins, error: loginOptionsError, isLoading: isLoadingLogins, retry: retryLoginOptions } = useLoginOptions()
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const canSubmit = logins.includes(username) && !isLoading
+  const loginOptionsHint = loginOptionsError || (!isLoadingLogins && !logins.length ? 'Нет доступных логинов.' : '')
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (!canSubmit) return
     setError('')
     setIsLoading(true)
 
@@ -86,19 +92,27 @@ function LoginPage({ onLogin }) {
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <label>{t('Логин')}<input
+          <label>
+            {t('Логин')}
+            <select
+              aria-describedby={loginOptionsHint ? 'login-options-hint' : undefined}
               autoComplete="username"
-              list="login-options"
+              disabled={isLoading || !logins.length}
               name="username"
               onChange={(event) => setUsername(event.target.value)}
-              type="text"
+              required
               value={username}
-            />
+            >
+              <option disabled value="">{t(isLoadingLogins ? 'Загрузка списка логинов...' : 'Выберите логин')}</option>
+              {logins.map((login) => <option key={login} value={login}>{login}</option>)}
+            </select>
           </label>
-          <datalist id="login-options">
-            {logins.map((login) => <option key={login} value={login} />)}
-          </datalist>
-          {loginOptionsError && <p className="login-options-hint" role="status">{t(loginOptionsError)}</p>}
+          {loginOptionsHint && (
+            <div className="login-options-status">
+              <p className="login-options-hint" id="login-options-hint" role="status">{t(loginOptionsHint)}</p>
+              <button className="secondary-button" type="button" onClick={retryLoginOptions}>{t('Повторить загрузку')}</button>
+            </div>
+          )}
 
           <label>{t('Пароль')}<input
               autoComplete="current-password"
@@ -111,7 +125,7 @@ function LoginPage({ onLogin }) {
 
           {error && <p className="auth-error">{t(error)}</p>}
 
-          <button disabled={isLoading} type="submit">
+          <button disabled={!canSubmit} type="submit">
             {isLoading ? t('Входим...') : t('Войти')}
           </button>
         </form>
@@ -159,14 +173,15 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
       <Route path="/production/cap-output" element={<ProtectedRoute moduleCode="cap-output" token={token} user={user}><ProductionOutputPage key="cap-output" target="caps" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/cap-loading" element={<ProtectedRoute moduleCode="cap-loading" token={token} user={user}><ProductionLoadingPage key="caps" target="caps" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/workshop-loading" element={<ProtectedRoute moduleCode="workshop-loading" token={token} user={user}><WorkshopLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
-      <Route path="/processing/raw-diesel-tank-loading" element={<ProtectedRoute moduleCode="raw-diesel-tank-loading" token={token} user={user}><RawDieselTankLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
-      <Route path="/processing/raw-spindle-tank-loading" element={<ProtectedRoute moduleCode="raw-spindle-tank-loading" token={token} user={user}><RawSpindleTankLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path={receiverPath} element={<ProtectedRoute moduleCode={receiverModule} token={token} user={user}><ReactorReceiversPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      {workshopTankTransfers.map((config) => <Route key={config.moduleCode} path={config.path} element={<ProtectedRoute moduleCode={config.moduleCode} token={token} user={user}><WorkshopTankLoadingPage key={config.moduleCode} config={config} onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />)}
       <Route path="/processing/receiving-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><ReceivingTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/preheating-boilers" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><PreheatingBoilersPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/chemical-mixers" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><ChemicalMixersPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/workshops" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><ProcessingWorkshopsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/raw-diesel-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><RawDieselTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/raw-spindle-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><RawSpindleTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path="/processing/nigrol-tanks" element={<ProtectedRoute moduleCode="used-oil-processing" token={token} user={user}><NigrolTanksPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/journal" element={<ProtectedRoute adminOnly token={token} user={user}><ProcessingJournalPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path={reconciliationPath} element={<ProtectedRoute moduleCode={reconciliationModule} token={token} user={user}><ContainerReconciliationPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       {Object.keys(oilFinishingForms).map((step) => <Route key={step} path={`/processing/${step}`} element={<ProtectedRoute moduleCode={step} token={token} user={user}><OilFinishingPage key={step} step={step} onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />)}

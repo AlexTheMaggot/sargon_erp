@@ -7,10 +7,22 @@ import { oilFinishingMessages } from './oilFinishing.js'
 import { oilManufacturingMessages } from './oilManufacturing.js'
 import { accessMessages } from './accessMessages.js'
 import { productionWorkspaceMessages } from './productionWorkspace.js'
+import { reactorReceiverMessages } from './reactorReceivers.js'
 
 export const uzMonths = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr']
 
 export const uzMessages = {
+  'Нигрол': 'Nigrol',
+  'Бак нигрола': 'Nigrol baki',
+  'Бак нигрола №{0}': 'Nigrol baki №{0}',
+  'Баки нигрола': 'Nigrol baklari',
+  'Отгрузка нигрола': 'Nigrolni bakka o‘tkazish',
+  'Перелить нигрол из общего остатка цеха в отдельный бак.': 'Nigrolni sexning umumiy qoldig‘idan alohida bakka o‘tkazish.',
+  'Перелив нигрола из общего остатка цеха переработки в отдельный бак.': 'Nigrolni qayta ishlash sexining umumiy qoldig‘idan alohida bakka o‘tkazish.',
+  'Учёт вместимости и остатков нигрола, отгруженного из цехов переработки.': 'Qayta ishlash sexlaridan o‘tkazilgan nigrol qoldig‘i va baklar sig‘imi hisobi.',
+  'Хранение нигрола': 'Nigrolni saqlash',
+  'Нигрол поступает в бак из цехов переработки. Дальнейшие движения не учитываются.': 'Nigrol bakka qayta ishlash sexlaridan keladi. Keyingi harakatlar hisobga olinmaydi.',
+  'НГ': 'NG',
   'Сверка остатков': 'Qoldiqlarni solishtirish',
   'Заведующий складом': 'Ombor mudiri',
   'Замеры и корректировка остатков ёмкостей переработки масла.': 'Moyni qayta ishlash sig‘imlaridagi qoldiqlarni o‘lchash va tuzatish.',
@@ -94,13 +106,18 @@ export const uzMessages = {
   'Сохранение…': 'Saqlanmoqda…',
   'Не удалось завершить прием. Проверьте распределение и свободный объём баков.': 'Qabulni yakunlab bo‘lmadi. Taqsimot va baklardagi bo‘sh joyni tekshiring.',
   ...productionWorkspaceMessages,
+  ...reactorReceiverMessages,
   ...accessMessages,
   ...oilManufacturingMessages,
   ...oilFinishingMessages,
   ...canisterProductionMessages,
   ...warehouseProductionMessages,
   ...productionOutputMessages,
-  'Не удалось загрузить список логинов. Введите логин вручную.': 'Loginlar ro‘yxatini yuklab bo‘lmadi. Loginni qo‘lda kiriting.',
+  'Выберите логин': 'Loginni tanlang',
+  'Загрузка списка логинов...': 'Loginlar ro‘yxati yuklanmoqda...',
+  'Не удалось загрузить список логинов.': 'Loginlar ro‘yxatini yuklab bo‘lmadi.',
+  'Нет доступных логинов.': 'Tanlash uchun loginlar yo‘q.',
+  'Повторить загрузку': 'Qayta yuklash',
   'Да': 'Ha',
   'Нет': 'Yo‘q',
   'Загрузка…': 'Yuklanmoqda…',
