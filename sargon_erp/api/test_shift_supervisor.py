@@ -26,7 +26,7 @@ class ShiftSupervisorTests(TestCase):
             'boiler-loading', 'chemical-mixer-loading', 'workshop-loading',
             'raw-diesel-tank-loading', 'raw-spindle-tank-loading', 'finishing-mixer-loading',
             'nigrol-loading', 'reactor-receivers',
-            'finishing-filter-loading', 'finished-product-loading',
+            'bentonite-loading', 'finished-product-loading',
             'canister-loading', 'cap-loading', 'canister-output', 'cap-output',
         }
         operations.update(MANUFACTURING_STEPS)
@@ -49,6 +49,8 @@ class ShiftSupervisorTests(TestCase):
             '/api/processing/workshops/', '/api/processing/raw-diesel-tanks/', '/api/processing/raw-spindle-tanks/',
             '/api/processing/nigrol-tanks/',
             '/api/processing/receiver-runs/',
+            '/api/warehouse/production-loadings/bentonite_filter/reference-data/',
+            '/api/warehouse/production-loadings/bentonite_filter/',
             *(f'/api/processing/oil-containers/{path}/' for path in OIL_CONTAINER_PATHS),
             *(f'/api/processing/oil-movements/{step}/' for step in OIL_FINISHING_STEPS),
             *(f'/api/oil-production/operations/{step}/' for step in MANUFACTURING_STEPS),
@@ -61,6 +63,7 @@ class ShiftSupervisorTests(TestCase):
             '/api/processing/movements/workshop-to-raw-diesel-tank/', '/api/processing/movements/workshop-to-raw-spindle-tank/',
             '/api/processing/movements/workshop-to-nigrol-tank/',
             '/api/processing/receiver-runs/',
+            '/api/warehouse/production-loadings/bentonite_filter/',
             *(f'/api/processing/oil-movements/{step}/' for step in OIL_FINISHING_STEPS),
             *(f'/api/oil-production/operations/{step}/' for step in MANUFACTURING_STEPS),
         ):

@@ -1,13 +1,18 @@
+export const bentoniteLoadingTarget = 'bentonite_filter'
+export const bentoniteLoadingPath = '/processing/bentonite-loading'
+
 export const productionMaterialOptions = [
   { code: '', label: 'Не используется в производственной загрузке' },
   { code: 'granules', label: 'Гранулы' },
   { code: 'dye', label: 'Краситель' },
   { code: 'polypropylene', label: 'Полипропилен' },
+  { code: 'bentonite', label: 'Бентонит' },
 ]
 
 export const productionLoadingConfig = {
   canisters: { title: 'Загрузка производства канистр', moduleCode: 'canister-loading' },
   caps: { title: 'Загрузка производства крышек', moduleCode: 'cap-loading' },
+  [bentoniteLoadingTarget]: { title: 'Загрузка бентонита', moduleCode: 'bentonite-loading' },
 }
 
 export const productionProductOptions = [

@@ -122,6 +122,13 @@ MaterialMovement → 0..1 компенсируемое MaterialMovement
   оборудовании и снимок продукта движения. PostgreSQL transaction-level advisory
   lock `734092601` сериализует операции линии и компенсации, включая пустую линию.
   Блокировки ёмкостей берутся по PK, изменение их вместимости также блокирует строку.
+- `0058` переводит финишный фильтр в проточное оборудование: максимум один
+  активный, `capacity_liters=null`, технический объём равен нулю, из сверки исключён.
+  Миграция останавливается при ненулевом старом остатке или нескольких активных
+  фильтрах и не пишет начальные складские данные. Старые движения сохраняются.
+  `MaterialMovement.via_filter` связывает прямой перелив с фильтром, а
+  `WarehouseDocument.production_filter` — независимую загрузку бентонита.
+  Откат к схеме с вместимостью действующего фильтра требует резервной копии.
 - «Песочный миксер» — отображаемое имя типа `finishing_mixer` и модуля
   `finishing-mixer-loading`. Маршруты и права не изменены. Исторические снимки
   хранят исходный текст; API показывает актуальное имя, а журнал ищет по обоим.
@@ -236,10 +243,9 @@ WarehouseDocumentSequence → номер по типу документа и г�
   узбекский использует латиницу. `useLanguage()` подписывает React на изменения.
 - `LanguageSwitcher` доступен до и после входа. Выбор хранится в `shenoll_language`
   и синхронизируется событием `storage`; атрибут языка HTML обновляется.
-  На странице входа используется `variant="flags"`: две кнопки с локальными SVG
+  На странице входа и в общей шапке приложения используется `variant="flags"`: две кнопки с локальными SVG
   флагами России и Узбекистана, без видимого текста; выбранная кнопка отмечена
   визуально и через `aria-pressed`, названия языков доступны скринридеру.
-  В шапке после входа сохранён стандартный селект с подписью.
   Смена языка не перезагружает страницу и не меняет JWT, маршруты или права.
 - `uz.js`, `ru.js`, `serverMessages.js`, `systemMessages.js` содержат переводы
   интерфейса, известных ошибок и системных обозначений. Исходные сообщения API
@@ -272,7 +278,8 @@ WarehouseDocumentSequence → номер по типу документа и г�
 | Ресиверы реактора | `processing/receiver-runs/`: GET — очередь, состояния и история; POST — подтверждение открытия/закрытия. В прежних маршрутах загрузки сырых баков GET возвращает закрытые ресиверы нужного продукта, POST принимает `receiver_run_id` |
 | Движения | `tank-to-boiler/`, `boiler-to-workshop/`, `workshop-to-raw-diesel-tank/`, `workshop-to-raw-spindle-tank/`, `workshop-to-nigrol-tank/` — все под `processing/movements/` |
 | Финишная очистка | `processing/oil-containers/{finishing-mixers,finishing-filters,finished-diesel-tanks,finished-spindle-tanks}/`: GET/POST; изменение/удаление через общий `processing/containers/<id>/` |
-| Движения финишной очистки | `processing/oil-movements/{chemical-mixer-loading,finishing-mixer-loading,finishing-filter-loading,finished-product-loading}/`: POST; GET — история соответствующей операции по 10 записей |
+| Движения финишной очистки | `processing/oil-movements/{chemical-mixer-loading,finishing-mixer-loading,finished-product-loading}/`: POST; GET — история соответствующей операции по 10 записей. Последняя операция проводится из песочного миксера в бак через общий фильтр |
+| Бентонит | `warehouse/production-loadings/bentonite_filter/`: GET — история, POST — загрузка; `reference-data/` — активный фильтр и закреплённый материал в кг на подходящих складах |
 | Производство масел | `oil-production/operations/{concentrate-loading,oil-blending,oil-tank-loading,oil-filling}/`: GET — справочные данные/история, POST — проведение |
 | Партии масел | `oil-production/batches/<id>/{complete,cancel}/`: POST; отмена только администратором |
 | Оборудование масел | `oil-production/containers/{concentrate-reactors,oil-blenders,finished-oil-tanks}/`: GET/POST; общий `processing/containers/<id>/` для изменения и удаления |

@@ -30,7 +30,7 @@ export function OilFinishingPage({ onLogout, step, token, user }) {
   const exceedsSource = source && amount > Number(source.current_volume_liters)
   const exceedsDestination = destination && amount > Number(destination.free_volume_liters)
   const otherProductOnLine = source?.oil_product && history.line_product && source.oil_product !== history.line_product
-  const canSubmit = source?.is_active && destination && Number.isFinite(amount) && amount > 0 && !exceedsSource && !exceedsDestination && !otherProductOnLine
+  const canSubmit = source?.is_active && destination && Number.isFinite(amount) && amount > 0 && !exceedsSource && !exceedsDestination && !otherProductOnLine && (!config.viaFilter || history.filter_name)
 
   function updateForm(field, value) {
     requestKey.current = null
@@ -62,11 +62,15 @@ export function OilFinishingPage({ onLogout, step, token, user }) {
       <p className="auth-eyebrow">{t('Переработка отработанного масла')}</p>
       <h1>{t(config.title)}</h1>
       <p>{t('Движение по общей линии очистки. Солярка и веретенка проходят её по очереди, без смешивания.')}</p>
+      {config.viaFilter && <p>{t('Списываем и зачисляем одинаковый объём: фильтр не хранит масло.')}</p>}
     </section>
     {error && <p className="access-error" role="alert">{t(error)}</p>}
     {canCreate && <section className="boiler-loading-layout">
       <article className="access-card">
         <h3>{t('Новое движение')}</h3>
+        {config.viaFilter && (history.filter_name
+          ? <p>{t('Через фильтр')}: {t(history.filter_name)}</p>
+          : <p className="empty-state">{t('Настройте активный финишный фильтр.')}</p>)}
         <form className="crud-form" onSubmit={handleSubmit}>
           <fieldset className="oil-finishing-fields" disabled={isSubmitting}>
             <label><span>{t('Источник')}</span><select required value={form.source_id} onChange={(event) => updateForm('source_id', event.target.value)}>
@@ -103,6 +107,7 @@ export function OilFinishingPage({ onLogout, step, token, user }) {
       <div className="entity-list">{history.items.map((item) => <div className="entity-row" key={item.id}><div>
         <strong>{item.movement_number}</strong>
         <span>{t(item.source)} → {t(item.destination)}</span>
+        {item.via_filter && <span>{t('Через фильтр')}: {t(item.via_filter)}</span>}
         <span>{t(item.product_name)} · {volume(item.volume_liters)} · {new Date(item.moved_at).toLocaleString(getLocale())} · {item.created_by}</span>
         {item.is_compensated && <span>{t('Компенсировано')}</span>}
       </div></div>)}{!history.items.length && <p className="empty-state">{t('Записи не найдены.')}</p>}</div>

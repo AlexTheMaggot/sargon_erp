@@ -1,10 +1,11 @@
 from decimal import Decimal, InvalidOperation
 
 from django.db import connection, IntegrityError, transaction
+from django.db.models import Sum
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import MaterialMovement, ProductionContainer
+from .models import MaterialMovement, ProductionContainer, WarehouseDocument
 
 
 LEGACY_MIXER_SNAPSHOT_PREFIX = 'Финишный миксер №'
@@ -30,17 +31,12 @@ OIL_FINISHING_STEPS = {
         'destinations': (ProductionContainer.KIND_FINISHING_MIXER,),
         'movement_type': MaterialMovement.TYPE_CHEMICAL_TO_FINISHING_MIXER,
     },
-    'finishing-filter-loading': {
-        'title': 'Загрузка финишного фильтра',
-        'sources': (ProductionContainer.KIND_FINISHING_MIXER,),
-        'destinations': (ProductionContainer.KIND_FINISHING_FILTER,),
-        'movement_type': MaterialMovement.TYPE_MIXER_TO_FILTER,
-    },
     'finished-product-loading': {
-        'title': 'Загрузка бака готовой продукции',
-        'sources': (ProductionContainer.KIND_FINISHING_FILTER,),
+        'title': 'Перелив через финишный фильтр',
+        'sources': (ProductionContainer.KIND_FINISHING_MIXER,),
         'destinations': (ProductionContainer.KIND_FINISHED_DIESEL_TANK, ProductionContainer.KIND_FINISHED_SPINDLE_TANK),
-        'movement_type': MaterialMovement.TYPE_FILTER_TO_FINISHED_TANK,
+        'movement_type': MaterialMovement.TYPE_MIXER_TO_FINISHED_TANK,
+        'via_filter': True,
     },
 }
 
@@ -56,6 +52,10 @@ OIL_CONTAINER_PATHS = {
 def lock_oil_line():
     with connection.cursor() as cursor:
         cursor.execute('SELECT pg_advisory_xact_lock(%s)', [734092601])
+
+
+def active_finishing_filter():
+    return ProductionContainer.objects.filter(kind=ProductionContainer.KIND_FINISHING_FILTER, is_active=True).first()
 
 
 def container_oil_product(container):
@@ -129,13 +129,18 @@ def oil_movements_view(request, step):
             page = max(1, int(request.GET.get('page', 1)))
         except ValueError:
             return JsonResponse({'detail': 'Некорректный номер страницы.'}, status=400)
-        rows = MaterialMovement.objects.filter(movement_type=config['movement_type']).select_related('created_by')
+        movement_types = [config['movement_type']]
+        if config.get('via_filter'):
+            movement_types.append(MaterialMovement.TYPE_FILTER_TO_FINISHED_TANK)
+        rows = MaterialMovement.objects.filter(movement_type__in=movement_types).select_related('created_by', 'via_filter')
         total = rows.count()
         page_count = max(1, (total + 9) // 10)
         page = min(page, page_count)
+        filter_equipment = active_finishing_filter() if config.get('via_filter') else None
         return JsonResponse({
             'items': [_serialize_movement(row) for row in rows.order_by('-moved_at', '-id')[(page - 1) * 10:page * 10]],
             'total': total, 'page': page, 'page_count': page_count,
+            'filter_name': filter_equipment.display_name if filter_equipment else '',
             'line_product': ProductionContainer.objects.filter(
                 kind__in=ProductionContainer.SHARED_OIL_KINDS, current_volume_liters__gt=0,
             ).values_list('oil_product', flat=True).first() or '',
@@ -178,12 +183,16 @@ def oil_movements_view(request, step):
         error = oil_transfer_error(source, destination, volume, product)
         if error:
             return JsonResponse({'detail': error}, status=400)
+        filter_equipment = active_finishing_filter() if config.get('via_filter') else None
+        if config.get('via_filter') and filter_equipment is None:
+            return JsonResponse({'detail': 'Настройте активный финишный фильтр.'}, status=400)
         product_name = dict(ProductionContainer.OIL_PRODUCTS)[product]
         try:
             with transaction.atomic():
                 movement = MaterialMovement.objects.create(
                     movement_number=_movement_number(), movement_type=config['movement_type'],
                     source_container=source, destination_container=destination, product_name=product_name,
+                    via_filter=filter_equipment,
                     oil_product=product, volume_liters=volume, created_by=user, idempotency_key=key,
                     source_snapshot=source.display_name, destination_snapshot=destination.display_name,
                     source_volume_before=source.current_volume_liters, source_volume_after=source.current_volume_liters - volume,
@@ -206,10 +215,22 @@ def oil_overview():
     from .views import _overview_container_items, _overview_container_totals
     result = {}
     for kind in OIL_CONTAINER_PATHS.values():
+        if kind == ProductionContainer.KIND_FINISHING_FILTER:
+            continue
         step = next(config for config in OIL_FINISHING_STEPS.values() if kind in config['destinations'])
         items = _overview_container_items(kind, step['movement_type'])
         products = dict(ProductionContainer.objects.filter(kind=kind).values_list('pk', 'oil_product'))
         for item in items:
             item['oil_product'] = products[item['id']]
         result[kind] = {**_overview_container_totals(kind), 'items': items}
+    filter_equipment = active_finishing_filter()
+    loading = WarehouseDocument.objects.filter(
+        production_filter=filter_equipment, production_target=WarehouseDocument.TARGET_BENTONITE_FILTER,
+        status=WarehouseDocument.STATUS_POSTED,
+    ).annotate(quantity=Sum('lines__quantity')).order_by('-posted_at', '-pk').first() if filter_equipment else None
+    result[ProductionContainer.KIND_FINISHING_FILTER] = {
+        'name': filter_equipment.display_name if filter_equipment else '',
+        'last_bentonite_kg': str(loading.quantity) if loading and loading.quantity is not None else None,
+        'last_bentonite_at': loading.posted_at.isoformat() if loading else None,
+    }
     return result

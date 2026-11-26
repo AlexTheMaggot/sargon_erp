@@ -193,7 +193,7 @@ class ProductionContainer(models.Model):
     KIND_OIL_BLENDER = 'oil_blender'
     KIND_FINISHED_OIL_TANK = 'finished_oil_tank'
     OIL_BATCH_KINDS = (KIND_CONCENTRATE_REACTOR, KIND_OIL_BLENDER)
-    SHARED_OIL_KINDS = (KIND_CHEMICAL_MIXER, KIND_FINISHING_MIXER, KIND_FINISHING_FILTER)
+    SHARED_OIL_KINDS = (KIND_CHEMICAL_MIXER, KIND_FINISHING_MIXER)
     RECYCLING_KINDS = (
         KIND_RECEIVING_TANK, KIND_PREHEATING_BOILER, KIND_PROCESSING_WORKSHOP,
         KIND_RAW_DIESEL_TANK, KIND_RAW_SPINDLE_TANK, KIND_NIGROL_TANK, *SHARED_OIL_KINDS,
@@ -220,7 +220,7 @@ class ProductionContainer(models.Model):
     kind = models.CharField(max_length=32, choices=KIND_CHOICES)
     number = models.PositiveIntegerField()
     system_code = models.SlugField(max_length=80, unique=True)
-    capacity_liters = models.DecimalField(max_digits=14, decimal_places=3)
+    capacity_liters = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
     current_volume_liters = models.DecimalField(max_digits=14, decimal_places=3, default=0)
     oil_product = models.CharField(max_length=10, choices=OIL_PRODUCTS, blank=True, default='')
     oil_grade = models.ForeignKey(OilGrade, on_delete=models.PROTECT, null=True, blank=True, related_name='containers')
@@ -232,7 +232,15 @@ class ProductionContainer(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['kind', 'number'], name='unique_production_container_number'),
             models.CheckConstraint(condition=models.Q(number__gt=0), name='production_container_number_positive'),
-            models.CheckConstraint(condition=models.Q(capacity_liters__gt=0), name='production_container_capacity_positive'),
+            models.CheckConstraint(
+                condition=(models.Q(kind='finishing_filter', capacity_liters__isnull=True, current_volume_liters=0)
+                           | (~models.Q(kind='finishing_filter') & models.Q(capacity_liters__isnull=False, capacity_liters__gt=0))),
+                name='production_volume_only_for_containers',
+            ),
+            models.UniqueConstraint(
+                fields=['kind'], condition=models.Q(kind='finishing_filter', is_active=True),
+                name='one_active_finishing_filter',
+            ),
             models.CheckConstraint(condition=models.Q(current_volume_liters__gte=0), name='production_container_volume_nonnegative'),
             models.CheckConstraint(
                 condition=~models.Q(kind__in=['concentrate_reactor', 'oil_blender']) | models.Q(current_volume_liters=0),
@@ -244,9 +252,9 @@ class ProductionContainer(models.Model):
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(kind__in=['chemical_mixer', 'finishing_mixer', 'finishing_filter'], current_volume_liters__gt=0, oil_product__in=['diesel', 'spindle'])
-                    | models.Q(kind__in=['chemical_mixer', 'finishing_mixer', 'finishing_filter'], current_volume_liters=0, oil_product='')
-                    | (~models.Q(kind__in=['chemical_mixer', 'finishing_mixer', 'finishing_filter']) & models.Q(oil_product=''))
+                    models.Q(kind__in=['chemical_mixer', 'finishing_mixer'], current_volume_liters__gt=0, oil_product__in=['diesel', 'spindle'])
+                    | models.Q(kind__in=['chemical_mixer', 'finishing_mixer'], current_volume_liters=0, oil_product='')
+                    | (~models.Q(kind__in=['chemical_mixer', 'finishing_mixer']) & models.Q(oil_product=''))
                 ),
                 name='production_container_oil_product_valid',
             ),
@@ -325,13 +333,15 @@ class MaterialMovement(models.Model):
     TYPE_RAW_TO_FINISHING_MIXER = 'raw_to_finishing_mixer'
     TYPE_MIXER_TO_FILTER = 'mixer_to_filter'
     TYPE_FILTER_TO_FINISHED_TANK = 'filter_to_finished_tank'
+    TYPE_MIXER_TO_FINISHED_TANK = 'mixer_to_finished_tank'
     TYPE_SPINDLE_TO_CONCENTRATE = 'spindle_to_concentrate'
     TYPE_SPINDLE_TO_BLENDER = 'spindle_to_blender'
     TYPE_CONCENTRATE_TO_BLENDER = 'concentrate_to_blender'
     TYPE_BLENDER_TO_OIL_TANK = 'blender_to_oil_tank'
     TYPE_OIL_FILLING = 'oil_filling'
     OIL_MANUFACTURING_TYPES = (TYPE_SPINDLE_TO_CONCENTRATE, TYPE_SPINDLE_TO_BLENDER, TYPE_CONCENTRATE_TO_BLENDER, TYPE_BLENDER_TO_OIL_TANK, TYPE_OIL_FILLING)
-    OIL_FINISHING_TYPES = (TYPE_RAW_TO_CHEMICAL_MIXER, TYPE_CHEMICAL_TO_FINISHING_MIXER, TYPE_RAW_TO_FINISHING_MIXER, TYPE_MIXER_TO_FILTER, TYPE_FILTER_TO_FINISHED_TANK)
+    OIL_FINISHING_TYPES = (TYPE_RAW_TO_CHEMICAL_MIXER, TYPE_CHEMICAL_TO_FINISHING_MIXER, TYPE_RAW_TO_FINISHING_MIXER, TYPE_MIXER_TO_FINISHED_TANK)
+    LEGACY_FILTER_TYPES = (TYPE_MIXER_TO_FILTER, TYPE_FILTER_TO_FINISHED_TANK)
     TYPE_COMPENSATION = 'compensation'
     TYPE_CHOICES = [
         (TYPE_RECEIPT_TO_TANK, 'Поступление из приёмки'),
@@ -351,6 +361,7 @@ class MaterialMovement(models.Model):
         (TYPE_RAW_TO_FINISHING_MIXER, 'Загрузка песочного миксера (прежний маршрут)'),
         (TYPE_MIXER_TO_FILTER, 'Загрузка финишного фильтра'),
         (TYPE_FILTER_TO_FINISHED_TANK, 'Загрузка бака готовой продукции'),
+        (TYPE_MIXER_TO_FINISHED_TANK, 'Перелив через финишный фильтр'),
         (TYPE_SPINDLE_TO_CONCENTRATE, 'Загрузка реактора концентрата'),
         (TYPE_SPINDLE_TO_BLENDER, 'Загрузка основы в смеситель'),
         (TYPE_CONCENTRATE_TO_BLENDER, 'Передача концентрата в смеситель'),
@@ -386,6 +397,7 @@ class MaterialMovement(models.Model):
     source_oil_batch = models.ForeignKey('OilManufacturingBatch', on_delete=models.PROTECT, null=True, blank=True, related_name='outgoing_movements')
     destination_oil_batch = models.ForeignKey('OilManufacturingBatch', on_delete=models.PROTECT, null=True, blank=True, related_name='incoming_movements')
     receiver_run = models.ForeignKey('ReceiverRun', on_delete=models.PROTECT, null=True, blank=True, related_name='discharges')
+    via_filter = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, null=True, blank=True, related_name='filtered_movements')
     oil_grade = models.ForeignKey(OilGrade, on_delete=models.PROTECT, null=True, blank=True, related_name='movements')
     volume_liters = models.DecimalField(max_digits=14, decimal_places=3)
     moved_at = models.DateTimeField(default=timezone.now)
@@ -435,6 +447,11 @@ class MaterialMovement(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(condition=models.Q(volume_liters__gt=0), name='material_movement_volume_positive'),
+            models.CheckConstraint(
+                condition=(models.Q(movement_type='mixer_to_finished_tank', via_filter__isnull=False)
+                           | (~models.Q(movement_type='mixer_to_finished_tank') & models.Q(via_filter__isnull=True))),
+                name='finished_tank_transfer_records_filter',
+            ),
             models.UniqueConstraint(
                 fields=['receiver_run'], condition=models.Q(is_compensated=False, receiver_run__isnull=False),
                 name='one_active_discharge_per_receiver_run',
@@ -566,11 +583,13 @@ class InventoryItem(models.Model):
     MATERIAL_GRANULES = 'granules'
     MATERIAL_DYE = 'dye'
     MATERIAL_POLYPROPYLENE = 'polypropylene'
+    MATERIAL_BENTONITE = 'bentonite'
     MATERIAL_CHOICES = [
         ('', 'Не используется в производственной загрузке'),
         (MATERIAL_GRANULES, 'Гранулы'),
         (MATERIAL_DYE, 'Краситель'),
         (MATERIAL_POLYPROPYLENE, 'Полипропилен'),
+        (MATERIAL_BENTONITE, 'Бентонит'),
     ]
     PRODUCT_CHOICES = [('', 'Не является выпускаемой упаковкой'), ('canisters', 'Канистры'), ('caps', 'Крышки')]
 
@@ -652,10 +671,12 @@ class WarehouseDocument(models.Model):
     TARGET_CANISTERS = 'canisters'
     TARGET_CAPS = 'caps'
     TARGET_OIL_CONCENTRATE = 'oil_concentrate'
+    TARGET_BENTONITE_FILTER = 'bentonite_filter'
     PRODUCTION_TARGET_CHOICES = [
         (TARGET_CANISTERS, 'Производство канистр'),
         (TARGET_CAPS, 'Производство крышек'),
         (TARGET_OIL_CONCENTRATE, 'Приготовление концентрата'),
+        (TARGET_BENTONITE_FILTER, 'Загрузка бентонита'),
     ]
 
     TYPE_RECEIPT = 'receipt'
@@ -711,6 +732,7 @@ class WarehouseDocument(models.Model):
     )
     purpose = models.TextField(blank=True)
     production_target = models.CharField(max_length=20, choices=PRODUCTION_TARGET_CHOICES, blank=True, default='')
+    production_filter = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, null=True, blank=True, related_name='filter_material_documents')
     idempotency_key = models.CharField(max_length=80, unique=True, null=True, blank=True)
     created_by = models.ForeignKey(
         get_user_model(),
@@ -740,6 +762,11 @@ class WarehouseDocument(models.Model):
     class Meta:
         ordering = ['-document_date', '-id']
         constraints = [
+            models.CheckConstraint(
+                condition=(models.Q(production_target='bentonite_filter', production_filter__isnull=False)
+                           | (~models.Q(production_target='bentonite_filter') & models.Q(production_filter__isnull=True))),
+                name='bentonite_loading_records_filter',
+            ),
             models.CheckConstraint(
                 condition=models.Q(production_target='') | models.Q(
                     document_type='issue', source_warehouse__isnull=False,

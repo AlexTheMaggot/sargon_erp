@@ -58,7 +58,7 @@ from .models import ProductionMaterialUsage
 from .models import OilGrade, OilManufacturingBatch
 from .oil_processing import OIL_FINISHING_STEPS, OIL_CONTAINER_PATHS
 from .oil_processing import LEGACY_MIXER_SNAPSHOT_PREFIX, SAND_MIXER_SNAPSHOT_PREFIX, container_snapshot_label
-from .oil_processing import apply_oil_transfer, container_oil_product, lock_oil_line, oil_transfer_error
+from .oil_processing import active_finishing_filter, apply_oil_transfer, container_oil_product, lock_oil_line, oil_transfer_error
 from .reactor_processing import MODULE_CODE as MODULE_REACTOR_RECEIVERS
 from .reactor_processing import last_reactor_measurement, reactor_has_pending_receivers, reactor_outlet_view, reactors_overview
 
@@ -75,6 +75,7 @@ MODULE_WORKSHOP_LOADING = 'workshop-loading'
 MODULE_RAW_DIESEL_TANK_LOADING = 'raw-diesel-tank-loading'
 MODULE_RAW_SPINDLE_TANK_LOADING = 'raw-spindle-tank-loading'
 MODULE_NIGROL_LOADING = 'nigrol-loading'
+MODULE_BENTONITE_LOADING = 'bentonite-loading'
 MODULE_WAREHOUSE_ACCOUNTING = 'warehouse-accounting'
 MODULE_WAREHOUSE_SETTINGS = 'warehouse-settings'
 MODULE_KNOWLEDGE_BASE = 'knowledge-base'
@@ -90,6 +91,7 @@ PROCESSING_FORM_MODULE_CODES = {
     MODULE_RAW_DIESEL_TANK_LOADING,
     MODULE_RAW_SPINDLE_TANK_LOADING,
     MODULE_NIGROL_LOADING,
+    MODULE_BENTONITE_LOADING,
     MODULE_REACTOR_RECEIVERS,
 }
 PROCESSING_FORM_MODULE_CODES.update(OIL_FINISHING_STEPS)
@@ -642,11 +644,14 @@ def _container_has_movements(container):
     return (
         container.incoming_movements.exists() or container.outgoing_movements.exists()
         or container.oil_batches.exists() or container.measurements.exists()
+        or (container.kind == ProductionContainer.KIND_FINISHING_FILTER
+            and (container.filtered_movements.exists() or container.filter_material_documents.exists()))
     )
 
 
 def _serialize_container(container, user, raw_material_options=False):
-    free_volume = container.capacity_liters - container.current_volume_liters
+    flow_through = container.kind == ProductionContainer.KIND_FINISHING_FILTER
+    free_volume = None if flow_through else container.capacity_liters - container.current_volume_liters
     base = {
         'id': container.pk,
         'kind': container.kind,
@@ -655,6 +660,8 @@ def _serialize_container(container, user, raw_material_options=False):
         'product_name': 'Отработанное масло',
         'is_active': container.is_active,
     }
+    if flow_through:
+        return {**base, 'product_name': '', 'capacity_liters': None, 'current_volume_liters': None, 'flow_through': True}
     if raw_material_options:
         return {
             **base,
@@ -750,6 +757,7 @@ def _serialize_movement(movement):
         'oil_product': movement.oil_product,
         'oil_grade_id': movement.oil_grade_id,
         'receiver_run_id': movement.receiver_run_id,
+        'via_filter': movement.via_filter.display_name if movement.via_filter_id else '',
         'volume_liters': str(movement.volume_liters),
         'moved_at': movement.moved_at.isoformat(),
         'created_at': movement.created_at.isoformat(),
@@ -765,7 +773,7 @@ def _serialize_movement(movement):
         'is_compensated': movement.is_compensated,
         'compensates_id': movement.compensates_id,
         'can_compensate': (not movement.is_compensated and movement.compensates_id is None
-                           and movement.movement_type not in MaterialMovement.LEGACY_WORKSHOP_TYPES),
+                           and movement.movement_type not in (*MaterialMovement.LEGACY_WORKSHOP_TYPES, *MaterialMovement.LEGACY_FILTER_TYPES)),
     }
 
 
@@ -1096,6 +1104,8 @@ def _compensate_movement(movement_id, user, reason):
             return None, 'Отмена движения прежнего маршрута недоступна после переноса химического миксера.'
         if movement.movement_type in MaterialMovement.LEGACY_WORKSHOP_TYPES:
             return None, 'Отмена старых движений цеха недоступна после перехода на реакторы и ресиверы.'
+        if movement.movement_type in MaterialMovement.LEGACY_FILTER_TYPES:
+            return None, 'Старые движения с остатком в фильтре нельзя отменить после перехода на проточную схему.'
         container_ids = sorted(filter(None, [movement.source_container_id, movement.destination_container_id]))
         if movement_is_reconciled(movement):
             return None, RECONCILED_MOVEMENT
@@ -2164,9 +2174,15 @@ def _production_containers_view(request, kind):
         number = int(body.get('number'))
     except (TypeError, ValueError):
         number = 0
-    capacity = _capacity_value(body.get('capacity_liters'))
-    if number <= 0 or capacity is None:
+    flow_through = kind == ProductionContainer.KIND_FINISHING_FILTER
+    capacity = None if flow_through else _capacity_value(body.get('capacity_liters'))
+    is_active = _boolean_value(body.get('is_active', True))
+    if number <= 0 and flow_through:
+        return JsonResponse({'detail': 'Укажите положительный номер фильтра.'}, status=400)
+    if not flow_through and (number <= 0 or capacity is None):
         return JsonResponse({'detail': 'Number and positive integer capacity are required.'}, status=400)
+    if flow_through and is_active and active_finishing_filter():
+        return JsonResponse({'detail': 'Можно настроить только один активный финишный фильтр.'}, status=409)
 
     oil_grade = None
     if kind == ProductionContainer.KIND_FINISHED_OIL_TANK:
@@ -2181,7 +2197,7 @@ def _production_containers_view(request, kind):
             system_code=_container_code(kind, number),
             capacity_liters=capacity,
             oil_grade=oil_grade,
-            is_active=_boolean_value(body.get('is_active', True)),
+            is_active=is_active,
         )
     except IntegrityError:
         return JsonResponse({'detail': 'Container with this number already exists.'}, status=409)
@@ -2253,26 +2269,33 @@ def production_container_detail_view(request, container_id):
         number = container.number
         capacity = container.capacity_liters
         is_active = container.is_active
+        flow_through = container.kind == ProductionContainer.KIND_FINISHING_FILTER
         if 'number' in body:
             try:
                 number = int(body.get('number'))
             except (TypeError, ValueError):
                 number = 0
-        if 'capacity_liters' in body:
+        if not flow_through and 'capacity_liters' in body:
             capacity = _capacity_value(body.get('capacity_liters'))
         if 'is_active' in body:
             is_active = _boolean_value(body.get('is_active'))
 
-        if number <= 0 or capacity is None:
+        if flow_through and number <= 0:
+            return JsonResponse({'detail': 'Укажите положительный номер фильтра.'}, status=400)
+        if not flow_through and (number <= 0 or capacity is None):
             return JsonResponse({'detail': 'Number and positive integer capacity are required.'}, status=400)
-        if capacity < container.current_volume_liters:
+        if flow_through and is_active and ProductionContainer.objects.filter(
+            kind=container.kind, is_active=True,
+        ).exclude(pk=container_id).exists():
+            return JsonResponse({'detail': 'Можно настроить только один активный финишный фильтр.'}, status=409)
+        if capacity is not None and capacity < container.current_volume_liters:
             return JsonResponse({'detail': 'Вместимость не может быть меньше текущего объёма.'}, status=400)
         if not is_active and container.current_volume_liters > 0:
             return JsonResponse({'detail': 'Filled container cannot be deactivated.'}, status=400)
         if not is_active and container.kind == ProductionContainer.KIND_PROCESSING_WORKSHOP and reactor_has_pending_receivers(container.pk):
             return JsonResponse({'detail': 'Перед отключением реактора закройте и слейте его ресиверы.'}, status=400)
         batch = container.oil_batches.filter(status=OilManufacturingBatch.STATUS_OPEN).first()
-        if batch and (not is_active or capacity < max(batch.input_liters, batch.output_liters)):
+        if batch and (not is_active or capacity is None or capacity < max(batch.input_liters, batch.output_liters)):
             return JsonResponse({'detail': 'Нельзя отключить оборудование с открытой партией или уменьшить его вместимость ниже загрузки и выхода.'}, status=400)
         if container.kind == ProductionContainer.KIND_FINISHED_OIL_TANK and 'oil_grade_id' in body:
             grade = OilGrade.objects.filter(pk=body.get('oil_grade_id'), is_active=True).first() if type(body.get('oil_grade_id')) is int else None
@@ -2610,7 +2633,7 @@ def processing_journal_view(request):
     if error:
         return error
 
-    movements = MaterialMovement.objects.select_related('created_by').all()
+    movements = MaterialMovement.objects.select_related('created_by', 'via_filter').all()
     audits = OperationAuditLog.objects.select_related('user').all()
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
@@ -3629,6 +3652,7 @@ def warehouse_document_cancel_view(request, document_id):
 PRODUCTION_LOADING_CONFIG = {
     WarehouseDocument.TARGET_CANISTERS: (MODULE_CANISTER_LOADING, (InventoryItem.MATERIAL_GRANULES, InventoryItem.MATERIAL_DYE)),
     WarehouseDocument.TARGET_CAPS: (MODULE_CAP_LOADING, (InventoryItem.MATERIAL_GRANULES, InventoryItem.MATERIAL_DYE)),
+    WarehouseDocument.TARGET_BENTONITE_FILTER: (MODULE_BENTONITE_LOADING, (InventoryItem.MATERIAL_BENTONITE,)),
 }
 
 
@@ -3650,6 +3674,7 @@ def _production_loading_user(request, target):
 def _production_loading_queryset():
     return WarehouseDocument.objects.exclude(production_target='').select_related(
         'source_warehouse', 'destination_warehouse', 'supplier__city', 'created_by', 'posted_by', 'confirmed_by',
+        'production_filter',
     ).prefetch_related('lines__item__category', 'lines__item__unit', 'movements')
 
 
@@ -3657,11 +3682,20 @@ def _serialize_production_loading(document):
     result = _serialize_warehouse_document(document)
     items = {line.item_id: line.item for line in document.lines.all()}
     movements = {movement.item_id: movement for movement in document.movements.all() if movement.movement_type == WarehouseMovement.TYPE_ISSUE}
+    is_bentonite = document.production_target == WarehouseDocument.TARGET_BENTONITE_FILTER
     for line in result['lines']:
         line['item'] = _serialize_production_item(items[line['item_id']])
         movement = movements.get(line['item_id'])
-        line['unit_cost'] = str(movement.unit_cost) if movement else '0.00'
-        line['material_cost'] = str(-movement.total_value_delta) if movement else '0.00'
+        if not is_bentonite:
+            line['unit_cost'] = str(movement.unit_cost) if movement else '0.00'
+            line['material_cost'] = str(-movement.total_value_delta) if movement else '0.00'
+    if is_bentonite:
+        return {
+            **{key: result[key] for key in ('id', 'number', 'posted_at', 'posted_by', 'status', 'status_label', 'purpose', 'production_target_label')},
+            'source_warehouse': {'id': document.source_warehouse_id, 'name': document.source_warehouse.name},
+            'filter_name': document.production_filter.display_name,
+            'lines': [{key: line[key] for key in ('id', 'item', 'quantity')} for line in result['lines']],
+        }
     result['material_cost'] = str(sum((Decimal(line['material_cost']) for line in result['lines']), Decimal('0.00')))
     return result
 
@@ -3671,6 +3705,7 @@ def production_loading_reference_view(request, target):
     user, error = _production_loading_user(request, target)
     if error:
         return error
+    is_bentonite = target == WarehouseDocument.TARGET_BENTONITE_FILTER
     items = InventoryItem.objects.filter(
         production_material__in=PRODUCTION_LOADING_CONFIG[target][1],
         is_active=True, category__is_active=True, unit__is_active=True,
@@ -3684,11 +3719,18 @@ def production_loading_reference_view(request, target):
     for item in items:
         for warehouse in item.permanent_warehouses.all():
             if warehouse.is_active:
-                warehouses[warehouse.pk] = _serialize_warehouse(warehouse)
+                warehouses[warehouse.pk] = ({'id': warehouse.pk, 'name': warehouse.name}
+                                            if is_bentonite else _serialize_warehouse(warehouse))
                 rows.append({
                     'warehouse_id': warehouse.pk, 'item': _serialize_production_item(item),
                     'quantity': str(balances.get((warehouse.pk, item.pk), Decimal('0.00'))),
                 })
+    if is_bentonite:
+        filter_equipment = active_finishing_filter()
+        return JsonResponse({
+            'warehouses': list(warehouses.values()), 'materials': rows,
+            'filter_name': filter_equipment.display_name if filter_equipment else '',
+        })
     return JsonResponse({'warehouses': list(warehouses.values()), 'materials': rows, **_production_material_state(target)})
 
 
@@ -3706,6 +3748,7 @@ def production_loadings_view(request, target):
     if error:
         return error
     queryset = _production_loading_queryset()
+    is_bentonite = target == WarehouseDocument.TARGET_BENTONITE_FILTER
     if request.method == 'GET':
         return JsonResponse({'items': [_serialize_production_loading(document) for document in queryset.filter(production_target=target)]})
     body = _json_body(request)
@@ -3724,6 +3767,8 @@ def production_loadings_view(request, target):
     raw_lines = body.get('lines')
     if not isinstance(raw_lines, list) or not 1 <= len(raw_lines) <= 100:
         return JsonResponse({'detail': 'Добавьте от 1 до 100 строк загрузки.'}, status=400)
+    if is_bentonite and len(raw_lines) != 1:
+        return JsonResponse({'detail': 'Для загрузки бентонита выберите один материал.'}, status=400)
     lines = []
     for raw_line in raw_lines:
         if not isinstance(raw_line, dict) or type(raw_line.get('item_id')) is not int:
@@ -3740,6 +3785,12 @@ def production_loadings_view(request, target):
         return _production_loading_replay(existing, target, warehouse_id, lines, purpose, user)
     try:
         with transaction.atomic():
+            filter_equipment = None
+            if is_bentonite:
+                lock_oil_line()
+                filter_equipment = active_finishing_filter()
+                if filter_equipment is None:
+                    raise ValueError('Настройте активный финишный фильтр.')
             warehouse = Warehouse.objects.filter(pk=warehouse_id, is_active=True).first()
             if warehouse is None:
                 raise ValueError('Выбранный склад не найден или неактивен.')
@@ -3763,7 +3814,7 @@ def production_loadings_view(request, target):
                 number=_next_warehouse_document_number(WarehouseDocument.TYPE_ISSUE, now),
                 document_type=WarehouseDocument.TYPE_ISSUE, status=WarehouseDocument.STATUS_POSTED,
                 document_date=now, source_warehouse=warehouse, purpose=purpose,
-                production_target=target, idempotency_key=key,
+                production_target=target, production_filter=filter_equipment, idempotency_key=key,
                 created_by=user, posted_by=user, posted_at=now,
             )
             for line in sorted(lines, key=lambda value: value['item_id']):

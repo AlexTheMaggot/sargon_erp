@@ -63,8 +63,8 @@ Staff/член административной группы может виде
 | `canister-loading` | `/production/canister-loading` | `view`, `create`: гранулы и красители со склада в производство канистр |
 | `cap-loading` | `/production/cap-loading` | `view`, `create`: гранулы и красители со склада в производство крышек |
 | `finishing-mixer-loading` | `/processing/finishing-mixer-loading` | `view`, `create`: химмиксер → песочный миксер |
-| `finishing-filter-loading` | `/processing/finishing-filter-loading` | `view`, `create`: песочный миксер → фильтр |
-| `finished-product-loading` | `/processing/finished-product-loading` | `view`, `create`: фильтр → готовый бак соответствующего продукта |
+| `finished-product-loading` | `/processing/finished-product-loading` | `view`, `create`: песочный миксер → готовый бак через финишный фильтр |
+| `bentonite-loading` | `/processing/bentonite-loading` | `view`: история и складской остаток только бентонита; `create`: загрузка фильтра |
 | `concentrate-loading` | `/oil-production/concentrate-loading` | `view`, `create`: реактор, веретенка и складское списание полипропилена; завершение открытой партии |
 | `oil-blending` | `/oil-production/oil-blending` | `view`, `create`: основа + фактически перелитый концентрат в смеситель, марка масла; завершение партии |
 | `oil-tank-loading` | `/oil-production/oil-tank-loading` | `view`, `create`: измеренный перелив из смесителя в бак той же марки |
@@ -200,6 +200,9 @@ DELETE → `delete`, если endpoint поддерживает этот мет�
 - `0057` добавляет начальнику смены `reactor-receivers:view/create`. Право на слив
   каждого продукта остаётся в его прежнем отдельном модуле и не выдаётся автоматически
   через модуль ресиверов.
+- `0058` назначает начальнику смены `bentonite-loading:view/create`, не выдавая
+  `warehouse-accounting` или `warehouse-settings`. Прежний модуль загрузки масла
+  в фильтр деактивируется; право прямого перелива остаётся `finished-product-loading`.
 - `0038` создаёт эту группу только при её отсутствии, сохраняя существующие
   настройки. `0040` добавляет четыре новых модуля масел существующим группам
   «Администраторы»/«Начальник смены» только при первом создании модулей.

@@ -82,7 +82,7 @@ export function DashboardShell({ children, title, onLogout, user }) {
           <img src={shenollLogo} alt="Shenoll ERP" />
           <span>{title}</span>
         </div>
-        <LanguageSwitcher />
+        <LanguageSwitcher variant="flags" />
       </header>
 
       <div

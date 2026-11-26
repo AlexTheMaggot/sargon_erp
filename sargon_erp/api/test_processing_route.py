@@ -20,7 +20,7 @@ class ProcessingRouteTests(TestCase):
                      'raw_spindle_tank', 'chemical_mixer', 'finishing_mixer', 'finishing_filter',
                      'finished_diesel_tank', 'finished_spindle_tank'):
             self.containers[kind] = ProductionContainer.objects.create(
-                kind=kind, number=920, system_code=f'route-{kind}', capacity_liters=1000,
+                kind=kind, number=920, system_code=f'route-{kind}', capacity_liters=None if kind == 'finishing_filter' else 1000,
                 current_volume_liters=100 if kind == 'receiving_tank' else 0,
             )
 
@@ -65,8 +65,7 @@ class ProcessingRouteTests(TestCase):
                 for step, source, destination in (
                     ('chemical-mixer-loading', f'raw_{product}_tank', 'chemical_mixer'),
                     ('finishing-mixer-loading', 'chemical_mixer', 'finishing_mixer'),
-                    ('finishing-filter-loading', 'finishing_mixer', 'finishing_filter'),
-                    ('finished-product-loading', 'finishing_filter', f'finished_{product}_tank'),
+                    ('finished-product-loading', 'finishing_mixer', f'finished_{product}_tank'),
                 ):
                     response = self.oil_post(step, source, destination)
                     self.assertEqual(response.status_code, 201, response.content)
@@ -75,7 +74,7 @@ class ProcessingRouteTests(TestCase):
             container.refresh_from_db()
             expected = '49.750' if kind == 'receiving_tank' else '25.125' if kind.startswith('finished_') else '0.000'
             self.assertEqual(str(container.current_volume_liters), expected, kind)
-        self.assertEqual(MaterialMovement.objects.count(), 14)
+        self.assertEqual(MaterialMovement.objects.count(), 12)
 
     def test_previous_routes_cannot_bypass_new_stages(self):
         for path in ('boiler-to-chemical-mixer', 'chemical-mixer-to-workshop'):
@@ -130,7 +129,7 @@ class ProcessingRouteMigrationTests(TransactionTestCase):
 
     def tearDown(self):
         self.old_apps.get_model('api', 'ProductionContainer').objects.filter(kind='chemical_mixer').update(current_volume_liters=0)
-        MigrationExecutor(connection).migrate([('api', '0057_reactor_receivers')])
+        MigrationExecutor(connection).migrate([('api', '0058_flow_through_finishing_filter')])
         super().tearDown()
 
     def test_nonempty_legacy_mixers_block_migration_without_changing_balances(self):

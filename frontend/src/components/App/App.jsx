@@ -16,6 +16,7 @@ import { receiverModule, receiverPath } from '../../constants/reactorReceivers'
 import { ReactorReceiversPage } from '../../pages/processing/ReactorReceiversPage'
 import { WarehouseCategoriesPage, WarehouseInventoryPage, WarehouseIssuesPage, WarehouseItemsPage, WarehouseOverviewPage, WarehouseReceiptsPage, WarehousesPage, WarehouseTransfersPage, WarehouseUnitsPage } from '../../pages/warehouse/WarehousePages'
 import { ProductionLoadingPage } from '../../pages/warehouse/ProductionLoadingPage'
+import { bentoniteLoadingPath, bentoniteLoadingTarget, productionLoadingConfig } from '../../constants/productionLoading'
 import { ProductionOutputPage } from '../../pages/warehouse/ProductionOutputPage'
 import { OilFinishingPage } from '../../pages/processing/OilFinishingPage'
 import { OilContainersPage } from '../../pages/processing/ProcessingPages'
@@ -169,6 +170,7 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
       <Route path="/laboratory/analyses" element={<ProtectedRoute moduleCode="laboratory-analysis" token={token} user={user}><LaboratoryAnalysesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/processing/boiler-loading" element={<ProtectedRoute moduleCode="boiler-loading" token={token} user={user}><BoilerLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/canister-loading" element={<ProtectedRoute moduleCode="canister-loading" token={token} user={user}><ProductionLoadingPage key="canisters" target="canisters" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path={bentoniteLoadingPath} element={<ProtectedRoute moduleCode={productionLoadingConfig[bentoniteLoadingTarget].moduleCode} token={token} user={user}><ProductionLoadingPage key={bentoniteLoadingTarget} target={bentoniteLoadingTarget} onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/canister-output" element={<ProtectedRoute moduleCode="canister-output" token={token} user={user}><ProductionOutputPage key="canister-output" target="canisters" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/cap-output" element={<ProtectedRoute moduleCode="cap-output" token={token} user={user}><ProductionOutputPage key="cap-output" target="caps" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/cap-loading" element={<ProtectedRoute moduleCode="cap-loading" token={token} user={user}><ProductionLoadingPage key="caps" target="caps" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />

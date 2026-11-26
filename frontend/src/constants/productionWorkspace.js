@@ -2,6 +2,7 @@ import { oilFinishingForms } from './oilFinishing.js'
 import { oilManufacturingConfig } from './oilManufacturing.js'
 import { workshopTankTransfers } from './workshopTankTransfers.js'
 import { receiverModule, receiverPath } from './reactorReceivers.js'
+import { bentoniteLoadingPath, bentoniteLoadingTarget, productionLoadingConfig } from './productionLoading.js'
 
 export const recyclingOperations = [
   { path: '/processing/boiler-loading', label: 'Загрузка котла отработки', moduleCode: 'boiler-loading', group: 'preparation', icon: 'boiler', description: 'Передать масло из приёмного бака в котёл прогрева.' },
@@ -13,10 +14,12 @@ export const recyclingOperations = [
     ...({
       'chemical-mixer-loading': { icon: 'mixer', description: 'Передать сырую солярку или веретенку из бака в химический миксер.' },
       'finishing-mixer-loading': { icon: 'mixer', description: 'Передать масло из химического миксера в песочный миксер.' },
-      'finishing-filter-loading': { icon: 'filter', description: 'Передать масло из песочного миксера на фильтрацию.' },
-      'finished-product-loading': { icon: 'tank', description: 'Заполнить бак готовой солярки или веретенки после фильтра.' },
+      'finished-product-loading': { icon: 'tank', description: 'Перелить масло из песочного миксера в готовый бак через общий фильтр.' },
     })[code],
   })),
+  { path: bentoniteLoadingPath, label: productionLoadingConfig[bentoniteLoadingTarget].title,
+    moduleCode: productionLoadingConfig[bentoniteLoadingTarget].moduleCode, group: 'finishing', icon: 'filter',
+    description: 'Списать бентонит со склада и записать загрузку финишного фильтра.' },
 ]
 
 export const oilOperations = Object.entries(oilManufacturingConfig).map(([code, config]) => ({

@@ -46,6 +46,7 @@ export function ProcessingPageHeader({ description, title }) {
 
 function ContainerPage({ kind, onLogout, token, user }) {
   const isAdmin = Boolean(user?.is_admin)
+  const isFlowFilter = kind === 'finishing_filter'
   const { boilers, chemicalMixers, deleteContainer, error, oilContainers, oilGrades, processingWorkshops, rawDieselTanks, rawSpindleTanks, receivingTanks, saveContainer } = useProcessingCrud(token, { containerKinds: [kind], loadOilGrades: kind === 'finished_oil_tank' })
   const pageConfig = {
     receiving_tank: {
@@ -86,7 +87,7 @@ function ContainerPage({ kind, onLogout, token, user }) {
   }[kind] || {
     containers: oilContainers[kind] || [],
     title: t(oilContainerConfig[kind].title),
-    description: t(oilContainerConfig[kind]?.manufacturing ? 'Оборудование производства товарных масел. Марка непустого продуктового бака неизменна.' : 'Учёт вместимости и остатков на линии финишной очистки.'),
+    description: t(isFlowFilter ? 'Один общий проточный фильтр без вместимости и учётного остатка масла.' : oilContainerConfig[kind]?.manufacturing ? 'Оборудование производства товарных масел. Марка непустого продуктового бака неизменна.' : 'Учёт вместимости и остатков на линии финишной очистки.'),
   }
   const containers = pageConfig.containers
   const controls = useListControls(containers, (item) => [item.number, t(item.name), item.current_volume_liters].join(' '))
@@ -140,7 +141,7 @@ function ContainerPage({ kind, onLogout, token, user }) {
         <article className="access-card">
           <div className="panel-heading">
             <div>
-              <p className="auth-eyebrow">{t('Ёмкости')}</p>
+              <p className="auth-eyebrow">{t(isFlowFilter ? 'Оборудование' : 'Ёмкости')}</p>
               <h3>{title}</h3>
             </div>
             {isAdmin && <button type="button" onClick={openCreateModal}>{t('Создать')}</button>}
@@ -161,7 +162,9 @@ function ContainerPage({ kind, onLogout, token, user }) {
               <div className={`entity-row processing-container-row ${!item.is_active ? 'disabled-row' : ''}`} key={item.id}>
                 <div>
                   <strong>{t(item.name)}</strong>
-                  {kind === 'processing_workshop' ? (
+                  {isFlowFilter ? (
+                    <span>{t('Проточный фильтр')}</span>
+                  ) : kind === 'processing_workshop' ? (
                     <span>{t('Последний фактический замер')}: {item.measured_at ? `${formatVolume(item.measured_liters)} · ${formatDateTime(item.measured_at)}` : t('Нет замера')}</span>
                   ) : item.volume_known === false ? <>
                     <span>{item.active_batch ? item.active_batch.number : t('Нет открытой партии')}</span>
@@ -171,8 +174,10 @@ function ContainerPage({ kind, onLogout, token, user }) {
                   {item.oil_product && <span>{t(item.oil_product === 'diesel' ? 'Солярка' : 'Веретенка')}</span>}
                   {isAdmin && (
                     <>
-                      <span>{t('Вместимость: ')}{formatVolume(item.capacity_liters)}{item.fill_percentage != null && <>{t(' · Свободно: ')}{formatVolume(item.free_volume_liters)}</>}</span>
-                      <span>{item.fill_percentage != null && <>{t('Заполнение: ')}{item.fill_percentage}% · </>}{t('Последнее движение')}: {formatDateTime(item.last_movement_at)}</span>
+                      {!isFlowFilter && <>
+                        <span>{t('Вместимость: ')}{formatVolume(item.capacity_liters)}{item.fill_percentage != null && <>{t(' · Свободно: ')}{formatVolume(item.free_volume_liters)}</>}</span>
+                        <span>{item.fill_percentage != null && <>{t('Заполнение: ')}{item.fill_percentage}% · </>}{t('Последнее движение')}: {formatDateTime(item.last_movement_at)}</span>
+                      </>}
                       <span>{item.is_active ? t('Активна') : t('Деактивирована')}</span>
                       {!isTankPage && Boolean(item.recent_loadings?.length) && (
                         <span>{t('Последние загрузки: ')}{item.recent_loadings.map((movement) => `${formatDateTime(movement.moved_at)} — ${formatVolume(movement.volume_liters)}`).join('; ')}</span>
@@ -186,23 +191,23 @@ function ContainerPage({ kind, onLogout, token, user }) {
                 </div>
               </div>
             ))}
-            {!containers.length && <p className="empty-state">{t('Ёмкости пока не созданы.')}</p>}
+            {!containers.length && <p className="empty-state">{t(isFlowFilter ? 'Фильтр пока не настроен.' : 'Ёмкости пока не созданы.')}</p>}
             {Boolean(containers.length) && !controls.filteredCount && <p className="empty-state">{t('По вашему запросу ничего не найдено.')}</p>}
           </div>
         </article>
       </section>
 
       {isContainerFormOpen && (
-        <Modal title={containerForm.id ? t('Изменить ёмкость') : t('Новая ёмкость')} onClose={() => setIsContainerFormOpen(false)}>
+        <Modal title={isFlowFilter ? t(containerForm.id ? 'Изменить фильтр' : 'Новый фильтр') : t(containerForm.id ? 'Изменить ёмкость' : 'Новая ёмкость')} onClose={() => setIsContainerFormOpen(false)}>
           <form className="crud-form" onSubmit={handleContainerSubmit}>
             <label>
               <span>{t('Номер')}</span>
               <input min="1" required type="number" value={containerForm.number} onChange={(event) => setContainerForm({ ...containerForm, number: event.target.value })} />
             </label>
-            <label>
+            {!isFlowFilter && <label>
               <span>{t('Вместимость, л')}</span>
               <input min="1" required step="1" type="number" value={containerForm.capacity_liters} onChange={(event) => setContainerForm({ ...containerForm, capacity_liters: event.target.value })} />
-            </label>
+            </label>}
             <label className="checkbox-row">
               <input checked={containerForm.is_active} type="checkbox" onChange={(event) => setContainerForm({ ...containerForm, is_active: event.target.checked })} />{t('Активна')}</label>
             {kind === 'finished_oil_tank' && <label><span>{t('Марка масла')}</span><select required value={containerForm.oil_grade_id} onChange={(event) => setContainerForm({ ...containerForm, oil_grade_id: event.target.value })}>
@@ -219,7 +224,7 @@ function ContainerPage({ kind, onLogout, token, user }) {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          entityName={t('ёмкость')}
+          entityName={t(isFlowFilter ? 'фильтр' : 'ёмкость')}
           itemName={t(deleteTarget.name)}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleDelete}
@@ -785,6 +790,8 @@ export function ProcessingJournalPage({ onLogout, token, user }) {
               <option value="workshop_to_raw_spindle_tank">{t('Загрузка бака сырой веретенки')}</option>
               <option value="workshop_to_nigrol_tank">{t('Отгрузка нигрола (прежний маршрут)')}</option>
               {Object.values(oilFinishingForms).map((config) => <option key={config.movementType} value={config.movementType}>{t(config.title)}</option>)}
+              <option value="mixer_to_filter">{t('Загрузка финишного фильтра (прежний маршрут)')}</option>
+              <option value="filter_to_finished_tank">{t('Загрузка бака готовой продукции (прежний маршрут)')}</option>
               <option value="boiler_to_chemical_mixer">{t('Загрузка химического миксера (прежний маршрут)')}</option>
               <option value="chemical_mixer_to_workshop">{t('Загрузка в цех переработки (прежний маршрут)')}</option>
               <option value="raw_to_finishing_mixer">{t('Загрузка песочного миксера (прежний маршрут)')}</option>

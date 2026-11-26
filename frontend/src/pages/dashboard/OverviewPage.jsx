@@ -143,16 +143,8 @@ const FLOW_NODES = {
     name: 'Финишный фильтр',
     shortName: 'Ф',
     stage: 'Контрольная фильтрация',
-    status: 'В работе',
-    statusTone: 'running',
-    throughput: '9 000 л/ч',
-    currentFlow: '6 980 л',
-    description: 'Контрольная фильтрация перед распределением по бакам готовой продукции.',
-    metrics: [
-      ['Отфильтровано', '6 980 л'],
-      ['Перепад давления', '0,7 бар'],
-      ['Ресурс фильтра', '82%'],
-    ],
+    statusTone: 'ready',
+    description: 'Масло проходит из песочного миксера в готовый бак. Фильтр не хранит масло; бентонит учитывается только по загрузкам.',
   },
   finishedSpindleTank: {
     name: 'Бак готовой веретенки',
@@ -635,7 +627,6 @@ function buildRecyclingEquipmentNodes(nodes, summary) {
     ['chemicalMixer', 'chemical_mixer', 'Химический миксер', 'Химические миксеры'],
     ['nigrolTank', 'nigrol_tank', 'Бак нигрола', 'Баки нигрола'],
     ['finishingMixer', 'finishing_mixer', 'Песочный миксер', 'Песочные миксеры'],
-    ['filter', 'finishing_filter', 'Финишный фильтр', 'Финишные фильтры'],
     ['finishedDieselTank', 'finished_diesel_tank', 'Бак готовой солярки', 'Баки готовой солярки'],
     ['finishedSpindleTank', 'finished_spindle_tank', 'Бак готовой веретенки', 'Баки готовой веретенки'],
   ]) {
@@ -649,6 +640,21 @@ function buildRecyclingEquipmentNodes(nodes, summary) {
     node.metrics.push(...items.map((item) => [t(item.name), formatLiveVolume(item.current_volume_liters)]))
     result[nodeId] = node
   }
+  const filter = summary.finishing_filter
+  const lastBentonite = filter?.last_bentonite_kg != null
+    ? `${Number(filter.last_bentonite_kg).toLocaleString(getLocale())} ${t('кг')}`
+    : t('Загрузок пока нет.')
+  result.filter = {
+    ...nodes.filter,
+    name: filter?.name ? t(filter.name) : nodes.filter.name,
+    status: t(filter?.name ? 'Проточный фильтр' : 'Не настроен'),
+    currentFlow: lastBentonite,
+    metrics: [
+      [t('Последняя загрузка бентонита'), lastBentonite],
+      [t('Дата загрузки'), formatLiveDateTime(filter?.last_bentonite_at)],
+    ],
+    isLive: true,
+  }
   return result
 }
 
@@ -657,7 +663,7 @@ function attachReconciliation(nodes, data) {
     ['storageTank', 'receiving_tank'], ['preheater', 'preheating_boiler'],
     ['rawDieselTank', 'raw_diesel_tank'], ['rawSpindleTank', 'raw_spindle_tank'],
     ['nigrolTank', 'nigrol_tank'],
-    ['chemicalMixer', 'chemical_mixer'], ['finishingMixer', 'finishing_mixer'], ['filter', 'finishing_filter'],
+    ['chemicalMixer', 'chemical_mixer'], ['finishingMixer', 'finishing_mixer'],
     ['finishedDieselTank', 'finished_diesel_tank'], ['finishedSpindleTank', 'finished_spindle_tank'],
   ]
   for (const [nodeId, kind] of stageNodes) {
@@ -785,7 +791,7 @@ export function OverviewPage({ onLogout, token, user }) {
         'transmissionOilTank', 'hydraulicOilTank', 'industrialOilTank', 'motorOilTank', 'fillingLine']
       return { ...nodes, ...Object.fromEntries(liveNodeIds.map((nodeId) => [nodeId, {
         ...nodes[nodeId], status: overviewError ? t('Нет данных') : t('Загрузка...'),
-        currentFlow: '—', throughput: '—', metrics: [], dataNote: t('Актуальные показатели ещё не получены.'),
+        currentFlow: '—', throughput: nodeId === 'filter' ? '' : '—', metrics: [], dataNote: t('Актуальные показатели ещё не получены.'),
       }])) }
     }
 

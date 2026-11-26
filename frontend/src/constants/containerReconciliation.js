@@ -13,7 +13,6 @@ export const reconciliationStages = [
   ['nigrol_tank', 'Баки нигрола'],
   ['chemical_mixer', 'Химические миксеры'],
   ['finishing_mixer', 'Песочные миксеры'],
-  ['finishing_filter', 'Финишные фильтры'],
   ['finished_diesel_tank', 'Баки готовой солярки'],
   ['finished_spindle_tank', 'Баки готовой веретенки'],
 ]
