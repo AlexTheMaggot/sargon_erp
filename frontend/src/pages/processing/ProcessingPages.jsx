@@ -34,10 +34,10 @@ const emptyJournalFilters = {
   volume: '',
 }
 
-export function ProcessingPageHeader({ description, title }) {
+export function ProcessingPageHeader({ description, showEyebrow = true, title }) {
   return (
     <section className="page-title access-page-title">
-      <p className="auth-eyebrow">{t('Переработка отработанного масла')}</p>
+      {showEyebrow && <p className="auth-eyebrow">{t('Переработка отработанного масла')}</p>}
       <h1>{title}</h1>
       <p>{description}</p>
     </section>
@@ -314,6 +314,7 @@ export function BoilerLoadingPage({ onLogout, token, user }) {
   return (
     <DashboardShell title={t('Загрузка котла отработки')} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
+        showEyebrow={false}
         title={t('Загрузка котла отработки')}
         description={t('Регистрация движения отработанного масла из приёмного бака в котёл первичного прогрева.')}
       />
@@ -330,38 +331,40 @@ export function BoilerLoadingPage({ onLogout, token, user }) {
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
-            <label>
-              <span>{t('Приёмный бак')}</span>
-              <select required value={form.source_tank_id} onChange={(event) => setForm({ ...form, source_tank_id: event.target.value })}>
-                <option value="">{t('Выберите приёмный бак')}</option>
-                {availableTanks.map((tank) => (
-                  <option key={tank.id} value={tank.id}>{t(tank.name)}{t(' · доступно ')}{formatVolume(tank.current_volume_liters)}</option>
-                ))}
-              </select>
-            </label>
+            <select
+              aria-label={t('Приёмный бак')}
+              required
+              value={form.source_tank_id}
+              onChange={(event) => setForm({ ...form, source_tank_id: event.target.value })}
+            >
+              <option value="">{t('Выберите приёмный бак')}</option>
+              {availableTanks.map((tank) => (
+                <option key={tank.id} value={tank.id}>{t(tank.name)}{t(' · доступно ')}{formatVolume(tank.current_volume_liters)}</option>
+              ))}
+            </select>
 
-            <label>
-              <span>{t('Котёл первичного прогрева')}</span>
-              <select required value={form.destination_boiler_id} onChange={(event) => setForm({ ...form, destination_boiler_id: event.target.value })}>
-                <option value="">{t('Выберите котёл')}</option>
-                {availableBoilers.map((boiler) => (
-                  <option key={boiler.id} value={boiler.id}>{t(boiler.name)}{t(' · сейчас ')}{formatVolume(boiler.current_volume_liters)}</option>
-                ))}
-              </select>
-            </label>
+            <select
+              aria-label={t('Котёл первичного прогрева')}
+              required
+              value={form.destination_boiler_id}
+              onChange={(event) => setForm({ ...form, destination_boiler_id: event.target.value })}
+            >
+              <option value="">{t('Выберите котёл')}</option>
+              {availableBoilers.map((boiler) => (
+                <option key={boiler.id} value={boiler.id}>{t(boiler.name)}{t(' · сейчас ')}{formatVolume(boiler.current_volume_liters)}</option>
+              ))}
+            </select>
 
-            <label>
-              <span>{t('Объём движения, л')}</span>
-              <input
-                min="0.001"
-                placeholder="0.000"
-                required
-                step="0.001"
-                type="number"
-                value={form.volume_liters}
-                onChange={(event) => setForm({ ...form, volume_liters: event.target.value })}
-              />
-            </label>
+            <input
+              aria-label={t('Объём движения, л')}
+              min="0.001"
+              placeholder={t('Объем')}
+              required
+              step="0.001"
+              type="number"
+              value={form.volume_liters}
+              onChange={(event) => setForm({ ...form, volume_liters: event.target.value })}
+            />
 
             {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного приёмного бака.')}</p>}
             {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место выбранного котла.')}</p>}
@@ -469,6 +472,7 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
   return (
     <DashboardShell title={t('Загрузка реактора переработки')} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
+        showEyebrow={false}
         title={t('Загрузка реактора переработки')}
         description={t('Загрузите масло из котла. После загрузки первым открывается ресивер №1.')}
       />
@@ -485,38 +489,40 @@ export function WorkshopLoadingPage({ onLogout, token, user }) {
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
-            <label>
-              <span>{t('Котёл первичного прогрева')}</span>
-              <select required value={form.source_boiler_id} onChange={(event) => setForm({ ...form, source_boiler_id: event.target.value })}>
-                <option value="">{t('Выберите котёл')}</option>
-                {availableBoilers.map((boiler) => (
-                  <option key={boiler.id} value={boiler.id}>{t(boiler.name)}{t(' · доступно ')}{formatVolume(boiler.current_volume_liters)}</option>
-                ))}
-              </select>
-            </label>
+            <select
+              aria-label={t('Котёл первичного прогрева')}
+              required
+              value={form.source_boiler_id}
+              onChange={(event) => setForm({ ...form, source_boiler_id: event.target.value })}
+            >
+              <option value="">{t('Выберите котёл')}</option>
+              {availableBoilers.map((boiler) => (
+                <option key={boiler.id} value={boiler.id}>{t(boiler.name)}{t(' · доступно ')}{formatVolume(boiler.current_volume_liters)}</option>
+              ))}
+            </select>
 
-            <label>
-              <span>{t('Реактор переработки')}</span>
-              <select required value={form.destination_workshop_id} onChange={(event) => setForm({ ...form, destination_workshop_id: event.target.value })}>
-                <option value="">{t('Выберите реактор')}</option>
-                {availableWorkshops.map((workshop) => (
-                  <option key={workshop.id} value={workshop.id}>{t(workshop.name)}</option>
-                ))}
-              </select>
-            </label>
+            <select
+              aria-label={t('Реактор переработки')}
+              required
+              value={form.destination_workshop_id}
+              onChange={(event) => setForm({ ...form, destination_workshop_id: event.target.value })}
+            >
+              <option value="">{t('Выберите реактор')}</option>
+              {availableWorkshops.map((workshop) => (
+                <option key={workshop.id} value={workshop.id}>{t(workshop.name)}</option>
+              ))}
+            </select>
 
-            <label>
-              <span>{t('Объём движения, л')}</span>
-              <input
-                min="0.001"
-                placeholder="0.000"
-                required
-                step="0.001"
-                type="number"
-                value={form.volume_liters}
-                onChange={(event) => setForm({ ...form, volume_liters: event.target.value })}
-              />
-            </label>
+            <input
+              aria-label={t('Объём движения, л')}
+              min="0.001"
+              placeholder={t('Объем')}
+              required
+              step="0.001"
+              type="number"
+              value={form.volume_liters}
+              onChange={(event) => setForm({ ...form, volume_liters: event.target.value })}
+            />
 
             {exceedsSource && <p className="access-error">{t('Указанный объём превышает остаток выбранного котла.')}</p>}
             {exceedsDestination && <p className="access-error">{t('Объём движения превышает вместимость реактора.')}</p>}
@@ -636,6 +642,7 @@ export function WorkshopTankLoadingPage({ config, onLogout, token, user }) {
   return (
     <DashboardShell title={title} onLogout={onLogout} user={user}>
       <ProcessingPageHeader
+        showEyebrow={Boolean(config.receiver)}
         title={title}
         description={t(config.description)}
       />
@@ -652,36 +659,38 @@ export function WorkshopTankLoadingPage({ config, onLogout, token, user }) {
           </div>
 
           <form className="crud-form boiler-loading-form" onSubmit={handleSubmit}>
-            <label>
-              <span>{sourceLabel}</span>
-              <select required value={selectedSource ? form[sourceField] : ''} onChange={(event) => setForm({ ...form, [sourceField]: event.target.value })}>
-                <option value="">{t(config.receiver ? 'Выберите закрытый ресивер' : 'Выберите реактор')}</option>
-                {sources.map((item) => <option key={item.id} value={item.id}>{sourceName(item)}</option>)}
-              </select>
-            </label>
+            <select
+              aria-label={sourceLabel}
+              required
+              value={selectedSource ? form[sourceField] : ''}
+              onChange={(event) => setForm({ ...form, [sourceField]: event.target.value })}
+            >
+              <option value="">{t(config.receiver ? 'Выберите закрытый ресивер' : 'Выберите реактор')}</option>
+              {sources.map((item) => <option key={item.id} value={item.id}>{sourceName(item)}</option>)}
+            </select>
 
-            <label>
-              <span>{t(config.tankLabel)}</span>
-              <select required value={form.destination_tank_id} onChange={(event) => setForm({ ...form, destination_tank_id: event.target.value })}>
-                <option value="">{t('Выберите бак')}</option>
-                {availableTanks.map((tank) => (
-                  <option key={tank.id} value={tank.id}>{t(tank.name)}{t(' · сейчас ')}{formatVolume(tank.current_volume_liters)}</option>
-                ))}
-              </select>
-            </label>
+            <select
+              aria-label={t(config.tankLabel)}
+              required
+              value={form.destination_tank_id}
+              onChange={(event) => setForm({ ...form, destination_tank_id: event.target.value })}
+            >
+              <option value="">{t('Выберите бак')}</option>
+              {availableTanks.map((tank) => (
+                <option key={tank.id} value={tank.id}>{t(tank.name)}{t(' · сейчас ')}{formatVolume(tank.current_volume_liters)}</option>
+              ))}
+            </select>
 
-            <label>
-              <span>{t('Объём движения, л')}</span>
-              <input
-                min="0.001"
-                placeholder="0.000"
-                required
-                step="0.001"
-                type="number"
-                value={form.volume_liters}
-                onChange={(event) => setForm({ ...form, volume_liters: event.target.value })}
-              />
-            </label>
+            <input
+              aria-label={t('Объём движения, л')}
+              min="0.001"
+              placeholder={t('Объем')}
+              required
+              step="0.001"
+              type="number"
+              value={form.volume_liters}
+              onChange={(event) => setForm({ ...form, volume_liters: event.target.value })}
+            />
 
             {exceedsSource && <p className="access-error">{t('Объём движения превышает вместимость реактора.')}</p>}
             {exceedsDestination && <p className="access-error">{t('Указанный объём превышает свободное место выбранного бака.')}</p>}

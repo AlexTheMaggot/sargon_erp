@@ -318,7 +318,9 @@ export function WarehouseItemsPage({ onLogout, token, user }) {
           })}>{productionProductOptions.map((option) => <option key={option.code} value={option.code}>{t(option.label)}</option>)}</select></label>
           {form.production_material && <fieldset className="production-warehouse-options">
             <legend>{t('Постоянные склады')}</legend>
-            <p>{t('Позиция видна на выбранных складах даже при нулевом остатке. Единица измерения — кг.')}</p>
+            <p>{t(form.production_material === 'acid'
+              ? 'Позиция видна на выбранных складах даже при нулевом остатке. Единица измерения — литры.'
+              : 'Позиция видна на выбранных складах даже при нулевом остатке. Единица измерения — кг.')}</p>
             {warehouses.filter((warehouse) => warehouse.is_active).map((warehouse) => <label className="checkbox-row" key={warehouse.id}><input type="checkbox" checked={form.permanent_warehouse_ids.includes(warehouse.id)} onChange={(event) => setForm({ ...form, permanent_warehouse_ids: event.target.checked ? [...form.permanent_warehouse_ids, warehouse.id] : form.permanent_warehouse_ids.filter((id) => id !== warehouse.id) })} /><span>{warehouse.name}</span></label>)}
             {!warehouses.some((warehouse) => warehouse.is_active) && <p>{t('Сначала создайте активный склад.')}</p>}
           </fieldset>}

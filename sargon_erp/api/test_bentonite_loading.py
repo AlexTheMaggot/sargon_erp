@@ -134,7 +134,7 @@ class FlowFilterMigrationTests(TransactionTestCase):
         self.old.get_model('api', 'ProductionContainer').objects.filter(kind='finishing_filter').update(
             current_volume_liters=0, oil_product='',
         )
-        MigrationExecutor(connection).migrate([FLOW_FILTER_MIGRATION])
+        MigrationExecutor(connection).migrate([('api', '0059_chemical_mixer_reagents')])
         super().tearDown()
 
     def test_existing_oil_blocks_migration_and_empty_filter_keeps_its_history(self):

@@ -1,0 +1,91 @@
+.dashboard-page.production-operation {
+  padding-block: 16px;
+}
+
+.production-operation .app-topbar {
+  margin-bottom: 12px;
+  padding-block: 8px;
+}
+
+.production-operation .page-title {
+  padding: 14px 18px;
+}
+
+.production-operation .page-title h1 {
+  margin-bottom: 6px;
+  font-size: clamp(1.375rem, 3vw, 1.75rem);
+}
+
+.production-operation .page-title .auth-eyebrow {
+  margin-bottom: 4px;
+}
+
+.production-operation .access-card {
+  padding: 14px 16px;
+}
+
+.production-operation .panel-heading {
+  margin-bottom: 0;
+}
+
+.production-operation .panel-heading h3,
+.production-operation .access-card > :is(h2, h3, p),
+.production-operation fieldset > :is(h4, p) {
+  margin-block: 0;
+}
+
+.production-operation :is(.boiler-loading-form, .oil-finishing-fields, .production-loading-fields) {
+  gap: 10px;
+}
+
+.production-operation .crud-form label {
+  min-width: 0;
+  gap: 6px;
+}
+
+.production-operation .crud-form textarea {
+  min-height: 62px;
+}
+
+.production-operation .empty-state {
+  padding: 8px 12px;
+}
+
+.production-operation .production-details {
+  display: block;
+  padding: 0;
+}
+
+.production-details > summary {
+  padding: 10px 16px;
+  color: #0f3f31;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.production-details > summary:focus-visible {
+  outline: 3px solid #3b9276;
+  outline-offset: 2px;
+}
+
+.production-details-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 14px;
+}
+
+.production-mode-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 761px) {
+  .production-operation .oil-manufacturing-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .oil-manufacturing-fields > :not(label) {
+    grid-column: 1 / -1;
+  }
+}

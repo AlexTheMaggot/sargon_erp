@@ -22,7 +22,7 @@ class RemoveSecondChemicalMixerTests(TransactionTestCase):
 
     def tearDown(self):
         self.model('ProductionContainer').objects.filter(pk=self.mixer.pk).update(current_volume_liters=0, oil_product='')
-        MigrationExecutor(connection).migrate([('api', '0058_flow_through_finishing_filter')])
+        MigrationExecutor(connection).migrate([('api', '0059_chemical_mixer_reagents')])
         super().tearDown()
 
     def model(self, name):

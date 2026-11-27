@@ -12,15 +12,18 @@ export const oilFinishingForms = {
   'chemical-mixer-loading': {
     title: 'Загрузка химического миксера',
     sources: ['raw_diesel_tank', 'raw_spindle_tank'], destinations: ['chemical_mixer'], movementType: 'raw_to_chemical_mixer',
+    fieldPrompts: { source: 'Выберите бак сырой продукции', destination: 'Выберите химический миксер' },
   },
   'finishing-mixer-loading': {
     title: 'Загрузка песочного миксера',
     sources: ['chemical_mixer'], destinations: ['finishing_mixer'], movementType: 'chemical_to_finishing_mixer',
+    fieldPrompts: { source: 'Выберите химический миксер', destination: 'Выберите песочный миксер' },
   },
   'finished-product-loading': {
     title: 'Перелив через финишный фильтр',
     sources: ['finishing_mixer'], destinations: ['finished_diesel_tank', 'finished_spindle_tank'], movementType: 'mixer_to_finished_tank',
     viaFilter: true,
+    fieldPrompts: { source: 'Выберите песочный миксер', destination: 'Выберите бак готовой продукции' },
   },
 }
 

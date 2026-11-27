@@ -24,11 +24,6 @@
   outline-offset: 2px;
 }
 
-.auth-card > .language-switcher {
-  justify-content: flex-end;
-  margin-bottom: 1rem;
-}
-
 .language-switcher--flags {
   gap: 8px;
 }

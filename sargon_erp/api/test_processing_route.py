@@ -129,7 +129,7 @@ class ProcessingRouteMigrationTests(TransactionTestCase):
 
     def tearDown(self):
         self.old_apps.get_model('api', 'ProductionContainer').objects.filter(kind='chemical_mixer').update(current_volume_liters=0)
-        MigrationExecutor(connection).migrate([('api', '0058_flow_through_finishing_filter')])
+        MigrationExecutor(connection).migrate([('api', '0059_chemical_mixer_reagents')])
         super().tearDown()
 
     def test_nonempty_legacy_mixers_block_migration_without_changing_balances(self):

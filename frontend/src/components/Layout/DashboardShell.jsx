@@ -6,6 +6,7 @@ import { navItems } from '../../constants/navigation'
 import { LanguageSwitcher } from '../LanguageSwitcher/LanguageSwitcher'
 import { productionSections, productionSectionForPath, usesProductionWorkspace } from '../../constants/productionWorkspace'
 import { ProductionBreadcrumbs } from '../Production/ProductionBreadcrumbs'
+import '../Production/ProductionOperation.css'
 
 function canViewModule(user, moduleCode) {
   if (!moduleCode) {
@@ -65,7 +66,7 @@ export function DashboardShell({ children, title, onLogout, user }) {
   }
 
   return (
-    <main className="dashboard-page">
+    <main className={operationSection ? 'dashboard-page production-operation' : 'dashboard-page'}>
       <header className="app-topbar">
         <button
           className="burger-button"

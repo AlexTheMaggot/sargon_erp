@@ -14,7 +14,7 @@ export const emptyOilManufacturingForms = {
 }
 export const emptyInventoryItemForm = { id: null, name: '', category_id: '', unit_id: '', is_active: true, production_material: '', production_product: '', permanent_warehouse_ids: [] }
 export const emptyProductionOutputForm = { note: '', lines: [{ item_id: '', disposition: 'good', quantity: '' }], material_usages: [{ source_movement_id: '', quantity: '' }] }
-export const emptyProductionLoadingForm = { source_warehouse_id: '', purpose: '', lines: [{ item_id: '', quantity: '' }] }
+export const emptyProductionLoadingForm = { source_warehouse_id: '', mixer_id: '', purpose: '', lines: [{ item_id: '', quantity: '' }] }
 export const emptyKnowledgeArticleForm = { id: null, title: '', category_id: '', summary: '', content: '' }
 export const emptyKnowledgeCategoryForm = { id: null, name: '', description: '' }
 export const emptyReceiptForm = { id: null, supplier_id: '', input_quantity: '', input_unit: 'liters', can_set_quantity: false, can_complete: false, is_completed: false, is_locked: false, is_existing: false, batches: [] }

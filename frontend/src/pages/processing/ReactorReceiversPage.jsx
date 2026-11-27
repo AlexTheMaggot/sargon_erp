@@ -10,15 +10,8 @@ import { ProcessingPageHeader } from './ProcessingPages'
 import { createIdempotencyKey, formatDateTime, formatVolume } from './processingFormat'
 import './ReactorReceiversPage.css'
 
-function runDuration(run) {
-  if (!run.closed_at) return '—'
-  const seconds = Math.floor((Date.parse(run.closed_at) - Date.parse(run.opened_at)) / 1000)
-  return t`${Math.floor(seconds / 60)} мин ${seconds % 60} с`
-}
-
 export function ReactorReceiversPage({ onLogout, token, user }) {
   const [reactorId, setReactorId] = useState('')
-  const [page, setPage] = useState(1)
   const [refresh, setRefresh] = useState(0)
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -27,19 +20,19 @@ export function ReactorReceiversPage({ onLogout, token, user }) {
   const [decisionError, setDecisionError] = useState('')
   const canRecord = user?.is_admin || user?.access?.[receiverModule]?.includes('create')
   const reactor = !reactorId || String(data?.reactor?.id) === reactorId ? data?.reactor : null
+  const selectedReactorId = reactorId || String(reactor?.id ?? '')
 
   useEffect(() => {
     const controller = new AbortController()
-    const params = new URLSearchParams({ page: String(page) })
-    if (reactorId) params.set('reactor_id', reactorId)
-    apiRequest(`${receiverApi}?${params}`, token, { signal: controller.signal })
+    const url = reactorId ? `${receiverApi}?${new URLSearchParams({ reactor_id: reactorId })}` : receiverApi
+    apiRequest(url, token, { signal: controller.signal })
       .then((result) => {
         setData(result)
         setError('')
       })
       .catch((failure) => { if (!controller.signal.aborted) setError(failure.message) })
     return () => controller.abort()
-  }, [page, reactorId, refresh, token])
+  }, [reactorId, refresh, token])
 
   function confirmAction(action, number, run) {
     setDecisionError('')
@@ -54,7 +47,6 @@ export function ReactorReceiversPage({ onLogout, token, user }) {
     try {
       await apiRequest(receiverApi, token, { method: 'POST', body: JSON.stringify(decision) })
       setDecision(null)
-      setPage(1)
     } catch (failure) {
       setDecisionError(failure.message)
     } finally {
@@ -70,13 +62,23 @@ export function ReactorReceiversPage({ onLogout, token, user }) {
       {error && <p className="access-error" role="alert">{t(error)}</p>}
       <section className="access-card receiver-control">
         <div className="panel-heading">
-          <label className="receiver-picker">
-            <span>{t('Реактор переработки')}</span>
-            <select value={reactorId || reactor?.id || ''} onChange={(event) => { setReactorId(event.target.value); setPage(1) }}>
-              {!data?.reactors.length && <option value="">{t('Нет активных реакторов переработки.')}</option>}
-              {data?.reactors.map((item) => <option key={item.id} value={item.id}>{t(item.name)}</option>)}
-            </select>
-          </label>
+          <fieldset className="receiver-picker">
+            <legend>{t('Реактор переработки')}</legend>
+            {data?.reactors.length ? (
+              <div className="unit-radio-group">
+                {data.reactors.map((item) => {
+                  const value = String(item.id)
+                  const isSelected = value === selectedReactorId
+                  return (
+                    <label className={isSelected ? 'active' : undefined} key={item.id}>
+                      <input type="radio" name="reactor" value={value} checked={isSelected} onChange={(event) => setReactorId(event.target.value)} />
+                      {t(item.name)}
+                    </label>
+                  )
+                })}
+              </div>
+            ) : !error && <p className="empty-state">{t(data ? 'Нет активных реакторов переработки.' : 'Загрузка…')}</p>}
+          </fieldset>
           <button className="secondary-button" type="button" onClick={() => setRefresh((previous) => previous + 1)}>{t('Обновить')}</button>
         </div>
         {reactor && <>
@@ -104,25 +106,6 @@ export function ReactorReceiversPage({ onLogout, token, user }) {
           </div>
         </>}
       </section>
-
-      {reactor && <section className="access-card receiver-control">
-        <h2>{t('Журнал ресиверов')}</h2>
-        {!data.history.length && <p className="empty-state">{t('Открытия ресиверов пока не записаны.')}</p>}
-        <ul className="receiver-history">
-          {data.history.map((run) => <li key={run.id}>
-            <strong>{t`Ресивер №${run.number}`} · {t(receiverStatuses[run.status])}</strong>
-            <span>{t('Открыт')}: {formatDateTime(run.opened_at, true)} {run.opened_by}</span>
-            {run.closed_at && <>
-              <span>{t('Закрыт')}: {formatDateTime(run.closed_at, true)} {run.closed_by}</span>
-              <span>{t('Длительность открытия')}: {runDuration(run)}</span>
-            </>}
-          </li>)}
-        </ul>
-        {data.page_count > 1 && <div className="form-actions">
-          <button className="secondary-button" disabled={data.page <= 1} type="button" onClick={() => setPage(data.page - 1)}>{t('Назад')}</button>
-          <button className="secondary-button" disabled={data.page >= data.page_count} type="button" onClick={() => setPage(data.page + 1)}>{t('Далее')}</button>
-        </div>}
-      </section>}
 
       {decision && <Modal title={t(decision.action === 'open' ? 'Подтвердить открытие ресивера?' : 'Подтвердить закрытие ресивера?')} onClose={() => { if (!busy) setDecision(null) }}>
         <form className="crud-form" onSubmit={submitAction}>

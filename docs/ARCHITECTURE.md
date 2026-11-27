@@ -129,6 +129,10 @@ MaterialMovement → 0..1 компенсируемое MaterialMovement
   `MaterialMovement.via_filter` связывает прямой перелив с фильтром, а
   `WarehouseDocument.production_filter` — независимую загрузку бентонита.
   Откат к схеме с вместимостью действующего фильтра требует резервной копии.
+- `0059` добавляет роль номенклатуры `acid` в литрах и связь складского расхода
+  `WarehouseDocument.production_mixer` с химическим миксером. Кислота и бентонит
+  используют раздельные назначения документа и один модуль. Номенклатура и
+  остатки на конкретном складе не создаются миграцией.
 - «Песочный миксер» — отображаемое имя типа `finishing_mixer` и модуля
   `finishing-mixer-loading`. Маршруты и права не изменены. Исторические снимки
   хранят исходный текст; API показывает актуальное имя, а журнал ищет по обоим.
@@ -276,10 +280,12 @@ WarehouseDocumentSequence → номер по типу документа и г�
 | Деталь ёмкости | `processing/containers/<id>/` |
 | Сверка ёмкостей | `processing/container-reconciliations/`: GET — ёмкости и история, POST — новая сверка или версия; GET `<id>/` — подробности |
 | Ресиверы реактора | `processing/receiver-runs/`: GET — очередь, состояния и история; POST — подтверждение открытия/закрытия. В прежних маршрутах загрузки сырых баков GET возвращает закрытые ресиверы нужного продукта, POST принимает `receiver_run_id` |
+| Выгрузка из химмиксера | `processing/chemical-mixer-discharges/`: GET — активные миксеры; POST — независимая запись `ChemicalMixerDischarge` и аудит. Не создаёт движения масла или складские документы |
 | Движения | `tank-to-boiler/`, `boiler-to-workshop/`, `workshop-to-raw-diesel-tank/`, `workshop-to-raw-spindle-tank/`, `workshop-to-nigrol-tank/` — все под `processing/movements/` |
 | Финишная очистка | `processing/oil-containers/{finishing-mixers,finishing-filters,finished-diesel-tanks,finished-spindle-tanks}/`: GET/POST; изменение/удаление через общий `processing/containers/<id>/` |
 | Движения финишной очистки | `processing/oil-movements/{chemical-mixer-loading,finishing-mixer-loading,finished-product-loading}/`: POST; GET — история соответствующей операции по 10 записей. Последняя операция проводится из песочного миксера в бак через общий фильтр |
 | Бентонит | `warehouse/production-loadings/bentonite_filter/`: GET — история, POST — загрузка; `reference-data/` — активный фильтр и закреплённый материал в кг на подходящих складах |
+| Реагенты химмиксера | `warehouse/production-loadings/{chemical_acid,chemical_bentonite}/`: GET — раздельная история, POST — списание одного материала с `mixer_id`; `reference-data/` — активные химмиксеры и остаток выбранного материала |
 | Производство масел | `oil-production/operations/{concentrate-loading,oil-blending,oil-tank-loading,oil-filling}/`: GET — справочные данные/история, POST — проведение |
 | Партии масел | `oil-production/batches/<id>/{complete,cancel}/`: POST; отмена только администратором |
 | Оборудование масел | `oil-production/containers/{concentrate-reactors,oil-blenders,finished-oil-tanks}/`: GET/POST; общий `processing/containers/<id>/` для изменения и удаления |

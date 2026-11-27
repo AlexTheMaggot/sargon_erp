@@ -65,6 +65,8 @@ Staff/член административной группы может виде
 | `finishing-mixer-loading` | `/processing/finishing-mixer-loading` | `view`, `create`: химмиксер → песочный миксер |
 | `finished-product-loading` | `/processing/finished-product-loading` | `view`, `create`: песочный миксер → готовый бак через финишный фильтр |
 | `bentonite-loading` | `/processing/bentonite-loading` | `view`: история и складской остаток только бентонита; `create`: загрузка фильтра |
+| `chemical-mixer-reagents` | `/processing/chemical-mixer-reagents` | `view`: активные миксеры, остатки и история двух реагентов; `create`: раздельные списания в миксер |
+| `chemical-mixer-discharges` | `/processing/chemical-mixer-discharges` | `view`: названия активных химмиксеров; `create`: запись выгрузки воды или мусора. Оба права у начальника смены |
 | `concentrate-loading` | `/oil-production/concentrate-loading` | `view`, `create`: реактор, веретенка и складское списание полипропилена; завершение открытой партии |
 | `oil-blending` | `/oil-production/oil-blending` | `view`, `create`: основа + фактически перелитый концентрат в смеситель, марка масла; завершение партии |
 | `oil-tank-loading` | `/oil-production/oil-tank-loading` | `view`, `create`: измеренный перелив из смесителя в бак той же марки |
@@ -203,6 +205,8 @@ DELETE → `delete`, если endpoint поддерживает этот мет�
 - `0058` назначает начальнику смены `bentonite-loading:view/create`, не выдавая
   `warehouse-accounting` или `warehouse-settings`. Прежний модуль загрузки масла
   в фильтр деактивируется; право прямого перелива остаётся `finished-product-loading`.
+- `0059` добавляет начальнику смены права просмотра и оформления реагентов
+  в химический миксер, без прав общего склада и без расширения доступа к настройкам.
 - `0038` создаёт эту группу только при её отсутствии, сохраняя существующие
   настройки. `0040` добавляет четыре новых модуля масел существующим группам
   «Администраторы»/«Начальник смены» только при первом создании модулей.

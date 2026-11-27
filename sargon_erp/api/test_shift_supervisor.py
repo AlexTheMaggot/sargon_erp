@@ -26,7 +26,7 @@ class ShiftSupervisorTests(TestCase):
             'boiler-loading', 'chemical-mixer-loading', 'workshop-loading',
             'raw-diesel-tank-loading', 'raw-spindle-tank-loading', 'finishing-mixer-loading',
             'nigrol-loading', 'reactor-receivers',
-            'bentonite-loading', 'finished-product-loading',
+            'bentonite-loading', 'chemical-mixer-reagents', 'chemical-mixer-discharges', 'finished-product-loading',
             'canister-loading', 'cap-loading', 'canister-output', 'cap-output',
         }
         operations.update(MANUFACTURING_STEPS)
@@ -46,6 +46,7 @@ class ShiftSupervisorTests(TestCase):
         for path in (
             '/api/processing/receiving-tanks/', '/api/processing/preheating-boilers/',
             '/api/processing/chemical-mixers/',
+            '/api/processing/chemical-mixer-discharges/',
             '/api/processing/workshops/', '/api/processing/raw-diesel-tanks/', '/api/processing/raw-spindle-tanks/',
             '/api/processing/nigrol-tanks/',
             '/api/processing/receiver-runs/',
@@ -59,6 +60,7 @@ class ShiftSupervisorTests(TestCase):
                 self.assertEqual(self.client.get(path, **self.headers).status_code, 200)
         for path in (
             '/api/processing/movements/tank-to-boiler/',
+            '/api/processing/chemical-mixer-discharges/',
             '/api/processing/movements/boiler-to-workshop/',
             '/api/processing/movements/workshop-to-raw-diesel-tank/', '/api/processing/movements/workshop-to-raw-spindle-tank/',
             '/api/processing/movements/workshop-to-nigrol-tank/',

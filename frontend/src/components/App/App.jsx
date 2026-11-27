@@ -14,9 +14,11 @@ import { BoilerLoadingPage, ChemicalMixersPage, NigrolTanksPage, PreheatingBoile
 import { workshopTankTransfers } from '../../constants/workshopTankTransfers'
 import { receiverModule, receiverPath } from '../../constants/reactorReceivers'
 import { ReactorReceiversPage } from '../../pages/processing/ReactorReceiversPage'
+import { ChemicalMixerDischargesPage } from '../../pages/processing/ChemicalMixerDischargesPage'
+import { chemicalMixerDischarges } from '../../constants/chemicalMixerDischarges'
 import { WarehouseCategoriesPage, WarehouseInventoryPage, WarehouseIssuesPage, WarehouseItemsPage, WarehouseOverviewPage, WarehouseReceiptsPage, WarehousesPage, WarehouseTransfersPage, WarehouseUnitsPage } from '../../pages/warehouse/WarehousePages'
-import { ProductionLoadingPage } from '../../pages/warehouse/ProductionLoadingPage'
-import { bentoniteLoadingPath, bentoniteLoadingTarget, productionLoadingConfig } from '../../constants/productionLoading'
+import { ChemicalMixerReagentsPage, ProductionLoadingPage } from '../../pages/warehouse/ProductionLoadingPage'
+import { bentoniteLoadingPath, bentoniteLoadingTarget, chemicalMixerReagents, productionLoadingConfig } from '../../constants/productionLoading'
 import { ProductionOutputPage } from '../../pages/warehouse/ProductionOutputPage'
 import { OilFinishingPage } from '../../pages/processing/OilFinishingPage'
 import { OilContainersPage } from '../../pages/processing/ProcessingPages'
@@ -86,28 +88,26 @@ function LoginPage({ onLogin }) {
   return (
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="login-title">
-        <LanguageSwitcher variant="flags" />
-        <div className="brand-block">
+        <div className="auth-card-header">
           <img className="brand-logo" src={shenollLogo} alt="Shenoll ERP" />
-          <h1 id="login-title">{t('Вход в систему')}</h1>
+          <LanguageSwitcher variant="flags" />
         </div>
+        <h1 id="login-title">{t('Вход в систему')}</h1>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <label>
-            {t('Логин')}
-            <select
-              aria-describedby={loginOptionsHint ? 'login-options-hint' : undefined}
-              autoComplete="username"
-              disabled={isLoading || !logins.length}
-              name="username"
-              onChange={(event) => setUsername(event.target.value)}
-              required
-              value={username}
-            >
-              <option disabled value="">{t(isLoadingLogins ? 'Загрузка списка логинов...' : 'Выберите логин')}</option>
-              {logins.map((login) => <option key={login} value={login}>{login}</option>)}
-            </select>
-          </label>
+          <select
+            aria-label={t('Логин')}
+            aria-describedby={loginOptionsHint ? 'login-options-hint' : undefined}
+            autoComplete="username"
+            disabled={isLoading || !logins.length}
+            name="username"
+            onChange={(event) => setUsername(event.target.value)}
+            required
+            value={username}
+          >
+            <option disabled value="">{t(isLoadingLogins ? 'Загрузка списка логинов...' : 'Логин')}</option>
+            {logins.map((login) => <option key={login} value={login}>{login}</option>)}
+          </select>
           {loginOptionsHint && (
             <div className="login-options-status">
               <p className="login-options-hint" id="login-options-hint" role="status">{t(loginOptionsHint)}</p>
@@ -115,14 +115,15 @@ function LoginPage({ onLogin }) {
             </div>
           )}
 
-          <label>{t('Пароль')}<input
-              autoComplete="current-password"
-              name="password"
-              onChange={(event) => setPassword(event.target.value)}
-              type="password"
-              value={password}
-            />
-          </label>
+          <input
+            aria-label={t('Пароль')}
+            autoComplete="current-password"
+            name="password"
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder={t('Пароль')}
+            type="password"
+            value={password}
+          />
 
           {error && <p className="auth-error">{t(error)}</p>}
 
@@ -171,6 +172,8 @@ function AppRoutes({ onLogin, onLogout, token, user }) {
       <Route path="/processing/boiler-loading" element={<ProtectedRoute moduleCode="boiler-loading" token={token} user={user}><BoilerLoadingPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/canister-loading" element={<ProtectedRoute moduleCode="canister-loading" token={token} user={user}><ProductionLoadingPage key="canisters" target="canisters" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path={bentoniteLoadingPath} element={<ProtectedRoute moduleCode={productionLoadingConfig[bentoniteLoadingTarget].moduleCode} token={token} user={user}><ProductionLoadingPage key={bentoniteLoadingTarget} target={bentoniteLoadingTarget} onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path={chemicalMixerReagents.path} element={<ProtectedRoute moduleCode={chemicalMixerReagents.moduleCode} token={token} user={user}><ChemicalMixerReagentsPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
+      <Route path={chemicalMixerDischarges.path} element={<ProtectedRoute moduleCode={chemicalMixerDischarges.moduleCode} token={token} user={user}><ChemicalMixerDischargesPage onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/canister-output" element={<ProtectedRoute moduleCode="canister-output" token={token} user={user}><ProductionOutputPage key="canister-output" target="canisters" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/cap-output" element={<ProtectedRoute moduleCode="cap-output" token={token} user={user}><ProductionOutputPage key="cap-output" target="caps" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />
       <Route path="/production/cap-loading" element={<ProtectedRoute moduleCode="cap-loading" token={token} user={user}><ProductionLoadingPage key="caps" target="caps" onLogout={onLogout} token={token} user={user} /></ProtectedRoute>} />

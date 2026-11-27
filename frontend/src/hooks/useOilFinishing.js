@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../api/client'
 import { oilContainerApiPath, oilFinishingForms } from '../constants/oilFinishing'
 
-export function useOilFinishing(token, step, page) {
+export function useOilFinishing(token, step) {
   const [sources, setSources] = useState([])
   const [destinations, setDestinations] = useState([])
-  const [history, setHistory] = useState({ items: [], total: 0, page: 1, page_count: 1 })
+  const [lineStatus, setLineStatus] = useState({ filterName: '', lineProduct: '' })
   const [error, setError] = useState('')
   const sequence = useRef(0)
   const config = oilFinishingForms[step]
@@ -13,20 +13,20 @@ export function useOilFinishing(token, step, page) {
   const reload = useCallback(async () => {
     const request = ++sequence.current
     try {
-      const [sourceData, destinationData, historyData] = await Promise.all([
+      const [sourceData, destinationData, movementData] = await Promise.all([
         Promise.all(config.sources.map((kind) => apiRequest(oilContainerApiPath(kind), token))),
         Promise.all(config.destinations.map((kind) => apiRequest(oilContainerApiPath(kind), token))),
-        apiRequest(`${url}?page=${page}`, token),
+        apiRequest(url, token),
       ])
       if (request !== sequence.current) return
       setSources(sourceData.flatMap((data) => data.items))
       setDestinations(destinationData.flatMap((data) => data.items))
-      setHistory(historyData)
+      setLineStatus({ filterName: movementData.filter_name, lineProduct: movementData.line_product })
       setError('')
     } catch (loadError) {
       if (request === sequence.current) setError(loadError.message)
     }
-  }, [config, page, token, url])
+  }, [config, token, url])
   useEffect(() => {
     const initialTimer = window.setTimeout(reload, 0)
     const timer = window.setInterval(reload, 15000)
@@ -49,5 +49,5 @@ export function useOilFinishing(token, step, page) {
       return null
     }
   }
-  return { sources, destinations, history, error, submit }
+  return { sources, destinations, ...lineStatus, error, submit }
 }

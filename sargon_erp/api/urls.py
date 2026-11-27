@@ -33,6 +33,7 @@ from .views import compensate_movement_view
 from .views import processing_journal_view
 from .views import production_overview_view
 from .views import chemical_mixers_view
+from .views import chemical_mixer_discharges_view
 from .views import boiler_to_workshop_movements_view
 from .views import processing_workshops_view
 from .views import raw_diesel_tanks_view
@@ -96,6 +97,7 @@ urlpatterns = [
     path('processing/receiving-tanks/', receiving_tanks_view, name='processing-receiving-tanks'),
     path('processing/preheating-boilers/', preheating_boilers_view, name='processing-preheating-boilers'),
     path('processing/chemical-mixers/', chemical_mixers_view, name='processing-chemical-mixers'),
+    path('processing/chemical-mixer-discharges/', chemical_mixer_discharges_view, name='processing-chemical-mixer-discharges'),
     path('processing/workshops/', processing_workshops_view, name='processing-workshops'),
     path('processing/receiver-runs/', reactor_receivers_view, name='processing-receiver-runs'),
     path('processing/raw-diesel-tanks/', raw_diesel_tanks_view, name='processing-raw-diesel-tanks'),

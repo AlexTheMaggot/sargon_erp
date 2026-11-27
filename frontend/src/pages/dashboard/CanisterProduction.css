@@ -53,7 +53,7 @@
   gap: 12px;
   border-bottom: 1px solid #dce9e2;
   background: #fff;
-  padding: 16px 20px;
+  padding: 16px 10px;
 }
 
 .packaging-line-number {
@@ -90,7 +90,7 @@
 
 .packaging-map-scroll {
   overflow-x: auto;
-  padding: 20px;
+  padding: 10px;
 }
 
 .packaging-map-scroll:focus-visible {

@@ -29,6 +29,7 @@ from .auth import create_access_token
 from .auth import get_user_from_token
 from .consumers import OPERATIONS_GROUP
 from .models import AccessGroup
+from .models import ChemicalMixerDischarge
 from .models import City
 from .models import GroupModuleAccess
 from .models import LaboratoryAnalysis
@@ -76,6 +77,8 @@ MODULE_RAW_DIESEL_TANK_LOADING = 'raw-diesel-tank-loading'
 MODULE_RAW_SPINDLE_TANK_LOADING = 'raw-spindle-tank-loading'
 MODULE_NIGROL_LOADING = 'nigrol-loading'
 MODULE_BENTONITE_LOADING = 'bentonite-loading'
+MODULE_CHEMICAL_REAGENTS = 'chemical-mixer-reagents'
+MODULE_CHEMICAL_DISCHARGES = 'chemical-mixer-discharges'
 MODULE_WAREHOUSE_ACCOUNTING = 'warehouse-accounting'
 MODULE_WAREHOUSE_SETTINGS = 'warehouse-settings'
 MODULE_KNOWLEDGE_BASE = 'knowledge-base'
@@ -92,6 +95,8 @@ PROCESSING_FORM_MODULE_CODES = {
     MODULE_RAW_SPINDLE_TANK_LOADING,
     MODULE_NIGROL_LOADING,
     MODULE_BENTONITE_LOADING,
+    MODULE_CHEMICAL_REAGENTS,
+    MODULE_CHEMICAL_DISCHARGES,
     MODULE_REACTOR_RECEIVERS,
 }
 PROCESSING_FORM_MODULE_CODES.update(OIL_FINISHING_STEPS)
@@ -646,6 +651,7 @@ def _container_has_movements(container):
         or container.oil_batches.exists() or container.measurements.exists()
         or (container.kind == ProductionContainer.KIND_FINISHING_FILTER
             and (container.filtered_movements.exists() or container.filter_material_documents.exists()))
+        or (container.kind == ProductionContainer.KIND_CHEMICAL_MIXER and container.mixer_material_documents.exists())
     )
 
 
@@ -2228,6 +2234,58 @@ def chemical_mixers_view(request):
 
 
 @csrf_exempt
+def chemical_mixer_discharges_view(request):
+    if request.method not in ('GET', 'POST'):
+        return _method_not_allowed()
+    user, error = _require_processing_permission(request, MODULE_CHEMICAL_DISCHARGES)
+    if error:
+        return error
+    mixers = ProductionContainer.objects.filter(kind=ProductionContainer.KIND_CHEMICAL_MIXER, is_active=True)
+    if request.method == 'GET':
+        return JsonResponse({'mixers': [{'id': mixer.pk, 'name': mixer.display_name} for mixer in mixers]})
+
+    body = _json_body(request)
+    if not isinstance(body, dict):
+        return _invalid_json_body()
+    mixer_id = body.get('mixer_id')
+    discharge_type = body.get('discharge_type')
+    quantity = _volume_value(body.get('quantity'))
+    key = body.get('idempotency_key')
+    if not isinstance(key, str) or not key.strip() or len(key) > 80:
+        return _json_error('Valid idempotency key is required.', 400)
+    if discharge_type not in (ChemicalMixerDischarge.TYPE_WATER, ChemicalMixerDischarge.TYPE_WASTE) or quantity is None:
+        return _json_error('Выберите вид выгрузки и укажите положительное количество с точностью до тысячных.', 400)
+    if type(mixer_id) is not int or not 0 < mixer_id < 2 ** 63:
+        return _json_error('Выберите активный химический миксер.', 400)
+
+    key = key.strip()
+    with transaction.atomic():
+        record = ChemicalMixerDischarge.objects.filter(idempotency_key=key).first()
+        created = False
+        if record is None:
+            mixer = mixers.select_for_update().filter(pk=mixer_id).first()
+            if mixer is None:
+                return _json_error('Выберите активный химический миксер.', 400)
+            record, created = ChemicalMixerDischarge.objects.get_or_create(idempotency_key=key, defaults={
+                'mixer': mixer, 'mixer_name': mixer.display_name, 'discharge_type': discharge_type,
+                'quantity': quantity, 'created_by': user,
+            })
+        if (record.mixer_id != mixer_id or record.discharge_type != discharge_type
+                or record.quantity != quantity or record.created_by_id != user.pk):
+            return _json_error('Idempotency key is already used.', 409)
+        if created:
+            _audit_operation('chemical_mixer_discharge_created', 'chemical_mixer_discharge', record.pk, user, {
+                'mixer': record.mixer_name, 'discharge_kind': record.get_discharge_type_display(),
+                'quantity': format(record.quantity, '.3f'), 'quantity_unit': record.quantity_unit,
+            })
+    return JsonResponse({
+        'id': record.pk, 'mixer_name': record.mixer_name, 'discharge_type': record.discharge_type,
+        'quantity': format(record.quantity, '.3f'), 'quantity_unit': record.quantity_unit,
+        'created_at': record.created_at.isoformat(),
+    }, status=201 if created else 200)
+
+
+@csrf_exempt
 def processing_workshops_view(request):
     return _production_containers_view(request, ProductionContainer.KIND_PROCESSING_WORKSHOP)
 
@@ -3145,8 +3203,13 @@ def _unit_fields(body, instance):
         decimal_places = -1
     if not name or not symbol or decimal_places not in (0, 1, 2):
         raise ValueError('Укажите название, обозначение и точность единицы измерения.')
-    if instance and instance.items.exclude(production_material='').exists():
-        if symbol.lower() not in ('кг', 'kg') or not _boolean_value(body.get('is_active', instance.is_active)):
+    material_roles = set(instance.items.exclude(production_material='').values_list('production_material', flat=True)) if instance else set()
+    if material_roles:
+        if not _boolean_value(body.get('is_active', instance.is_active)) or any(
+            not _production_material_unit_is_valid(role, symbol) for role in material_roles
+        ):
+            if InventoryItem.MATERIAL_ACID in material_roles:
+                raise ValueError('Для кислоты необходимо сохранить активную единицу в литрах.')
             raise ValueError('Для производственных материалов необходимо сохранить активную единицу кг.')
         if decimal_places != instance.decimal_places and instance.items.filter(warehouse_movements__document__production_target__gt='').exists():
             raise ValueError('Нельзя изменить точность единицы после производственных загрузок.')
@@ -3229,6 +3292,11 @@ def _serialize_inventory_settings_item(item):
     }
 
 
+def _production_material_unit_is_valid(material, symbol):
+    allowed = ('л', 'l') if material == InventoryItem.MATERIAL_ACID else ('кг', 'kg')
+    return symbol.lower() in allowed
+
+
 def _inventory_items_endpoint(request, item_id=None):
     user, error = _require_auth(request)
     if error:
@@ -3279,8 +3347,12 @@ def _inventory_items_endpoint(request, item_id=None):
             if material:
                 if not warehouse_ids:
                     raise ValueError('Для производственного материала выберите хотя бы один постоянный склад.')
-                if values['unit'].symbol.lower() not in ('кг', 'kg'):
+                if not _production_material_unit_is_valid(material, values['unit'].symbol):
+                    if material == InventoryItem.MATERIAL_ACID:
+                        raise ValueError('Для кислоты выберите единицу в литрах.')
                     raise ValueError('Для производственных материалов выберите единицу кг.')
+                if material == InventoryItem.MATERIAL_ACID and queryset.filter(production_material=material).exclude(pk=item_id).exists():
+                    raise ValueError('Можно настроить только одну складскую позицию кислоты.')
                 if not values['is_active']:
                     raise ValueError('Постоянная производственная позиция должна оставаться активной.')
             elif warehouse_ids:
@@ -3653,7 +3725,10 @@ PRODUCTION_LOADING_CONFIG = {
     WarehouseDocument.TARGET_CANISTERS: (MODULE_CANISTER_LOADING, (InventoryItem.MATERIAL_GRANULES, InventoryItem.MATERIAL_DYE)),
     WarehouseDocument.TARGET_CAPS: (MODULE_CAP_LOADING, (InventoryItem.MATERIAL_GRANULES, InventoryItem.MATERIAL_DYE)),
     WarehouseDocument.TARGET_BENTONITE_FILTER: (MODULE_BENTONITE_LOADING, (InventoryItem.MATERIAL_BENTONITE,)),
+    WarehouseDocument.TARGET_CHEMICAL_ACID: (MODULE_CHEMICAL_REAGENTS, (InventoryItem.MATERIAL_ACID,)),
+    WarehouseDocument.TARGET_CHEMICAL_BENTONITE: (MODULE_CHEMICAL_REAGENTS, (InventoryItem.MATERIAL_BENTONITE,)),
 }
+EQUIPMENT_LOADING_TARGETS = (WarehouseDocument.TARGET_BENTONITE_FILTER, *WarehouseDocument.CHEMICAL_REAGENT_TARGETS)
 
 
 def _production_loading_user(request, target):
@@ -3674,28 +3749,35 @@ def _production_loading_user(request, target):
 def _production_loading_queryset():
     return WarehouseDocument.objects.exclude(production_target='').select_related(
         'source_warehouse', 'destination_warehouse', 'supplier__city', 'created_by', 'posted_by', 'confirmed_by',
-        'production_filter',
+        'production_filter', 'production_mixer',
     ).prefetch_related('lines__item__category', 'lines__item__unit', 'movements')
 
 
 def _serialize_production_loading(document):
+    if document.production_target in EQUIPMENT_LOADING_TARGETS:
+        equipment = (
+            {'mixer_name': document.production_mixer.display_name}
+            if document.production_mixer_id else {'filter_name': document.production_filter.display_name}
+        )
+        return {
+            'id': document.pk, 'number': document.number, 'posted_at': document.posted_at.isoformat() if document.posted_at else '',
+            'posted_by': document.posted_by.get_username() if document.posted_by else '',
+            'status': document.status, 'status_label': document.get_status_display(),
+            'purpose': document.purpose, 'production_target_label': document.get_production_target_display(),
+            'source_warehouse': {'id': document.source_warehouse_id, 'name': document.source_warehouse.name},
+            **equipment,
+            'lines': [{
+                'id': line.pk, 'item': _serialize_production_item(line.item), 'quantity': str(line.quantity),
+            } for line in document.lines.all()],
+        }
     result = _serialize_warehouse_document(document)
     items = {line.item_id: line.item for line in document.lines.all()}
     movements = {movement.item_id: movement for movement in document.movements.all() if movement.movement_type == WarehouseMovement.TYPE_ISSUE}
-    is_bentonite = document.production_target == WarehouseDocument.TARGET_BENTONITE_FILTER
     for line in result['lines']:
         line['item'] = _serialize_production_item(items[line['item_id']])
         movement = movements.get(line['item_id'])
-        if not is_bentonite:
-            line['unit_cost'] = str(movement.unit_cost) if movement else '0.00'
-            line['material_cost'] = str(-movement.total_value_delta) if movement else '0.00'
-    if is_bentonite:
-        return {
-            **{key: result[key] for key in ('id', 'number', 'posted_at', 'posted_by', 'status', 'status_label', 'purpose', 'production_target_label')},
-            'source_warehouse': {'id': document.source_warehouse_id, 'name': document.source_warehouse.name},
-            'filter_name': document.production_filter.display_name,
-            'lines': [{key: line[key] for key in ('id', 'item', 'quantity')} for line in result['lines']],
-        }
+        line['unit_cost'] = str(movement.unit_cost) if movement else '0.00'
+        line['material_cost'] = str(-movement.total_value_delta) if movement else '0.00'
     result['material_cost'] = str(sum((Decimal(line['material_cost']) for line in result['lines']), Decimal('0.00')))
     return result
 
@@ -3705,14 +3787,15 @@ def production_loading_reference_view(request, target):
     user, error = _production_loading_user(request, target)
     if error:
         return error
-    is_bentonite = target == WarehouseDocument.TARGET_BENTONITE_FILTER
-    items = InventoryItem.objects.filter(
+    equipment_loading = target in EQUIPMENT_LOADING_TARGETS
+    eligible = InventoryItem.objects.filter(
         production_material__in=PRODUCTION_LOADING_CONFIG[target][1],
         is_active=True, category__is_active=True, unit__is_active=True,
     ).select_related('category', 'unit').prefetch_related('permanent_warehouses')
+    items = [item for item in eligible if _production_material_unit_is_valid(item.production_material, item.unit.symbol)]
     balances = {
         (balance.warehouse_id, balance.item_id): balance.quantity
-        for balance in WarehouseBalance.objects.filter(item__in=items)
+        for balance in WarehouseBalance.objects.filter(item_id__in=[item.pk for item in items])
     }
     rows = []
     warehouses = {}
@@ -3720,24 +3803,31 @@ def production_loading_reference_view(request, target):
         for warehouse in item.permanent_warehouses.all():
             if warehouse.is_active:
                 warehouses[warehouse.pk] = ({'id': warehouse.pk, 'name': warehouse.name}
-                                            if is_bentonite else _serialize_warehouse(warehouse))
+                                            if equipment_loading else _serialize_warehouse(warehouse))
                 rows.append({
                     'warehouse_id': warehouse.pk, 'item': _serialize_production_item(item),
                     'quantity': str(balances.get((warehouse.pk, item.pk), Decimal('0.00'))),
                 })
-    if is_bentonite:
+    if target == WarehouseDocument.TARGET_BENTONITE_FILTER:
         filter_equipment = active_finishing_filter()
         return JsonResponse({
             'warehouses': list(warehouses.values()), 'materials': rows,
             'filter_name': filter_equipment.display_name if filter_equipment else '',
         })
+    if target in WarehouseDocument.CHEMICAL_REAGENT_TARGETS:
+        mixers = ProductionContainer.objects.filter(kind=ProductionContainer.KIND_CHEMICAL_MIXER, is_active=True)
+        return JsonResponse({
+            'warehouses': list(warehouses.values()), 'materials': rows,
+            'mixers': [{'id': mixer.pk, 'name': mixer.display_name} for mixer in mixers],
+        })
     return JsonResponse({'warehouses': list(warehouses.values()), 'materials': rows, **_production_material_state(target)})
 
 
-def _production_loading_replay(document, target, warehouse_id, lines, purpose, user):
+def _production_loading_replay(document, target, warehouse_id, mixer_id, lines, purpose, user):
     original = {line.item_id: line.quantity for line in document.lines.all()}
     requested = {line['item_id']: line['quantity'] for line in lines}
-    if document.created_by_id != user.pk or document.production_target != target or document.source_warehouse_id != warehouse_id or original != requested or document.purpose != purpose:
+    if (document.created_by_id != user.pk or document.production_target != target or document.source_warehouse_id != warehouse_id
+            or document.production_mixer_id != mixer_id or original != requested or document.purpose != purpose):
         return JsonResponse({'detail': 'Этот ключ запроса уже использован для другой загрузки.'}, status=409)
     return JsonResponse(_serialize_production_loading(document))
 
@@ -3748,7 +3838,8 @@ def production_loadings_view(request, target):
     if error:
         return error
     queryset = _production_loading_queryset()
-    is_bentonite = target == WarehouseDocument.TARGET_BENTONITE_FILTER
+    for_filter = target == WarehouseDocument.TARGET_BENTONITE_FILTER
+    for_mixer = target in WarehouseDocument.CHEMICAL_REAGENT_TARGETS
     if request.method == 'GET':
         return JsonResponse({'items': [_serialize_production_loading(document) for document in queryset.filter(production_target=target)]})
     body = _json_body(request)
@@ -3756,19 +3847,22 @@ def production_loadings_view(request, target):
         return _invalid_json_body()
     key = body.get('idempotency_key')
     warehouse_id = body.get('source_warehouse_id')
+    mixer_id = body.get('mixer_id') if for_mixer else None
     purpose = body.get('purpose', '')
     if not isinstance(key, str) or not key.strip() or len(key) > 80:
         return JsonResponse({'detail': 'Необходим корректный ключ запроса загрузки.'}, status=400)
     if type(warehouse_id) is not int or warehouse_id <= 0:
         return JsonResponse({'detail': 'Необходимо выбрать склад.'}, status=400)
+    if for_mixer and (type(mixer_id) is not int or not 0 < mixer_id < 2 ** 63):
+        return JsonResponse({'detail': 'Выберите активный химический миксер.'}, status=400)
     if not isinstance(purpose, str) or len(purpose) > 1000:
         return JsonResponse({'detail': 'Комментарий должен содержать не более 1000 символов.'}, status=400)
     purpose = purpose.strip() or dict(WarehouseDocument.PRODUCTION_TARGET_CHOICES)[target]
     raw_lines = body.get('lines')
     if not isinstance(raw_lines, list) or not 1 <= len(raw_lines) <= 100:
         return JsonResponse({'detail': 'Добавьте от 1 до 100 строк загрузки.'}, status=400)
-    if is_bentonite and len(raw_lines) != 1:
-        return JsonResponse({'detail': 'Для загрузки бентонита выберите один материал.'}, status=400)
+    if target in EQUIPMENT_LOADING_TARGETS and len(raw_lines) != 1:
+        return JsonResponse({'detail': 'В одной загрузке укажите только один материал.'}, status=400)
     lines = []
     for raw_line in raw_lines:
         if not isinstance(raw_line, dict) or type(raw_line.get('item_id')) is not int:
@@ -3782,15 +3876,26 @@ def production_loadings_view(request, target):
     key = key.strip()
     existing = queryset.filter(idempotency_key=key).first()
     if existing:
-        return _production_loading_replay(existing, target, warehouse_id, lines, purpose, user)
+        return _production_loading_replay(existing, target, warehouse_id, mixer_id, lines, purpose, user)
     try:
         with transaction.atomic():
             filter_equipment = None
-            if is_bentonite:
+            mixer = None
+            if for_filter or for_mixer:
                 lock_oil_line()
+                existing = queryset.filter(idempotency_key=key).first()
+                if existing:
+                    return _production_loading_replay(existing, target, warehouse_id, mixer_id, lines, purpose, user)
+            if for_filter:
                 filter_equipment = active_finishing_filter()
                 if filter_equipment is None:
                     raise ValueError('Настройте активный финишный фильтр.')
+            if for_mixer:
+                mixer = ProductionContainer.objects.select_for_update().filter(
+                    pk=mixer_id, kind=ProductionContainer.KIND_CHEMICAL_MIXER, is_active=True,
+                ).first()
+                if mixer is None:
+                    raise ValueError('Выберите активный химический миксер.')
             warehouse = Warehouse.objects.filter(pk=warehouse_id, is_active=True).first()
             if warehouse is None:
                 raise ValueError('Выбранный склад не найден или неактивен.')
@@ -3801,7 +3906,8 @@ def production_loadings_view(request, target):
             }
             for line in lines:
                 item = items.get(line['item_id'])
-                if item is None or not item.unit.is_active or not item.category.is_active or item.unit.symbol.lower() not in ('кг', 'kg'):
+                if (item is None or not item.unit.is_active or not item.category.is_active
+                        or not _production_material_unit_is_valid(item.production_material, item.unit.symbol)):
                     raise ValueError('Материал не найден, неактивен или имеет неподходящую единицу измерения.')
                 if item.production_material not in PRODUCTION_LOADING_CONFIG[target][1] or not item.permanent_warehouses.filter(pk=warehouse.pk).exists():
                     raise ValueError('Материал не разрешён для этого направления или не закреплён за выбранным складом.')
@@ -3814,7 +3920,7 @@ def production_loadings_view(request, target):
                 number=_next_warehouse_document_number(WarehouseDocument.TYPE_ISSUE, now),
                 document_type=WarehouseDocument.TYPE_ISSUE, status=WarehouseDocument.STATUS_POSTED,
                 document_date=now, source_warehouse=warehouse, purpose=purpose,
-                production_target=target, production_filter=filter_equipment, idempotency_key=key,
+                production_target=target, production_filter=filter_equipment, production_mixer=mixer, idempotency_key=key,
                 created_by=user, posted_by=user, posted_at=now,
             )
             for line in sorted(lines, key=lambda value: value['item_id']):
@@ -3831,7 +3937,7 @@ def production_loadings_view(request, target):
     except IntegrityError:
         existing = queryset.filter(idempotency_key=key).first()
         if existing:
-            return _production_loading_replay(existing, target, warehouse_id, lines, purpose, user)
+            return _production_loading_replay(existing, target, warehouse_id, mixer_id, lines, purpose, user)
         return JsonResponse({'detail': 'Не удалось провести загрузку. Обновите данные и повторите попытку.'}, status=409)
 
 

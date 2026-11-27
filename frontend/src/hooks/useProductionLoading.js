@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiRequest } from '../api/client'
 
-export function useProductionLoading(token, target, workflow = 'loadings') {
+export function useProductionLoading(token, target, workflow = 'loadings', { includeHistory = true } = {}) {
   const [reference, setReference] = useState({ warehouses: [], materials: [], products: [], production_balances: [], production_sources: [] })
   const [documents, setDocuments] = useState([])
   const [loadError, setLoadError] = useState('')
@@ -19,11 +19,11 @@ export function useProductionLoading(token, target, workflow = 'loadings') {
       try {
         const [nextReference, result] = await Promise.all([
           apiRequest(`${path}reference-data/`, token),
-          apiRequest(path, token),
+          includeHistory ? apiRequest(path, token) : null,
         ])
         if (active) {
           setReference(nextReference)
-          setDocuments(result.items)
+          setDocuments(result?.items ?? [])
           setLoadError('')
         }
       } catch (error) {
@@ -40,7 +40,7 @@ export function useProductionLoading(token, target, workflow = 'loadings') {
       window.clearInterval(interval)
       window.removeEventListener('focus', refresh)
     }
-  }, [path, revision, token])
+  }, [includeHistory, path, revision, token])
 
   const reload = useCallback(() => setRevision((value) => value + 1), [])
 

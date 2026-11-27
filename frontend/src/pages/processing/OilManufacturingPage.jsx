@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { DashboardShell } from '../../components/Layout/DashboardShell'
 import { ListControls } from '../../components/ListControls/ListControls'
 import { Modal } from '../../components/Modal/Modal'
+import { ProductionDetails } from '../../components/Production/ProductionDetails'
 import { emptyOilManufacturingForms } from '../../constants/forms'
 import { oilManufacturingConfig } from '../../constants/oilManufacturing'
 import { useListControls } from '../../hooks/useListControls'
@@ -89,7 +90,7 @@ export function OilManufacturingPage({ onLogout, step, token, user }) {
     {success && <p className="oil-manufacturing-success" role="status">{success}</p>}
     {canCreate && <section className="access-grid"><article className="access-card">
       <h3>{t('Новая операция')}</h3>
-      <form className="crud-form" onSubmit={handleSubmit}><fieldset disabled={isSubmitting} className="oil-finishing-fields">
+      <form className="crud-form" onSubmit={handleSubmit}><fieldset disabled={isSubmitting} className="oil-finishing-fields oil-manufacturing-fields">
         {config.batch && <>
           <Selection label="Оборудование" value={form.equipment_id} onChange={(value) => update('equipment_id', value)} items={(data.equipment || []).map((item) => ({ id: item.id, label: `${t(item.name)} · ${liters(item.capacity_liters)}` }))} />
           {!data.equipment?.length && <p className="empty-state">{t('Нет свободного активного оборудования. Создайте оборудование или завершите предыдущую партию.')}</p>}
@@ -117,7 +118,7 @@ export function OilManufacturingPage({ onLogout, step, token, user }) {
         <div className="form-actions"><button type="submit">{isSubmitting ? t('Выполняется...') : t('Подтвердить операцию')}</button><button className="secondary-button" type="button" onClick={() => { setForm(emptyOilManufacturingForms[step]); requestKey.current = null }}>{t('Очистить форму')}</button></div>
       </fieldset></form>
     </article></section>}
-    <section className="access-grid"><article className="access-card"><h3>{t(config.batch ? 'Производственные партии' : 'История движений')}</h3>
+    <ProductionDetails title={t(config.batch ? 'Производственные партии' : 'История движений')}>
       <ListControls {...controls} onPageChange={controls.setCurrentPage} onSearchChange={controls.setSearchQuery} />
       <div className="entity-list">{controls.paginatedItems.map((item) => <div className="entity-row" key={item.id}><div>
         <strong>{item.number || item.movement_number}</strong>
@@ -133,7 +134,7 @@ export function OilManufacturingPage({ onLogout, step, token, user }) {
         {canCreate && Number(item.output_liters) > 0 && <button disabled={isSubmitting} type="button" onClick={() => setActionTarget({ action: 'complete', item })}>{t('Завершить партию')}</button>}
         {user?.is_admin && Number(item.output_liters) === 0 && <button disabled={isSubmitting} type="button" className="danger-button" onClick={() => { setReason(''); setActionTarget({ action: 'cancel', item }) }}>{t('Отменить партию')}</button>}
       </>}</div></div>)}{!controls.filteredCount && <p className="empty-state">{t('Записи не найдены.')}</p>}</div>
-    </article></section>
+    </ProductionDetails>
     {actionTarget && <Modal title={t(actionTarget.action === 'complete' ? 'Завершить партию' : 'Отменить партию')} onClose={() => !isSubmitting && setActionTarget(null)}><form className="crud-form" onSubmit={handleAction}>
       {actionTarget.action === 'complete' ? <label className="checkbox-row"><input required type="checkbox" />{t('Оборудование полностью опорожнено. Все фактические переливы зарегистрированы.')}</label> : <label><span>{t('Причина')}</span><textarea required maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} /></label>}
       <p>{actionTarget.item.number}</p>

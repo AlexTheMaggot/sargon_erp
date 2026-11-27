@@ -1,12 +1,12 @@
 .reconciliation-page,
 .reconciliation-message {
   max-width: 1180px;
-  margin: 0 auto 20px;
+  margin: 0 auto 10px;
 }
 
 .reconciliation-page {
   display: grid;
-  gap: 20px;
+  gap: 10px;
 }
 
 .reconciliation-success {
@@ -38,7 +38,7 @@
 }
 
 #reconciliation-history {
-  scroll-margin-top: 20px;
+  scroll-margin-top: 10px;
 }
 
 .reconciliation-fields {

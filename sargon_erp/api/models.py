@@ -495,6 +495,30 @@ class ReceiverRun(models.Model):
         ]
 
 
+class ChemicalMixerDischarge(models.Model):
+    TYPE_WATER = 'water'
+    TYPE_WASTE = 'waste'
+    TYPE_CHOICES = [(TYPE_WATER, 'Вода'), (TYPE_WASTE, 'Мусор')]
+
+    mixer = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, related_name='chemical_discharges')
+    mixer_name = models.CharField(max_length=120)
+    discharge_type = models.CharField(max_length=10, choices=TYPE_CHOICES)
+    quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    idempotency_key = models.CharField(max_length=80, unique=True)
+    created_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, related_name='chemical_discharges')
+    created_at = models.DateTimeField(default=timezone.now)
+
+    @property
+    def quantity_unit(self):
+        return 'л' if self.discharge_type == self.TYPE_WATER else 'кг'
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='chemical_discharge_quantity_positive'),
+            models.CheckConstraint(condition=models.Q(discharge_type__in=['water', 'waste']), name='chemical_discharge_type_valid'),
+        ]
+
+
 class OilManufacturingBatch(models.Model):
     STATUS_OPEN = 'open'
     STATUS_COMPLETED = 'completed'
@@ -584,12 +608,14 @@ class InventoryItem(models.Model):
     MATERIAL_DYE = 'dye'
     MATERIAL_POLYPROPYLENE = 'polypropylene'
     MATERIAL_BENTONITE = 'bentonite'
+    MATERIAL_ACID = 'acid'
     MATERIAL_CHOICES = [
         ('', 'Не используется в производственной загрузке'),
         (MATERIAL_GRANULES, 'Гранулы'),
         (MATERIAL_DYE, 'Краситель'),
         (MATERIAL_POLYPROPYLENE, 'Полипропилен'),
         (MATERIAL_BENTONITE, 'Бентонит'),
+        (MATERIAL_ACID, 'Кислота'),
     ]
     PRODUCT_CHOICES = [('', 'Не является выпускаемой упаковкой'), ('canisters', 'Канистры'), ('caps', 'Крышки')]
 
@@ -614,6 +640,10 @@ class InventoryItem(models.Model):
             models.CheckConstraint(
                 condition=models.Q(production_material='') | models.Q(production_product=''),
                 name='inventory_item_single_production_role',
+            ),
+            models.UniqueConstraint(
+                fields=['production_material'], condition=models.Q(production_material='acid'),
+                name='one_warehouse_acid_item',
             ),
         ]
 
@@ -672,11 +702,16 @@ class WarehouseDocument(models.Model):
     TARGET_CAPS = 'caps'
     TARGET_OIL_CONCENTRATE = 'oil_concentrate'
     TARGET_BENTONITE_FILTER = 'bentonite_filter'
+    TARGET_CHEMICAL_ACID = 'chemical_acid'
+    TARGET_CHEMICAL_BENTONITE = 'chemical_bentonite'
+    CHEMICAL_REAGENT_TARGETS = (TARGET_CHEMICAL_ACID, TARGET_CHEMICAL_BENTONITE)
     PRODUCTION_TARGET_CHOICES = [
         (TARGET_CANISTERS, 'Производство канистр'),
         (TARGET_CAPS, 'Производство крышек'),
         (TARGET_OIL_CONCENTRATE, 'Приготовление концентрата'),
         (TARGET_BENTONITE_FILTER, 'Загрузка бентонита'),
+        (TARGET_CHEMICAL_ACID, 'Загрузка кислоты в химический миксер'),
+        (TARGET_CHEMICAL_BENTONITE, 'Загрузка бентонита в химический миксер'),
     ]
 
     TYPE_RECEIPT = 'receipt'
@@ -733,6 +768,7 @@ class WarehouseDocument(models.Model):
     purpose = models.TextField(blank=True)
     production_target = models.CharField(max_length=20, choices=PRODUCTION_TARGET_CHOICES, blank=True, default='')
     production_filter = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, null=True, blank=True, related_name='filter_material_documents')
+    production_mixer = models.ForeignKey(ProductionContainer, on_delete=models.PROTECT, null=True, blank=True, related_name='mixer_material_documents')
     idempotency_key = models.CharField(max_length=80, unique=True, null=True, blank=True)
     created_by = models.ForeignKey(
         get_user_model(),
@@ -766,6 +802,11 @@ class WarehouseDocument(models.Model):
                 condition=(models.Q(production_target='bentonite_filter', production_filter__isnull=False)
                            | (~models.Q(production_target='bentonite_filter') & models.Q(production_filter__isnull=True))),
                 name='bentonite_loading_records_filter',
+            ),
+            models.CheckConstraint(
+                condition=(models.Q(production_target__in=['chemical_acid', 'chemical_bentonite'], production_mixer__isnull=False)
+                           | (~models.Q(production_target__in=['chemical_acid', 'chemical_bentonite']) & models.Q(production_mixer__isnull=True))),
+                name='chemical_reagent_loading_records_mixer',
             ),
             models.CheckConstraint(
                 condition=models.Q(production_target='') | models.Q(
